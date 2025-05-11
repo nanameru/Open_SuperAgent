@@ -68,15 +68,14 @@ export async function POST(req: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (e: unknown) {
+    const error = e instanceof Error ? e : new Error(String(e));
+
     console.error('\n🔴 [Proxy API /api/slide-creator/chat Error] An unexpected error occurred! 🔴');
     console.error('----------------------------------------------------------------------');
     console.error('Error Timestamp:', new Date().toISOString());
     console.error('Error Message:', error.message);
     console.error('Error Name:', error.name);
-    if (error.cause) {
-      console.error('Error Cause:', error.cause);
-    }
     console.error('Error Stack Trace (if available):');
     console.error(error.stack || 'No stack trace available.');
     console.error('\nFull Error Object (for deeper inspection):');
