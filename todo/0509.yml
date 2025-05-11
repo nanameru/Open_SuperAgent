@@ -1,0 +1,91 @@
+tasks:
+  - id: T001
+    title: Mastraストレージ設定の更新
+    description: >
+      Mastraのデフォルトストレージが非推奨となったため、
+      `src/mastra/index.ts` にて `LibSQLStore` を明示的に設定する。
+      (例: `storage: new LibSQLStore({ url: 'file:../mastra.db' })`)
+    priority: P1
+    status: todo
+    assignee: dev
+    eta: 0.5h
+    dependencies: []
+    notes: Mastraの起動ログに警告が出ているため早急に対応。
+
+  - id: T002
+    title: スライド生成結果のフロントエンド表示
+    description: >
+      `slideCreatorAgent` で生成されたHTMLスライドを、
+      現在のチャットUI (`app/page.tsx`) 上で適切に表示できるようにする。
+      MastraクライアントSDKの導入や、フロントエンドとMastraエージェント間の連携方法の確立が必要。
+    priority: P1
+    status: todo
+    assignee: dev
+    eta: 4h
+    dependencies: []
+    notes: スライド生成機能のユーザビリティ向上のため優先度高。
+
+  - id: T003
+    title: スライド生成デザインの改善
+    description: >
+      `htmlSlideTool.ts` で生成されるHTMLスライドのCSSやレイアウトを改善し、
+      より洗練されたデザインにする。
+      モダンなCSSテクニックやデザイントレンドを考慮する。
+    priority: P2
+    status: todo
+    assignee: dev
+    eta: 3h
+    dependencies: [T002] # フロントでの表示ができてから着手
+    notes: プレースホルダーではない、見栄えの良いスライドを目指す。
+
+  - id: T004
+    title: Anthropic Claude 3.7 Sonnetモデルプロバイダーの追加
+    description: >
+      MastraエージェントおよびVercel AI SDKのAPIルートで使用するモデルに
+      Anthropic Claude 3.7 Sonnetを追加する。
+      `@ai-sdk/anthropic` パッケージの導入と、関連するAPIキーの設定が必要。
+    priority: P2
+    status: todo
+    assignee: dev
+    eta: 2h
+    dependencies: []
+    notes: モデルの選択肢を増やし、特性に応じた使い分けを可能にする。
+
+  - id: T005
+    title: Web検索ツールの追加
+    description: >
+      MastraツールとしてWeb検索機能を実装する。
+      （例: `serpapi` や `duckduckgo-search` などのライブラリ、または検索APIを利用）
+      エージェントがリアルタイム情報を取得できるようにする。
+    priority: P3
+    status: todo
+    assignee: dev
+    eta: 3h
+    dependencies: []
+    notes: エージェントの情報収集能力を向上させる。
+
+  - id: T006
+    title: YouTube検索ツールの追加
+    description: >
+      MastraツールとしてYouTube動画の検索機能を実装する。
+      YouTube Data APIなどの利用を検討。
+      エージェントが動画コンテンツに関する情報を提供できるようにする。
+    priority: P3
+    status: todo
+    assignee: dev
+    eta: 3h
+    dependencies: []
+    notes: マルチメディア情報の活用を可能にする。
+
+  - id: T007 # オプショナルタスク (ログエラー対応)
+    title: "`thoughtTransformerAgent` not found エラーの調査と対応"
+    description: >
+      Mastraの起動ログに `Agent with name thoughtTransformerAgent not found` エラーが記録されている。
+      このエージェントの要否を確認し、不要であれば呼び出し箇所を修正、
+      必要であればエージェント定義と登録を行う。
+    priority: P3 # 影響範囲が不明なため、他の主要タスクの後でも可
+    status: todo
+    assignee: dev
+    eta: 1h
+    dependencies: []
+    notes: エラーログの解消とシステムの安定化。

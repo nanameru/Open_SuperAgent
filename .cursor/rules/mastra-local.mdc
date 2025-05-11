@@ -1,0 +1,37 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## 対応手順
+
+    ```
+
+１.  **ポート 4114 を使用しているプロセスを特定**
+
+    ```bash
+    lsof -i :4114 | grep LISTEN | cat
+    ```
+
+    **実行結果 (例):**
+    ```
+    node    7744 kimurataiyou   17u  IPv6 0x713985d602229aae      0t0  TCP *:jomamqmonitor (LISTEN)
+    ```
+    -> PID `7744` がポートを使用中。
+
+２.  **該当プロセスを強制終了**
+
+    ```bash
+    kill -9 7744
+    ```
+
+3.  **Mastra 開発サーバーを再起動 (正しいコマンド)**
+
+    ```bash
+    mastra dev
+    ```
+    -> サーバーが正常に起動するはず。
+## まとめ
+
+Mastra 開発サーバー (`mastra dev`) が使用するポート (デフォルト `4111`) や、関連するプロセス (例: Next.js 開発サーバー `npm run dev` が使用するポート `4114`) が他のプロセスによって使用されている場合、`EADDRINUSE` エラーが発生する。`lsof` コマンドでポートを使用しているプロセスの PID を特定し、`kill -9 <PID>` で強制終了することで解決できる。
+
