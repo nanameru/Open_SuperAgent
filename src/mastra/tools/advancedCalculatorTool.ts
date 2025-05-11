@@ -22,10 +22,12 @@ export const advancedCalculatorTool = tool({
         result = String(calculatedValue);
       }
 
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+
       console.error(`[advancedCalculatorTool] Error evaluating expression "${expression}":`, error);
       errorMessage = `Failed to evaluate expression: "${expression}". Error: ${error.message || 'Unknown error'}`;
-      result = 'Error: Could not compute the result.'; // Provide a generic error message in the result field as well
+      result = 'Error: Could not compute the result.';
     }
 
     return {
