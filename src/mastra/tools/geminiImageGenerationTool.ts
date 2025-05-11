@@ -83,7 +83,9 @@ export const geminiImageGenerationTool = tool({ // Renamed tool
         message = 'Image generation by Gemini completed, but no image data was returned or the response structure was unexpected (even after iterating parts).';
       }
 
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+
       console.error('[GeminiImageTool] Error generating image with Gemini:', error);
       message = `Error during Gemini image generation: ${error.message || 'Unknown error'}`;
       generatedImages = []; // Ensure images array is empty on error
