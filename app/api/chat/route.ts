@@ -1,6 +1,6 @@
 import { mastra } from '@/src/mastra'; // Import mastra instance
 // import { streamText, experimental_streamText } from 'ai'; // experimental_streamText removed
-import { streamText } from 'ai'; // Only import streamText
+// import { streamText } from 'ai'; // Only import streamText
 
 // IMPORTANT! Set the runtime to edge
 export const runtime = 'edge';
