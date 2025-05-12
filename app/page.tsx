@@ -9,6 +9,7 @@ import { ChatMessage } from '@/app/components/ChatMessage';
 export default function AppPage() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
     api: '/api/slide-creator/chat', // Default API endpoint
+    // experimental_toolCallStreaming: true, // This option caused a type error, temporarily removed.
   });
 
   return (

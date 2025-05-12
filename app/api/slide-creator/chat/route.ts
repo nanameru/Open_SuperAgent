@@ -9,41 +9,34 @@ const MASTRA_SERVER_URL = process.env.MASTRA_SERVER_URL || 'http://localhost:411
 
 export async function POST(req: NextRequest) {
   try {
-    const requestBody = await req.text(); // Get the raw request body as text
-    const upstreamUrl = `${MASTRA_SERVER_URL}/api/agents/${MASTRA_AGENT_ID}/stream`;
+    // Extract the messages from the request
+    const reqBody = await req.json();
+    const { messages } = reqBody;
 
-    console.log(`[Proxy] Forwarding request to: ${upstreamUrl}`);
-    // console.log(`[Proxy] Request Body: ${requestBody}`); // Uncomment for debugging if needed
+    console.log('[API] Received request with messages:', messages);
 
-    const upstreamResponse = await fetch(upstreamUrl, {
+    // Forward the request to the Mastra API
+    const upstreamResponse = await fetch('http://localhost:4111/api/agents/slideCreatorAgent/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Add any other headers your Mastra server might expect
-        // e.g., API keys if Mastra server is protected
       },
-      body: requestBody, // Forward the raw body
+      body: JSON.stringify({ messages }),
     });
 
-    // Check if the upstream request was successful
     if (!upstreamResponse.ok) {
-      const errorBody = await upstreamResponse.text();
-      console.error(`[Proxy] Error from upstream server (${upstreamResponse.status}): ${errorBody}`);
+      console.error(`[API] Upstream error: ${upstreamResponse.status} ${upstreamResponse.statusText}`);
       return new NextResponse(
-        JSON.stringify({
-          error: `Upstream server error: ${upstreamResponse.status}`,
-          details: errorBody,
-        }),
+        JSON.stringify({ error: `Upstream error: ${upstreamResponse.status}` }),
         { 
-          status: upstreamResponse.status,
+          status: upstreamResponse.status, 
           headers: { 'Content-Type': 'application/json' }
         }
       );
     }
 
-    // Ensure the response from Mastra is a stream
     if (!upstreamResponse.body) {
-      console.error('[Proxy] Upstream response has no body');
+      console.error('[API] Upstream response has no body');
       return new NextResponse(
         JSON.stringify({ error: 'Upstream response has no body' }),
         { 
@@ -53,42 +46,121 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    console.log('[Proxy] Successfully connected to upstream. Streaming response back to client.');
+    console.log('[API] Successfully connected to upstream. Streaming response back to client.');
 
-    // Stream the response back to the client
-    // The Vercel AI SDK's useChat hook expects text/event-stream or a compatible format.
-    // Mastra's /stream endpoint should provide this.
-    return new Response(upstreamResponse.body, {
-      status: upstreamResponse.status,
+    // Create a new ReadableStream to intercept and process the chunks
+    const reader = upstreamResponse.body.getReader();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const decoder = new TextDecoder();
+        console.log('\n--- [API] Mastra Stream Start ---');
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              console.log('[API] Mastra Stream End');
+              controller.close();
+              break;
+            }
+            
+            // Decode the chunk
+            const chunkText = decoder.decode(value, { stream: true });
+            console.log('[API] Mastra Stream Chunk:', chunkText);
+            
+            // Process the chunk to detect and format tool calls
+            let processedChunk = chunkText;
+            
+            try {
+              // Check if chunk contains a tool call in the format we expect
+              if (chunkText.includes('"tool":') || chunkText.includes('"toolName":')) {
+                // The chunk might contain multiple lines, each with a JSON object
+                const lines = chunkText.split('\n').filter(line => line.trim() !== '');
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const jsonData = line.substring(6); // Remove 'data: ' prefix
+                    try {
+                      const data = JSON.parse(jsonData);
+                      
+                      // If this is a tool execution chunk
+                      if ((data.delta?.content && 
+                          (typeof data.delta.content === 'string' && 
+                           (data.delta.content.includes('"tool":') || 
+                            data.delta.content.includes('"toolName":')))) || 
+                          data.delta?.tool_calls) {
+                            
+                        console.log('[API] Tool execution detected:', data);
+                        
+                        // If the content is a string with tool data, we convert it to a proper format
+                        if (data.delta?.content && typeof data.delta.content === 'string') {
+                          try {
+                            const toolData = JSON.parse(data.delta.content);
+                            
+                            // If we can parse JSON from content and it has tool/toolName properties
+                            if (toolData.tool || toolData.toolName) {
+                              // Create a modified chunk with a special role to help our UI
+                              const modifiedData = {
+                                ...data,
+                                delta: {
+                                  ...data.delta,
+                                  role: 'tool', // Add this to help our UI distinguish tool messages
+                                }
+                              };
+                              
+                              // Replace this chunk in the processedChunk
+                              processedChunk = processedChunk.replace(
+                                line,
+                                `data: ${JSON.stringify(modifiedData)}`
+                              );
+                              
+                              console.log('[API] Modified tool chunk:', processedChunk);
+                            }
+                          } catch (e) {
+                            // Not JSON, ignore
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      // Invalid JSON, skip this line
+                      console.warn('[API] Error parsing JSON from stream chunk:', e);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('[API] Error processing chunk:', e);
+            }
+            
+            // Forward the processed chunk to the client
+            controller.enqueue(encoder.encode(processedChunk));
+          }
+        } catch (e) {
+          console.error('[API] Error processing stream:', e);
+          controller.error(e);
+        }
+      }
+    });
+
+    // Set up the encoder for sending data back
+    const encoder = new TextEncoder();
+
+    // Return the processed stream
+    return new Response(stream, {
       headers: {
-        // Ensure the Content-Type is what the client expects for streaming
-        'Content-Type': upstreamResponse.headers.get('Content-Type') || 'text/event-stream',
+        'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
     });
-
-  } catch (e: unknown) {
-    const error = e instanceof Error ? e : new Error(String(e));
-
-    console.error('\n🔴 [Proxy API /api/slide-creator/chat Error] An unexpected error occurred! 🔴');
-    console.error('----------------------------------------------------------------------');
-    console.error('Error Timestamp:', new Date().toISOString());
-    console.error('Error Message:', error.message);
-    console.error('Error Name:', error.name);
-    console.error('Error Stack Trace (if available):');
-    console.error(error.stack || 'No stack trace available.');
-    console.error('\nFull Error Object (for deeper inspection):');
-    console.error(error);
-    console.error('----------------------------------------------------------------------\n');
-
-    return NextResponse.json(
-      {
-        error: 'An internal server error occurred in the proxy.',
-        errorMessage: error.message,
-        errorName: error.name,
-      },
-      { status: 500 }
+  } catch (error) {
+    console.error('[API] Error:', error);
+    return new NextResponse(
+      JSON.stringify({ error: 'An error occurred processing the request' }),
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 } 
