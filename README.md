@@ -80,7 +80,7 @@ mastra build
 
 質問や問い合わせは GitHub Issues または以下のSNSでお願いします:
 
-- Twitter: [@yourtwitterhandle](https://twitter.com/yourtwitterhandle)
+- X (Twitter): [@taiyo_ai_gakuse](https://x.com/taiyo_ai_gakuse)
 
 ---
 
