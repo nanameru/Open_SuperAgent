@@ -1,13 +1,13 @@
-# AI Agent Presentation
+# Open-SuperAgent
 
-スライド作成機能を備えたAIチャットアプリケーション。Mastraエージェントと連携して、会話からプレゼンテーションスライドを自動生成します。
+AIアシスタント機能を備えたオープンソースチャットアプリケーション。Mastraエージェントと連携して、様々なタスクを自動化します。
 
 ![アプリケーションのスクリーンショット](public/screenshot.png)
 
 ## 主な機能
 
 - **AIチャット**: シンプルで使いやすいチャットインターフェース
-- **スライド自動生成**: 会話内容からプレゼンテーションスライドを自動生成
+- **ツール実行**: Mastraエージェントを活用した各種タスクの自動化
 - **ツール実行の可視化**: Mastraエージェントのツール実行状況をリアルタイムに表示
 - **レスポンシブデザイン**: モバイルからデスクトップまで対応したUI
 
@@ -28,8 +28,8 @@
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/yourusername/ai-agent-presentation.git
-cd ai-agent-presentation
+git clone https://github.com/yourusername/open-superagent.git
+cd open-superagent
 
 # 依存パッケージをインストール
 npm install
@@ -43,7 +43,7 @@ npm run dev
 1. Mastraサーバーを別のターミナルで起動:
 
 ```bash
-cd ai-agent-presentation
+cd open-superagent
 mastra dev
 ```
 
@@ -57,20 +57,13 @@ mastra build
 
 ## 使い方
 
-1. チャットインターフェースでテーマやスライドの内容について質問や指示を入力
-2. AIがスライド作成のプランを提案
-3. プランに同意すると、AIがスライド作成ツールを実行
-4. 生成されたHTMLスライドをプレビュー
+1. チャットインターフェースでタスクや質問を入力
+2. AIがタスクを理解し、適切なツールを実行
+3. 結果がチャット内で表示される
 
 ## ライセンス
 
-このプロジェクトは MIT ライセンスの下で公開されていますが、**商用利用に関しては以下の制限があります**:
-
-- 商用利用は以下のコミュニティ参加者のみに許可されています:
-  - [AI Freak Summit](https://x.com/Notion_freak/status/1919240291170828444) の参加者
-  - [AIで遊ぼうコミュニティ](https://www.ai-porseo.com/play-with-ai) のメンバー
-
-上記コミュニティに所属していない場合、個人利用・学習目的での利用のみ許可されています。
+このプロジェクトはMITライセンスの下で公開されています。
 
 ## 貢献について
 

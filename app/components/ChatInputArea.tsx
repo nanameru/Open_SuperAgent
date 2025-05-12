@@ -34,7 +34,7 @@ export const ChatInputArea = ({
           />
           <div className="absolute right-0 top-0 bottom-0 flex items-center pr-2 space-x-1">
             <button type="button" className="p-2 text-slate-500 hover:text-slate-700 rounded-md hover:bg-slate-200">
-              <Paperclip className="h-5 w-5" /> {/* Genspark has an attach icon */}
+              <Paperclip className="h-5 w-5" /> {/* Open-SuperAgent has an attach icon */}
             </button>
             <button type="button" className="p-2 text-slate-500 hover:text-slate-700 rounded-md hover:bg-slate-200">
               <Mic className="h-5 w-5" />

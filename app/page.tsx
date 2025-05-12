@@ -21,7 +21,8 @@ export default function AppPage() {
           <div className="w-full max-w-4xl mx-auto space-y-4 flex-grow mb-4 flex flex-col justify-end">
             {messages.length === 0 && !isLoading && !error && (
               <div className="flex-grow flex flex-col items-center justify-center">
-                <h1 className="text-2xl font-semibold text-gray-700">Hi there, what can I help with?</h1>
+                <h1 className="text-2xl font-semibold text-gray-700">Welcome to Open-SuperAgent</h1>
+                <p className="text-gray-500 mt-2">How can I assist you today?</p>
               </div>
             )}
             {messages.map(m => (

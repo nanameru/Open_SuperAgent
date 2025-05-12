@@ -15,12 +15,12 @@ export const Sidebar = () => {
   ];
 
   return (
-    // Genspark sidebar has a dark background
+    // Open-SuperAgent sidebar has a dark background
     <aside className="w-60 bg-slate-900 text-slate-300 flex flex-col h-screen">
       {/* Logo Area */}
       <div className="p-4 h-16 flex items-center border-b border-slate-700">
-        <Aperture className="h-8 w-8 text-sky-400 mr-2" /> {/* Genspark logo icon */}
-        <span className="text-xl font-semibold text-white">Genspark</span>
+        <Aperture className="h-8 w-8 text-sky-400 mr-2" /> {/* Open-SuperAgent logo icon */}
+        <span className="text-xl font-semibold text-white">Open-SuperAgent</span>
       </div>
 
       {/* Navigation */}

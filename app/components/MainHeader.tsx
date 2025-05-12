@@ -5,12 +5,12 @@ import { Globe, Plus, Upload } from 'lucide-react'; // Using lucide-react for ic
 
 export const MainHeader = () => {
   return (
-    // Genspark header is clean, typically white or light, with minimal borders if content dictates.
+    // Open-SuperAgent header is clean, typically white or light, with minimal borders if content dictates.
     // It's part of the main content flow, so its background matches the main content area.
     <header className="h-16 bg-white flex items-center justify-between px-6 border-b border-slate-200">
-      {/* Title aligned to the left (or center, Genspark image shows it more left-aligned with sidebar context) */}
+      {/* Title aligned to the left (or center, Open-SuperAgent image shows it more left-aligned with sidebar context) */}
       <div>
-        <h1 className="text-lg font-semibold text-slate-800">Genspark Super Agent</h1>
+        <h1 className="text-lg font-semibold text-slate-800">Open-SuperAgent</h1>
       </div>
 
       {/* Icons on the right */}
