@@ -181,7 +181,8 @@ const advancedCalculatorTool = tool({
       } else {
         result = String(calculatedValue);
       }
-    } catch (error) {
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
       console.error(`[advancedCalculatorTool] Error evaluating expression "${expression}":`, error);
       errorMessage = `Failed to evaluate expression: "${expression}". Error: ${error.message || "Unknown error"}`;
       result = "Error: Could not compute the result.";
@@ -265,7 +266,8 @@ const geminiImageGenerationTool = tool({
         console.log("[GeminiImageTool] Full API Response Data:", JSON.stringify(responseData, null, 2));
         message = "Image generation by Gemini completed, but no image data was returned or the response structure was unexpected (even after iterating parts).";
       }
-    } catch (error) {
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
       console.error("[GeminiImageTool] Error generating image with Gemini:", error);
       message = `Error during Gemini image generation: ${error.message || "Unknown error"}`;
       generatedImages = [];

@@ -8,7 +8,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { htmlSlideTool, geminiImageGenerationTool, weatherTool } from './tools/3c348f89-e1c3-41ef-8f80-469e63fa03bd.mjs';
+import { htmlSlideTool, geminiImageGenerationTool, weatherTool } from './tools/ec9d24ec-b72e-4f7d-ba21-76296f341806.mjs';
 import crypto, { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path/posix';

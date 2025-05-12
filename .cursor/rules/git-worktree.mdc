@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+5個同時にワークツリー作成できるコマンド
+"""
+for i in {1..5}; do
+  git branch ai-task-$i main
+  git worktree add ../ai-task-$i ai-task-$i
+done
+"""
+
+npm run dev同時起動するコマンド
+"""
+for i in {1..5}; do
+  port=$((3000 + i))
+  (cd ../ai-task-$i && npm run dev -- --port=$port) &
+done
+wait
+"""
