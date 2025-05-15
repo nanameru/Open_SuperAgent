@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse(
         JSON.stringify({ error: `Upstream error: ${upstreamResponse.status}` }),
         { 
-          status: upstreamResponse.status, 
+          status: upstreamResponse.status,
           headers: { 'Content-Type': 'application/json' }
         }
       );

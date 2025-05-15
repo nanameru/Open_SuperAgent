@@ -9,21 +9,15 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-  // Enhanced debug logging to understand the message structure
+  // デバッグモード（ノンプロダクション環境のみ）
+  const DEBUG_MODE = process.env.NODE_ENV !== 'production';
+  
+  // デバッグ情報を表示
   useEffect(() => {
-    if ((message as any).content && typeof (message as any).content === 'string') {
-      if ((message as any).content.includes('toolCallId') || 
-          (message as any).content.includes('htmlSlideTool')) {
-        console.log('Potential tool message detected:', message);
-        try {
-          const content = JSON.parse((message as any).content);
-          console.log('Parsed content:', content);
-        } catch (e) {
-          // Not JSON, which is fine
-        }
-      }
+    if (DEBUG_MODE && (message as any).role === 'tool') {
+      console.log('Tool message detected:', message);
     }
-  }, [message]);
+  }, [message, DEBUG_MODE]);
 
   // State for collapsible sections
   const [toolCallsExpanded, setToolCallsExpanded] = useState<Record<string, boolean>>({});
@@ -174,11 +168,74 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     }
   }
 
-  // For standard message types (user, assistant)
+  // ツール実行メッセージの専用表示（role === 'tool'）
+  if (role === 'tool') {
+    // ツール名を抽出
+    let toolName = 'unknown';
+    
+    // 方法1: toolName プロパティから取得
+    if ((message as any).toolName) {
+      toolName = (message as any).toolName;
+    } 
+    // 方法2: content文字列から抽出
+    else if (typeof message.content === 'string') {
+      if (message.content.includes('Using Tool:')) {
+        const match = message.content.match(/Using Tool: ([^\s]+)/);
+        if (match) toolName = match[1];
+      }
+    }
+    
+    // ツール実行ピルを表示
+    return (
+      <div className="flex justify-center mb-3 mt-2">
+        <div className="tool-badge animate-fadeIn">
+          <span role="img" aria-label="tool" className="tool-icon">🔧</span>
+          <span className="tool-name">Executed tool: {toolName}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 通常メッセージの表示
   const isUser = role === 'user';
   
+  // ツール情報を抽出
+  let toolLabel: string | null = null;
+  
+  // 複数の方法でツール名を検出
+  if ((message as any).toolName) {
+    toolLabel = (message as any).toolName;
+  } 
+  else if (typeof message.content === 'string') {
+    // パターン1: "Using Tool:" 形式
+    if (message.content.includes('Using Tool:')) {
+      const match = message.content.match(/Using Tool: ([^\s]+)/);
+      if (match) toolLabel = match[1];
+    } 
+    // パターン2: "Using Tool |" 形式
+    else if (message.content.includes('Using Tool |')) {
+      const match = message.content.match(/Using Tool \| ([^\s]+)/);
+      if (match) toolLabel = match[1];
+    } 
+    // パターン3: JSON形式
+    else if (message.content.includes('toolName') || message.content.includes('"tool":')) {
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed.toolName) toolLabel = parsed.toolName;
+        else if (parsed.tool) toolLabel = parsed.tool;
+      } catch (e) { 
+        // JSON解析エラーの場合は正規表現を試す
+        const toolNameMatch = message.content.match(/"toolName"\s*:\s*"([^"]+)"/);
+        if (toolNameMatch) toolLabel = toolNameMatch[1];
+        
+        const toolMatch = message.content.match(/"tool"\s*:\s*"([^"]+)"/);
+        if (toolMatch) toolLabel = toolMatch[1];
+      }
+    }
+  }
+
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 flex-col items-${isUser ? 'end' : 'start'}`}> 
       <div
         className={`max-w-3xl p-3 rounded-lg ${
           isUser 
@@ -189,6 +246,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         {typeof message.content === 'string' ? message.content : 
           JSON.stringify(message.content)}
       </div>
+      
+      {/* ツール実行ピル */}
+      {toolLabel && (
+        <div className="mt-1 tool-badge">
+          <span role="img" aria-label="tool" className="tool-icon">🔧</span>
+          <span className="tool-name">Executed tool: {toolLabel}</span>
+        </div>
+      )}
     </div>
   );
 }; 
