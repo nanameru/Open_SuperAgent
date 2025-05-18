@@ -52,98 +52,26 @@ export async function POST(req: NextRequest) {
     const reader = upstreamResponse.body.getReader();
     const stream = new ReadableStream({
       async start(controller) {
-        const decoder = new TextDecoder();
-        console.log('\n--- [API] Mastra Stream Start ---');
+        console.log('\\n--- [API] Mastra Stream Start (Proxying) ---');
         
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              console.log('[API] Mastra Stream End');
+              console.log('[API] Mastra Stream End (Proxying)');
               controller.close();
               break;
             }
             
-            // Decode the chunk
-            const chunkText = decoder.decode(value, { stream: true });
-            console.log('[API] Mastra Stream Chunk:', chunkText);
-            
-            // Process the chunk to detect and format tool calls
-            let processedChunk = chunkText;
-            
-            try {
-              // Check if chunk contains a tool call in the format we expect
-              if (chunkText.includes('"tool":') || chunkText.includes('"toolName":')) {
-                // The chunk might contain multiple lines, each with a JSON object
-                const lines = chunkText.split('\n').filter(line => line.trim() !== '');
-                
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    const jsonData = line.substring(6); // Remove 'data: ' prefix
-                    try {
-                      const data = JSON.parse(jsonData);
-                      
-                      // If this is a tool execution chunk
-                      if ((data.delta?.content && 
-                          (typeof data.delta.content === 'string' && 
-                           (data.delta.content.includes('"tool":') || 
-                            data.delta.content.includes('"toolName":')))) || 
-                          data.delta?.tool_calls) {
-                            
-                        console.log('[API] Tool execution detected:', data);
-                        
-                        // If the content is a string with tool data, we convert it to a proper format
-                        if (data.delta?.content && typeof data.delta.content === 'string') {
-                          try {
-                            const toolData = JSON.parse(data.delta.content);
-                            
-                            // If we can parse JSON from content and it has tool/toolName properties
-                            if (toolData.tool || toolData.toolName) {
-                              // Create a modified chunk with a special role to help our UI
-                              const modifiedData = {
-                                ...data,
-                                delta: {
-                                  ...data.delta,
-                                  role: 'tool', // Add this to help our UI distinguish tool messages
-                                }
-                              };
-                              
-                              // Replace this chunk in the processedChunk
-                              processedChunk = processedChunk.replace(
-                                line,
-                                `data: ${JSON.stringify(modifiedData)}`
-                              );
-                              
-                              console.log('[API] Modified tool chunk:', processedChunk);
-                            }
-                          } catch (e) {
-                            // Not JSON, ignore
-                          }
-                        }
-                      }
-                    } catch (e) {
-                      // Invalid JSON, skip this line
-                      console.warn('[API] Error parsing JSON from stream chunk:', e);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.warn('[API] Error processing chunk:', e);
-            }
-            
-            // Forward the processed chunk to the client
-            controller.enqueue(encoder.encode(processedChunk));
+            // Directly enqueue the chunk from upstream
+            controller.enqueue(value);
           }
         } catch (e) {
-          console.error('[API] Error processing stream:', e);
+          console.error('[API] Error processing stream (Proxying):', e);
           controller.error(e);
         }
       }
     });
-
-    // Set up the encoder for sending data back
-    const encoder = new TextEncoder();
 
     // Return the processed stream
     return new Response(stream, {

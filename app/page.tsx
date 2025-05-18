@@ -84,97 +84,137 @@ export default function AppPage() {
   // SSEストリームに接続する関数
   const connectToStream = () => {
     try {
-      console.log("SSEリスナーを開始...");
+      console.log("[Page] SSE接続を開始します (ドキュメント準拠リスナー). Conversation ID:", conversationId);
       
-      // 既存のリスナーをクリーンアップ
       if (eventSourceRef.current) {
+        console.log("[Page] 既存のEventSource接続を閉じます。");
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
       
-      // 新しいリスナーを開始
-      const eventSource = new EventSource('/api/slide-creator/chat/events');
+      const eventSource = new EventSource('/api/slide-creator/chat/events'); // APIルートは変更なし
       eventSourceRef.current = eventSource;
       
-      eventSource.onmessage = (event) => {
+      eventSource.onopen = () => {
+        console.log("[Page] SSE接続が開きました (onopen).");
+      };
+
+      eventSource.addEventListener('text', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        console.log("[Page] SSE event 'text':", messageEvent.data);
         try {
-          // ストリームデータを解析
-          const data = event.data;
-          console.log("SSEイベント受信:", data);
-          
-          // pingイベントとconnectイベントは無視
-          if (data.includes('"type":"ping"') || data.includes('"type":"connect"')) {
-            return;
+          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
+            const parsed = JSON.parse(messageEvent.data);
+            if (parsed.type === 'text' && parsed.text) {
+              console.log("[Page] Text chunk received:", parsed.text);
+            }
+          } else {
+            console.warn("[Page] Received 'text' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
           }
-          
-          // JSONを解析
-          try {
-            const parsed = JSON.parse(data);
-            
-            // toolNameがあればToolMessageを作成
-            if (parsed.toolName || parsed.tool) {
-              // ツール検出フラグを設定
+        } catch (e) {
+          console.error("[Page] Error parsing 'text' event data:", e, "Raw data:", messageEvent.data);
+        }
+      });
+
+      eventSource.addEventListener('tool_call', (event: Event) => { 
+        const messageEvent = event as MessageEvent;
+        console.log("[Page] SSE event 'tool_call':", messageEvent.data);
+        try {
+          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
+            const parsed = JSON.parse(messageEvent.data);
+            if (parsed.type === 'tool-call' && parsed.toolName && parsed.toolCallId) {
               setToolEventDetected(true);
-              
-              const toolName = parsed.toolName || parsed.tool;
-              console.log(`[Page] ツール検出: ${toolName}`);
-              
               const toolMessage: ToolMessage = {
-                id: parsed.toolCallId || `tool-${Date.now()}`,
-                role: 'tool',
-                content: `Using Tool: ${toolName}`,
-                toolName: toolName,
+                id: parsed.toolCallId,
+                role: 'tool' as const,
+                content: `ツール実行中: ${parsed.toolName} (詳細: ${JSON.stringify(parsed.args || {})})`,
+                toolName: parsed.toolName,
                 createdAt: new Date(),
               };
-              
-              // 重複していなければ追加
               setToolMessages(prev => {
-                if (!prev.some(m => m.toolName === toolMessage.toolName)) {
-                  console.log("ツールメッセージを追加:", toolMessage);
+                if (!prev.some(m => m.id === toolMessage.id)) {
+                  console.log("[Page] ツール呼び出しメッセージを追加:", toolMessage);
                   return [...prev, toolMessage];
                 }
                 return prev;
               });
             }
-          } catch (e) {
-            // JSON解析エラーは無視
-            console.warn("SSEデータのJSON解析エラー:", e);
+          } else {
+            console.warn("[Page] Received 'tool_call' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
           }
         } catch (e) {
-          console.error("SSEイベント処理エラー:", e);
+          console.error("[Page] Error parsing 'tool_call' event data:", e, "Raw data:", messageEvent.data);
         }
-      };
+      });
+
+      eventSource.addEventListener('tool_result', (event: Event) => { 
+        const messageEvent = event as MessageEvent;
+        console.log("[Page] SSE event 'tool_result':", messageEvent.data);
+        try {
+          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
+            const parsed = JSON.parse(messageEvent.data);
+            if (parsed.type === 'tool-result' && parsed.toolCallId) {
+              console.log("[Page] ツール結果受信:", parsed);
+              setToolMessages(prev => prev.map(m => 
+                m.id === parsed.toolCallId 
+                  ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(parsed.result)}`, result: parsed.result } 
+                  : m
+              ));
+            }
+          } else {
+            console.warn("[Page] Received 'tool_result' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
+          }
+        } catch (e) {
+          console.error("[Page] Error parsing 'tool_result' event data:", e, "Raw data:", messageEvent.data);
+        }
+      });
+
+      eventSource.addEventListener('error', (event: Event) => {
+        const messageEvent = event as MessageEvent;
+        console.warn("[Page] SSE 'error' event (from server logic):", messageEvent.data);
+        try {
+          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
+            const parsed = JSON.parse(messageEvent.data);
+            if (parsed.type === 'error' && parsed.message) {
+              console.error("[Page] Server-sent error message:", parsed.message);
+            }
+          } else {
+            console.warn("[Page] Received server-sent 'error' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
+          }
+        } catch (e) {
+          console.error("[Page] Error parsing server-sent 'error' event data:", e, "Raw data:", messageEvent.data);
+        }
+      });
       
-      eventSource.onerror = (error) => {
-        console.error("SSEエラー:", error);
+      eventSource.onerror = (errorEvent: Event) => { // 接続全体のエラー (ネットワーク等)
+        console.error("[Page] SSE接続エラー (onerror):", errorEvent);
         if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
-          
-          // 3秒後に再接続を試みる
-          setTimeout(() => {
-            connectToStream();
-          }, 3000);
+          if (eventSourceRef.current.readyState === EventSource.CLOSED) {
+            console.log("[Page] SSE接続は正常に閉じられました (onerror, readyState: CLOSED).");
+          } else {
+            console.warn("[Page] SSE接続で問題が発生しました。readyState:", eventSourceRef.current.readyState);
+          }
         }
       };
       
     } catch (e) {
-      console.error("SSE接続エラー:", e);
+      console.error("[Page] EventSourceのセットアップ中にエラーが発生しました:", e);
     }
   };
 
-  // 独自のSSEリスナーでtoolNameを検出
+  // useEffectフックでconnectToStreamを呼び出す部分は変更なしで良いが、
+  // 依存配列 (lastUserMessageTimestamp, conversationId) が適切か確認。
   useEffect(() => {
     connectToStream();
-    
-    // クリーンアップ関数
     return () => {
       if (eventSourceRef.current) {
-        console.log("SSEリスナーを終了");
+        console.log("[Page] SSEリスナーをクリーンアップします。");
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
     };
-  }, [lastUserMessageTimestamp, conversationId]); // タイムスタンプが変わったら再接続
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]); // 依存配列を conversationId のみに変更 (lastUserMessageTimestamp は乱発の可能性)
 
   // メッセージからツール情報を抽出
   useEffect(() => {
