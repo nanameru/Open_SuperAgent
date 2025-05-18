@@ -8,7 +8,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { htmlSlideTool, geminiImageGenerationTool, weatherTool } from './tools/6ee1f815-04a0-4fad-abcf-eaced0baffb9.mjs';
+import { presentationPreviewTool, htmlSlideTool, geminiImageGenerationTool, weatherTool } from './tools/fbc7fb2e-2b64-4210-9610-8728b7ae28ce.mjs';
 import crypto, { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path/posix';
@@ -38,13 +38,23 @@ content: |
   \u4EE5\u4E0B\u306E\u624B\u9806\u3068\u898F\u5247\u3092 **\u53B3\u683C** \u306B\u5B88\u3063\u3066\u304F\u3060\u3055\u3044\u3002
 
   ## \u524D\u63D0
-  - \u5229\u7528\u53EF\u80FD\u30C4\u30FC\u30EB: \`htmlSlideTool\`
-    - \u5F15\u6570:
-        \u2022 topic: \u30C8\u30D4\u30C3\u30AF\uFF08\u5FC5\u9808\uFF09
-        \u2022 outline: \u30B9\u30E9\u30A4\u30C9\u306B\u76DB\u308A\u8FBC\u3080\u8981\u70B9\uFF08\u4EFB\u610F\uFF09
-        \u2022 slideCount: \u751F\u6210\u3059\u308B\u679A\u6570\uFF08\u6574\u6570\uFF09
-    - \u51FA\u529B:
-        \u2022 htmlContent: \u751F\u6210\u3055\u308C\u305F HTML
+  - \u5229\u7528\u53EF\u80FD\u30C4\u30FC\u30EB: 
+    - \`htmlSlideTool\`
+      - \u5F15\u6570:
+          \u2022 topic: \u30C8\u30D4\u30C3\u30AF\uFF08\u5FC5\u9808\uFF09
+          \u2022 outline: \u30B9\u30E9\u30A4\u30C9\u306B\u76DB\u308A\u8FBC\u3080\u8981\u70B9\uFF08\u4EFB\u610F\uFF09
+          \u2022 slideCount: \u751F\u6210\u3059\u308B\u679A\u6570\uFF08\u6574\u6570\uFF09
+      - \u51FA\u529B:
+          \u2022 htmlContent: \u751F\u6210\u3055\u308C\u305F HTML
+    - \`presentationPreviewTool\`
+      - \u5F15\u6570:
+          \u2022 htmlContent: \u30B9\u30E9\u30A4\u30C9\u306EHTML\u30B3\u30F3\u30C6\u30F3\u30C4\uFF08\u5FC5\u9808\uFF09
+          \u2022 title: \u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3\u306E\u30BF\u30A4\u30C8\u30EB\uFF08\u4EFB\u610F\uFF09
+          \u2022 autoOpen: \u30D7\u30EC\u30D3\u30E5\u30FC\u3092\u81EA\u52D5\u7684\u306B\u958B\u304F\u304B\u3069\u3046\u304B\uFF08\u30C7\u30D5\u30A9\u30EB\u30C8: true\uFF09
+      - \u51FA\u529B:
+          \u2022 success: \u6210\u529F\u3057\u305F\u304B\u3069\u3046\u304B
+          \u2022 message: \u30E1\u30C3\u30BB\u30FC\u30B8
+          \u2022 htmlContent: \u8868\u793A\u3055\u308C\u308BHTML\u30B3\u30F3\u30C6\u30F3\u30C4
   - 1 \u56DE\u306E\u547C\u3073\u51FA\u3057\u306B\u3064\u304D 1 \u679A\u306E\u30B9\u30E9\u30A4\u30C9\u3092\u751F\u6210\u3059\u308B  
     (\u4F8B: 5 \u679A\u8981\u6C42 \u21D2 \`htmlSlideTool\` \u3092 5 \u56DE\u547C\u3073\u51FA\u3059)
 
@@ -88,12 +98,22 @@ content: |
        \uFF08\`<main>\` \u5185\u306B\u5404 \`<section class="slide">\` \u3092\u9806\u6B21\u8FFD\u52A0\u3059\u308B\u30A4\u30E1\u30FC\u30B8\uFF09
      - \u30E6\u30FC\u30B6\u30FC\u3078\u5B8C\u6210\u3057\u305F HTML \u3092\u8FD4\u3059\u524D\u306B\u3001  
        \u2460 \u7DCF\u679A\u6570\u304C N \u679A\u304B \u2461 \u30B9\u30BF\u30A4\u30EB\u306E\u4E00\u8CAB\u6027 \u304C\u3042\u308B\u304B\u3092\u81EA\u5DF1\u78BA\u8A8D\u3059\u308B\u3002
+     - \u5B8C\u6210\u3057\u305FHTML\u306F\`presentationPreviewTool\`\u3092\u547C\u3073\u51FA\u3057\u3066\u30D7\u30EC\u30D3\u30E5\u30FC\u8868\u793A\u3059\u308B\u3002
+
+  ## \u30D7\u30EC\u30D3\u30E5\u30FC\u3068\u8868\u793A
+  - \u30B9\u30E9\u30A4\u30C9\u751F\u6210\u304C\u5B8C\u4E86\u3057\u305F\u3089\u3001\u5FC5\u305A \`presentationPreviewTool\` \u3092\u547C\u3073\u51FA\u3057\u3001\u30E6\u30FC\u30B6\u30FC\u306B\u30D7\u30EC\u30D3\u30E5\u30FC\u8868\u793A\u3092\u63D0\u4F9B\u3059\u308B
+  - \u30B9\u30E9\u30A4\u30C9\u751F\u6210\u9014\u4E2D\u3067\u3082\u30D7\u30EC\u30D3\u30E5\u30FC\u3092\u5E0C\u671B\u3055\u308C\u305F\u5834\u5408\u306F\u3001\u73FE\u6642\u70B9\u3067\u306E\u7D50\u679C\u3092 \`presentationPreviewTool\` \u3067\u8868\u793A\u3059\u308B
+  - \u30E6\u30FC\u30B6\u30FC\u304C\u300C\u30D7\u30EC\u30D3\u30E5\u30FC\u300D\u300C\u8868\u793A\u300D\u300C\u898B\u305B\u3066\u300D\u306A\u3069\u3068\u8981\u6C42\u3057\u305F\u5834\u5408\u306F\u3001\u6700\u65B0\u306EHTML\u30B3\u30F3\u30C6\u30F3\u30C4\u3092 \`presentationPreviewTool\` \u3067\u8868\u793A\u3059\u308B
  
   ## \u5FDC\u7B54\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8
   - \u30D7\u30E9\u30F3\u63D0\u793A\u6642: \u4E0A\u8FF0\u300C\`\`\`plan\`\`\`\u300D\u30D6\u30ED\u30C3\u30AF\u306E\u307F
   - \u30C4\u30FC\u30EB\u547C\u3073\u51FA\u3057\u6642: **\u5FC5\u305A** JSON \u3067
     \`\`\`json
     { "tool": "htmlSlideTool", "args": { ... } }
+    \`\`\`
+    \u307E\u305F\u306F
+    \`\`\`json
+    { "tool": "presentationPreviewTool", "args": { ... } }
     \`\`\`
   - \u6700\u7D42\u7D0D\u54C1\u6642:  
     \`\`\`deliverable
@@ -109,8 +129,10 @@ content: |
   model: openai("gpt-4.1"),
   // Specify the model, e.g., gpt-4o or another model
   tools: {
-    htmlSlideTool
+    htmlSlideTool,
     // Register the tool with the agent
+    presentationPreviewTool
+    // Register the preview tool with the agent
   },
   memory: new Memory({
     // Add memory configuration

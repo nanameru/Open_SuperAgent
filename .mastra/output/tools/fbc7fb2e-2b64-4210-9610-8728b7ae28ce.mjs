@@ -279,6 +279,24 @@ const geminiImageGenerationTool = tool({
   }
 });
 
+const presentationPreviewTool = tool({
+  description: "\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3\u30B9\u30E9\u30A4\u30C9\u306E\u30D7\u30EC\u30D3\u30E5\u30FC\u3092\u8868\u793A\u3059\u308B\u30C4\u30FC\u30EB\u3002\u30B9\u30E9\u30A4\u30C9\u306EHTML\u30B3\u30F3\u30C6\u30F3\u30C4\u3092\u53D7\u3051\u53D6\u308A\u3001\u30D7\u30EC\u30D3\u30E5\u30FC\u8868\u793A\u3057\u307E\u3059\u3002",
+  parameters: z.object({
+    htmlContent: z.string().describe("\u30B9\u30E9\u30A4\u30C9\u306EHTML\u30B3\u30F3\u30C6\u30F3\u30C4\u3002"),
+    title: z.string().optional().describe("\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3\u306E\u30BF\u30A4\u30C8\u30EB\u3002"),
+    autoOpen: z.boolean().optional().default(true).describe("\u30D7\u30EC\u30D3\u30E5\u30FC\u30D1\u30CD\u30EB\u3092\u81EA\u52D5\u7684\u306B\u958B\u304F\u304B\u3069\u3046\u304B\u3002")
+  }),
+  execute: async ({ htmlContent, title, autoOpen }) => {
+    return {
+      success: true,
+      message: `\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3\u300C${title || "\u7121\u984C\u306E\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3"}\u300D\u306E\u30D7\u30EC\u30D3\u30E5\u30FC\u3092\u8868\u793A\u3057\u307E\u3059\u3002`,
+      htmlContent,
+      title: title || "\u7121\u984C\u306E\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3",
+      autoOpen: autoOpen ?? true
+    };
+  }
+});
+
 const weatherTool = createTool({
   id: "get-weather",
   description: "Get current weather for a location",
@@ -353,4 +371,4 @@ function getWeatherCondition(code) {
   return conditions[code] || "Unknown";
 }
 
-export { advancedCalculatorTool, braveSearchTool, geminiImageGenerationTool, htmlSlideTool, weatherTool };
+export { advancedCalculatorTool, braveSearchTool, geminiImageGenerationTool, htmlSlideTool, presentationPreviewTool, weatherTool };

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { PresentationPreviewPanel } from './PresentationPreviewPanel';
 import { DocumentTextIcon, PlayIcon } from '@heroicons/react/24/outline';
 
@@ -8,12 +8,14 @@ interface PresentationToolProps {
   htmlContent?: string;
   title?: string;
   onCreatePresentation?: () => void;
+  autoOpenPreview?: boolean; // 自動的にプレビューを開くためのフラグ
 }
 
 export const PresentationTool: React.FC<PresentationToolProps> = ({
   htmlContent = '',
   title = '生成AIプレゼンテーション',
-  onCreatePresentation
+  onCreatePresentation,
+  autoOpenPreview = false
 }) => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [currentContent, setCurrentContent] = useState(htmlContent);
@@ -39,6 +41,27 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
     setIsPanelOpen(false);
   }, []);
 
+  // htmlContentが変更されたときに更新
+  useEffect(() => {
+    if (htmlContent) {
+      setCurrentContent(htmlContent);
+    }
+  }, [htmlContent]);
+
+  // titleが変更されたときに更新
+  useEffect(() => {
+    if (title) {
+      setCurrentTitle(title);
+    }
+  }, [title]);
+
+  // autoOpenPreviewフラグが設定されている場合、自動的にパネルを開く
+  useEffect(() => {
+    if (autoOpenPreview && currentContent) {
+      openPreviewPanel();
+    }
+  }, [autoOpenPreview, currentContent, openPreviewPanel]);
+
   return (
     <>
       {/* プレゼンテーションツールUIコンポーネント */}
@@ -46,7 +69,7 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
             <DocumentTextIcon className="h-5 w-5 text-blue-500" />
-            <h2 className="text-lg font-medium">Using Tool | {title}</h2>
+            <h2 className="text-lg font-medium">Using Tool | {currentTitle}</h2>
           </div>
           <button
             onClick={openPreviewPanel}

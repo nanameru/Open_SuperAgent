@@ -1,6 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai'; // Assuming OpenAI for the LLM
 import { htmlSlideTool } from '../tools/htmlSlideTool'; // Import the new tool
+import { presentationPreviewTool } from '../tools/presentationPreviewTool'; // Import the preview tool
 import { Memory } from '@mastra/memory'; // Import Memory
 
 export const slideCreatorAgent = new Agent({
@@ -16,13 +17,23 @@ content: |
   以下の手順と規則を **厳格** に守ってください。
 
   ## 前提
-  - 利用可能ツール: \`htmlSlideTool\`
-    - 引数:
-        • topic: トピック（必須）
-        • outline: スライドに盛り込む要点（任意）
-        • slideCount: 生成する枚数（整数）
-    - 出力:
-        • htmlContent: 生成された HTML
+  - 利用可能ツール: 
+    - \`htmlSlideTool\`
+      - 引数:
+          • topic: トピック（必須）
+          • outline: スライドに盛り込む要点（任意）
+          • slideCount: 生成する枚数（整数）
+      - 出力:
+          • htmlContent: 生成された HTML
+    - \`presentationPreviewTool\`
+      - 引数:
+          • htmlContent: スライドのHTMLコンテンツ（必須）
+          • title: プレゼンテーションのタイトル（任意）
+          • autoOpen: プレビューを自動的に開くかどうか（デフォルト: true）
+      - 出力:
+          • success: 成功したかどうか
+          • message: メッセージ
+          • htmlContent: 表示されるHTMLコンテンツ
   - 1 回の呼び出しにつき 1 枚のスライドを生成する  
     (例: 5 枚要求 ⇒ \`htmlSlideTool\` を 5 回呼び出す)
 
@@ -66,12 +77,22 @@ content: |
        （\`<main>\` 内に各 \`<section class="slide">\` を順次追加するイメージ）
      - ユーザーへ完成した HTML を返す前に、  
        ① 総枚数が N 枚か ② スタイルの一貫性 があるかを自己確認する。
+     - 完成したHTMLは\`presentationPreviewTool\`を呼び出してプレビュー表示する。
+
+  ## プレビューと表示
+  - スライド生成が完了したら、必ず \`presentationPreviewTool\` を呼び出し、ユーザーにプレビュー表示を提供する
+  - スライド生成途中でもプレビューを希望された場合は、現時点での結果を \`presentationPreviewTool\` で表示する
+  - ユーザーが「プレビュー」「表示」「見せて」などと要求した場合は、最新のHTMLコンテンツを \`presentationPreviewTool\` で表示する
  
   ## 応答フォーマット
   - プラン提示時: 上述「\`\`\`plan\`\`\`」ブロックのみ
   - ツール呼び出し時: **必ず** JSON で
     \`\`\`json
     { "tool": "htmlSlideTool", "args": { ... } }
+    \`\`\`
+    または
+    \`\`\`json
+    { "tool": "presentationPreviewTool", "args": { ... } }
     \`\`\`
   - 最終納品時:  
     \`\`\`deliverable
@@ -86,7 +107,8 @@ content: |
   `,
   model: openai('gpt-4.1'), // Specify the model, e.g., gpt-4o or another model
   tools: { 
-    htmlSlideTool // Register the tool with the agent
+    htmlSlideTool, // Register the tool with the agent
+    presentationPreviewTool // Register the preview tool with the agent
   },
   memory: new Memory({ // Add memory configuration
     options: {

@@ -162,6 +162,25 @@ export default function AppPage() {
                 }));
               }
               
+              // presentationPreviewToolの呼び出しを検出
+              if (parsed.toolName === 'presentationPreviewTool' && parsed.args?.htmlContent) {
+                setSlideToolState(prev => ({
+                  ...prev,
+                  isActive: true,
+                  htmlContent: parsed.args.htmlContent,
+                  title: parsed.args.title || prev.title
+                }));
+                // プレビューパネルを自動的に開く
+                if (parsed.args.autoOpen !== false) {
+                  // ここで適切なステート更新やイベント発行を行う
+                  // 例: プレビューパネルを開くためのステートを更新
+                  console.log("[Page] Auto-opening preview panel");
+                  // 実装方法によっては以下のようなコードが必要
+                  // setPresentationPanelOpen(true);
+                  // または子コンポーネントに対して命令的にメソッドを呼び出す
+                }
+              }
+              
               setToolMessages(prev => {
                 if (!prev.some(m => m.id === toolMessage.id)) {
                   console.log("[Page] ツール呼び出しメッセージを追加:", toolMessage);
@@ -193,6 +212,21 @@ export default function AppPage() {
                   ...prev,
                   htmlContent: parsed.result.htmlContent
                 }));
+              }
+              
+              // プレゼンテーションプレビューツールの結果を検出した場合
+              if (parsed.toolName === 'presentationPreviewTool' && parsed.result?.htmlContent) {
+                setSlideToolState(prev => ({
+                  ...prev,
+                  isActive: true,
+                  htmlContent: parsed.result.htmlContent,
+                  title: parsed.result.title || prev.title
+                }));
+                // 自動プレビュー開始
+                if (parsed.result.autoOpen !== false) {
+                  // ここでプレビューパネルを開くためのアクションを実行
+                  console.log("[Page] Auto-opening preview panel from result");
+                }
               }
               
               setToolMessages(prev => prev.map(m => 
@@ -368,6 +402,7 @@ export default function AppPage() {
               <PresentationTool 
                 htmlContent={slideToolState.htmlContent}
                 title={slideToolState.title}
+                autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
                 onCreatePresentation={() => {
                   // スライド編集機能を開く
                   console.log("Edit in AI Slides clicked");
