@@ -9,13 +9,15 @@ interface PresentationToolProps {
   title?: string;
   onCreatePresentation?: () => void;
   autoOpenPreview?: boolean; // 自動的にプレビューを開くためのフラグ
+  forcePanelOpen?: boolean;  // 強制的にパネルを開くフラグ
 }
 
 export const PresentationTool: React.FC<PresentationToolProps> = ({
   htmlContent = '',
   title = '生成AIプレゼンテーション',
   onCreatePresentation,
-  autoOpenPreview = false
+  autoOpenPreview = false,
+  forcePanelOpen = false
 }) => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [currentContent, setCurrentContent] = useState(htmlContent);
@@ -33,6 +35,7 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
 
   // プレビューパネルを開く
   const openPreviewPanel = useCallback(() => {
+    console.log("[PresentationTool] Opening preview panel manually");
     setIsPanelOpen(true);
   }, []);
 
@@ -44,6 +47,7 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
   // htmlContentが変更されたときに更新
   useEffect(() => {
     if (htmlContent) {
+      console.log("[PresentationTool] Updating HTML content:", htmlContent.substring(0, 50) + "...");
       setCurrentContent(htmlContent);
     }
   }, [htmlContent]);
@@ -58,9 +62,18 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
   // autoOpenPreviewフラグが設定されている場合、自動的にパネルを開く
   useEffect(() => {
     if (autoOpenPreview && currentContent) {
-      openPreviewPanel();
+      console.log("[PresentationTool] Auto-opening panel due to autoOpenPreview flag");
+      setIsPanelOpen(true);
     }
-  }, [autoOpenPreview, currentContent, openPreviewPanel]);
+  }, [autoOpenPreview, currentContent]);
+
+  // forcePanelOpenフラグが設定されている場合、強制的にパネルを開く
+  useEffect(() => {
+    if (forcePanelOpen) {
+      console.log("[PresentationTool] Forcing panel open due to forcePanelOpen flag");
+      setIsPanelOpen(true);
+    }
+  }, [forcePanelOpen]);
 
   return (
     <>

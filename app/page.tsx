@@ -23,6 +23,7 @@ interface SlideToolState {
   isActive: boolean;
   htmlContent: string;
   title: string;
+  forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
 export default function AppPage() {
@@ -40,7 +41,8 @@ export default function AppPage() {
   const [slideToolState, setSlideToolState] = useState<SlideToolState>({
     isActive: false,
     htmlContent: '',
-    title: '生成AIプレゼンテーション'
+    title: '生成AIプレゼンテーション',
+    forcePanelOpen: false
   });
   
   // 標準のuseChatフック
@@ -68,7 +70,8 @@ export default function AppPage() {
       setSlideToolState({
         isActive: false,
         htmlContent: '',
-        title: '生成AIプレゼンテーション'
+        title: '生成AIプレゼンテーション',
+        forcePanelOpen: false
       });
     }
   }, [messages.length]);
@@ -164,21 +167,14 @@ export default function AppPage() {
               
               // presentationPreviewToolの呼び出しを検出
               if (parsed.toolName === 'presentationPreviewTool' && parsed.args?.htmlContent) {
+                console.log("[Page] presentationPreviewTool call detected with HTML content");
                 setSlideToolState(prev => ({
                   ...prev,
                   isActive: true,
                   htmlContent: parsed.args.htmlContent,
-                  title: parsed.args.title || prev.title
+                  title: parsed.args.title || prev.title,
+                  forcePanelOpen: true // 強制的にパネルを開くフラグをセット
                 }));
-                // プレビューパネルを自動的に開く
-                if (parsed.args.autoOpen !== false) {
-                  // ここで適切なステート更新やイベント発行を行う
-                  // 例: プレビューパネルを開くためのステートを更新
-                  console.log("[Page] Auto-opening preview panel");
-                  // 実装方法によっては以下のようなコードが必要
-                  // setPresentationPanelOpen(true);
-                  // または子コンポーネントに対して命令的にメソッドを呼び出す
-                }
               }
               
               setToolMessages(prev => {
@@ -216,17 +212,14 @@ export default function AppPage() {
               
               // プレゼンテーションプレビューツールの結果を検出した場合
               if (parsed.toolName === 'presentationPreviewTool' && parsed.result?.htmlContent) {
+                console.log("[Page] presentationPreviewTool result received with HTML content:", parsed.result.htmlContent.substring(0, 50) + "...");
                 setSlideToolState(prev => ({
                   ...prev,
                   isActive: true,
                   htmlContent: parsed.result.htmlContent,
-                  title: parsed.result.title || prev.title
+                  title: parsed.result.title || prev.title,
+                  forcePanelOpen: true // 強制的にパネルを開くフラグをセット
                 }));
-                // 自動プレビュー開始
-                if (parsed.result.autoOpen !== false) {
-                  // ここでプレビューパネルを開くためのアクションを実行
-                  console.log("[Page] Auto-opening preview panel from result");
-                }
               }
               
               setToolMessages(prev => prev.map(m => 
@@ -403,6 +396,7 @@ export default function AppPage() {
                 htmlContent={slideToolState.htmlContent}
                 title={slideToolState.title}
                 autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
+                forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
                 onCreatePresentation={() => {
                   // スライド編集機能を開く
                   console.log("Edit in AI Slides clicked");
@@ -425,6 +419,21 @@ export default function AppPage() {
             <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
               <p>Error: {error.message}</p>
               <p>Please check your API key and network connection.</p>
+              <button 
+                onClick={() => {
+                  // スライド状態をリセット
+                  setSlideToolState({
+                    isActive: false,
+                    htmlContent: '',
+                    title: '生成AIプレゼンテーション',
+                    forcePanelOpen: false
+                  });
+                  console.log("スライド状態をリセットしました");
+                }}
+                className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+              >
+                スライド状態をリセット
+              </button>
             </div>
           )}
         </main>
