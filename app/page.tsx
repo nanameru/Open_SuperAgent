@@ -5,6 +5,7 @@ import { Sidebar } from '@/app/components/Sidebar';
 import { MainHeader } from '@/app/components/MainHeader';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
+import { PresentationTool } from './components/PresentationTool';
 import { useEffect, useState, useRef } from 'react';
 
 // ツール実行メッセージ用の型
@@ -14,6 +15,14 @@ interface ToolMessage {
   content: string;
   toolName: string;
   createdAt: Date;
+  result?: any; // ツール実行結果を保存
+}
+
+// スライドツール関連の状態
+interface SlideToolState {
+  isActive: boolean;
+  htmlContent: string;
+  title: string;
 }
 
 export default function AppPage() {
@@ -27,6 +36,12 @@ export default function AppPage() {
   const eventSourceRef = useRef<EventSource | null>(null);
   // ツールイベントを検出したかどうか（デバッグ用）
   const [toolEventDetected, setToolEventDetected] = useState<boolean>(false);
+  // スライドツール関連の状態
+  const [slideToolState, setSlideToolState] = useState<SlideToolState>({
+    isActive: false,
+    htmlContent: '',
+    title: '生成AIプレゼンテーション'
+  });
   
   // 標準のuseChatフック
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
@@ -49,6 +64,12 @@ export default function AppPage() {
     if (messages.length === 0) {
       setToolMessages([]);
       setConversationId(`conv-${Date.now()}`);
+      // スライドツール状態もリセット
+      setSlideToolState({
+        isActive: false,
+        htmlContent: '',
+        title: '生成AIプレゼンテーション'
+      });
     }
   }, [messages.length]);
 
@@ -131,6 +152,16 @@ export default function AppPage() {
                 toolName: parsed.toolName,
                 createdAt: new Date(),
               };
+              
+              // htmlSlideToolの呼び出しを検出
+              if (parsed.toolName === 'htmlSlideTool') {
+                setSlideToolState(prev => ({
+                  ...prev,
+                  isActive: true,
+                  title: parsed.args?.topic || prev.title
+                }));
+              }
+              
               setToolMessages(prev => {
                 if (!prev.some(m => m.id === toolMessage.id)) {
                   console.log("[Page] ツール呼び出しメッセージを追加:", toolMessage);
@@ -155,6 +186,15 @@ export default function AppPage() {
             const parsed = JSON.parse(messageEvent.data);
             if (parsed.type === 'tool-result' && parsed.toolCallId) {
               console.log("[Page] ツール結果受信:", parsed);
+              
+              // HTMLスライドツールの結果を検出した場合
+              if (parsed.toolName === 'htmlSlideTool' && parsed.result?.htmlContent) {
+                setSlideToolState(prev => ({
+                  ...prev,
+                  htmlContent: parsed.result.htmlContent
+                }));
+              }
+              
               setToolMessages(prev => prev.map(m => 
                 m.id === parsed.toolCallId 
                   ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(parsed.result)}`, result: parsed.result } 
@@ -323,10 +363,22 @@ export default function AppPage() {
           )}
           
           <div className="w-full max-w-4xl mx-auto space-y-4 flex-grow mb-4 flex flex-col justify-end">
+            {/* スライドツールがアクティブな場合に表示 */}
+            {slideToolState.isActive && (
+              <PresentationTool 
+                htmlContent={slideToolState.htmlContent}
+                title={slideToolState.title}
+                onCreatePresentation={() => {
+                  // スライド編集機能を開く
+                  console.log("Edit in AI Slides clicked");
+                }}
+              />
+            )}
+            
             {combinedMessages.length === 0 && !isLoading && !error && (
               <div className="flex-grow flex flex-col items-center justify-center">
-                <h1 className="text-2xl font-semibold text-gray-700">Welcome to Open-SuperAgent</h1>
-                <p className="text-gray-500 mt-2">How can I assist you today?</p>
+                <h1 className="text-2xl font-semibold text-gray-700">プレゼンテーションAIアシスタント</h1>
+                <p className="text-gray-500 mt-2">「生成AIについてのプレゼンテーションを作成して」などと指示してください</p>
               </div>
             )}
             {combinedMessages.map((m, i) => (
