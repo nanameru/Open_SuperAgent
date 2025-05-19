@@ -1,26 +1,53 @@
 'use client';
 
-import React from 'react';
-import { Aperture, Home, Settings, User, BotMessageSquare } from 'lucide-react'; // Removed unused icons
+import React, { useState } from 'react';
+import { Aperture, Home, Settings, User, BotMessageSquare, Image, FileText, Layout, Code, ChevronRight, Sparkles } from 'lucide-react';
 
 export const Sidebar = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const menuItems = [
     { name: 'Home', href: '#', icon: Home, current: false },
     { name: 'Super Agent', href: '#', icon: BotMessageSquare, current: true },
-    // Removed other menu items: AI Slides, AI Sheets, Image Studio, Video Generation, All Agents
+    { name: 'Slide Creator', href: '#', icon: Layout, current: false },
+    { name: 'Image Generator', href: '#', icon: Image, current: false },
+    { name: 'Code Assistant', href: '#', icon: Code, current: false },
   ];
 
   const bottomMenuItems = [
-    { name: 'Me', href: '#', icon: User, current: false },
+    { name: 'Profile', href: '#', icon: User, current: false },
+    { name: 'Settings', href: '#', icon: Settings, current: false },
   ];
 
+  const toggleSidebar = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   return (
-    // モダンでスタイリッシュな灰色ベースのサイドバー
-    <aside className="w-60 bg-gray-900 text-gray-300 flex flex-col h-screen shadow-lg">
+    <aside 
+      className={`${isExpanded ? 'w-64' : 'w-20'} transition-all duration-300 ease-in-out 
+                 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 
+                 text-gray-100 flex flex-col h-screen shadow-[5px_0_15px_rgba(0,0,0,0.1)]
+                 relative`}
+    >
+      {/* Expand/Collapse Button */}
+      <button 
+        onClick={toggleSidebar}
+        className="absolute -right-3 top-20 bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center
+                  shadow-md hover:bg-blue-500 transition-colors z-10"
+      >
+        <ChevronRight className={`h-4 w-4 text-white transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+      </button>
+
       {/* Logo Area */}
-      <div className="p-4 h-16 flex items-center border-b border-gray-800 bg-gradient-to-r from-gray-800 to-gray-900">
-        <Aperture className="h-8 w-8 text-gray-200 mr-2" />
-        <span className="text-xl font-semibold text-white">Open-SuperAgent</span>
+      <div className="p-4 h-20 flex items-center border-b border-gray-700/50 bg-gradient-to-r from-blue-600/20 to-transparent">
+        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg mr-3">
+          <Aperture className="h-7 w-7 text-white" />
+        </div>
+        <span className={`text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent
+                        transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+          SuperAgent
+        </span>
       </div>
 
       {/* Navigation */}
@@ -29,37 +56,58 @@ export const Sidebar = () => {
           <a
             key={item.name}
             href={item.href}
-            className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors
+            className={`flex items-center px-3 py-3 rounded-xl transition-all duration-200
+              group relative overflow-hidden
               ${item.current 
-                ? 'bg-gray-800 text-white' 
-                : 'hover:bg-gray-800/70 hover:text-gray-100'
+                ? 'bg-gradient-to-r from-blue-600/80 to-blue-600/20 text-white shadow-md' 
+                : 'hover:bg-gray-700/40 hover:shadow-md'
               }
             `}
           >
-            <item.icon className="mr-3 h-5 w-5" aria-hidden="true" />
-            {item.name}
+            <div className={`flex items-center justify-center min-w-10 ${isExpanded ? '' : 'mx-auto'}`}>
+              <item.icon className={`h-5 w-5 ${item.current ? 'text-white' : 'text-gray-300 group-hover:text-white'}`} />
+            </div>
+            <span className={`ml-3 font-medium whitespace-nowrap transition-opacity duration-300 
+                            ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+              {item.name}
+            </span>
+            {item.current && (
+              <span className="absolute inset-y-0 left-0 w-1 bg-blue-400 rounded-r-full" aria-hidden="true" />
+            )}
           </a>
         ))}
       </nav>
 
-      {/* Bottom Section (User/Settings) */}
-      <div className="p-3 border-t border-gray-800">
-        {bottomMenuItems.map((item) => (
-            <a
-              key={item.name}
-              href={item.href}
-              className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md hover:bg-gray-800/70 hover:text-gray-100 transition-colors`}
-            >
-              <item.icon className="mr-3 h-5 w-5" aria-hidden="true" />
-              {item.name}
-            </a>
-          ))}
+      {/* Premium Button */}
+      <div className="px-3 mb-4">
         <button 
-          className="mt-1 w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md hover:bg-gray-800/70 hover:text-gray-100 transition-colors"
+          className={`w-full flex items-center justify-center p-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400
+                    text-gray-900 font-medium shadow-md hover:shadow-lg transition-all
+                    ${isExpanded ? '' : 'p-2'}`}
         >
-          <Settings className="mr-3 h-5 w-5" aria-hidden="true" />
-          {/* Could add text "Settings" if desired, or just keep icon */}
+          <Sparkles className="h-5 w-5" aria-hidden="true" />
+          <span className={`ml-2 transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+            Upgrade Pro
+          </span>
         </button>
+      </div>
+
+      {/* Bottom Section */}
+      <div className="p-3 border-t border-gray-700/50">
+        {bottomMenuItems.map((item) => (
+          <a
+            key={item.name}
+            href={item.href}
+            className={`flex items-center px-3 py-3 rounded-xl my-1 transition-all duration-200
+                      hover:bg-gray-700/40 group ${isExpanded ? '' : 'justify-center'}`}
+          >
+            <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-100" aria-hidden="true" />
+            <span className={`ml-3 text-sm font-medium transition-opacity duration-300 
+                            ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+              {item.name}
+            </span>
+          </a>
+        ))}
       </div>
     </aside>
   );
