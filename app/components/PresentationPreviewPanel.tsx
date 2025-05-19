@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PresentationViewer } from './PresentationViewer';
-import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ArrowPathIcon, DocumentArrowDownIcon, CodeBracketIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 interface PresentationPreviewPanelProps {
   htmlContent: string;
@@ -18,6 +18,32 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   onClose
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
+  const [editedHtml, setEditedHtml] = useState(htmlContent);
+  const [previewHtml, setPreviewHtml] = useState(htmlContent);
+  
+  // htmlContentが変更されたらeditedHtmlも更新
+  useEffect(() => {
+    setEditedHtml(htmlContent);
+    setPreviewHtml(htmlContent);
+  }, [htmlContent]);
+  
+  // 編集内容をプレビューに適用
+  const applyChanges = () => {
+    setPreviewHtml(editedHtml);
+    // プレビュータブに切り替え
+    setActiveTab('preview');
+  };
+  
+  // HTMLをダウンロード
+  const downloadHtml = () => {
+    const element = document.createElement('a');
+    const file = new Blob([editedHtml], {type: 'text/html'});
+    element.href = URL.createObjectURL(file);
+    element.download = `${title.replace(/\s+/g, '_')}.html`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
 
   if (!isOpen) return null;
 
@@ -60,7 +86,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
           }`}
           onClick={() => setActiveTab('code')}
         >
-          HTML
+          HTML編集
         </button>
       </div>
 
@@ -69,14 +95,35 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
         {activeTab === 'preview' ? (
           <div className="h-full">
             <PresentationViewer 
-              htmlContent={htmlContent} 
+              htmlContent={previewHtml} 
               height="100%" 
             />
           </div>
         ) : (
-          <pre className="bg-gray-900 text-gray-100 p-4 rounded-md text-sm overflow-auto h-full font-mono">
-            {htmlContent}
-          </pre>
+          <div className="h-full flex flex-col">
+            <div className="mb-3 flex justify-end space-x-2">
+              <button
+                onClick={applyChanges}
+                className="px-3 py-1.5 bg-blue-500 text-white rounded flex items-center text-sm hover:bg-blue-600 transition-colors"
+              >
+                <ArrowPathIcon className="h-4 w-4 mr-1" />
+                プレビューに反映
+              </button>
+              <button
+                onClick={downloadHtml}
+                className="px-3 py-1.5 bg-green-500 text-white rounded flex items-center text-sm hover:bg-green-600 transition-colors"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                HTMLをダウンロード
+              </button>
+            </div>
+            <textarea
+              value={editedHtml}
+              onChange={(e) => setEditedHtml(e.target.value)}
+              className="font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto h-full resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              spellCheck="false"
+            />
+          </div>
         )}
       </div>
     </div>
