@@ -47,6 +47,8 @@ interface ExtendedMessage {
 
 interface ChatMessageProps {
   message: ExtendedMessage;
+  onPreviewOpen?: () => void; // プレビューが開かれたときのコールバック
+  onPreviewClose?: () => void; // プレビューが閉じられたときのコールバック
 }
 
 // ツール呼び出しの状態を管理するための型
@@ -206,7 +208,7 @@ const CollapsibleToolSection = ({
   );
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose }) => {
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
@@ -445,6 +447,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       htmlContent,
       title
     });
+    onPreviewOpen?.(); // 親コンポーネントに通知
   };
   
   // プレゼンテーションプレビューパネルを閉じる
@@ -453,6 +456,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       ...prev,
       isOpen: false
     }));
+    onPreviewClose?.(); // 親コンポーネントに通知
   };
 
   // ユーザーメッセージ

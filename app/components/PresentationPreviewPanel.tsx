@@ -48,84 +48,97 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-2/3 bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-in-out transform">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2">
-          <DocumentTextIcon className="h-5 w-5 text-blue-500" />
-          <h2 className="text-lg font-medium text-gray-900">{title}</h2>
+    <>
+      {/* オーバーレイ（背景をやや暗くする） */}
+      <div 
+        className="fixed inset-0 bg-black/10 z-40" 
+        onClick={onClose}
+      />
+    
+      {/* サイドパネル */}
+      <div className={`fixed inset-y-0 right-0 w-1/2 bg-white shadow-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
+          <div className="flex items-center space-x-2">
+            <DocumentTextIcon className="h-5 w-5 text-blue-500" />
+            <h2 className="text-lg font-medium text-gray-900 truncate max-w-xs">{title}</h2>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+              aria-label="Close panel"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <button 
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Close panel"
+
+        {/* タブナビゲーション */}
+        <div className="flex border-b border-gray-200 bg-gray-50">
+          <button
+            className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
+              activeTab === 'preview' 
+                ? 'border-b-2 border-blue-500 text-blue-600 bg-white' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+            onClick={() => setActiveTab('preview')}
           >
-            <XMarkIcon className="h-6 w-6" />
+            プレビュー
+          </button>
+          <button
+            className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
+              activeTab === 'code' 
+                ? 'border-b-2 border-blue-500 text-blue-600 bg-white' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+            onClick={() => setActiveTab('code')}
+          >
+            HTML編集
           </button>
         </div>
-      </div>
 
-      {/* タブナビゲーション */}
-      <div className="flex border-b border-gray-200">
-        <button
-          className={`flex-1 py-3 px-4 text-sm font-medium text-center ${
-            activeTab === 'preview' 
-              ? 'border-b-2 border-blue-500 text-blue-600' 
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('preview')}
-        >
-          プレビュー
-        </button>
-        <button
-          className={`flex-1 py-3 px-4 text-sm font-medium text-center ${
-            activeTab === 'code' 
-              ? 'border-b-2 border-blue-500 text-blue-600' 
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('code')}
-        >
-          HTML編集
-        </button>
-      </div>
-
-      {/* コンテンツエリア */}
-      <div className="flex-1 overflow-auto p-4 bg-gray-50">
-        {activeTab === 'preview' ? (
-          <div className="h-full">
-            <PresentationViewer 
-              htmlContent={previewHtml} 
-              height="100%" 
-            />
-          </div>
-        ) : (
-          <div className="h-full flex flex-col">
-            <div className="mb-3 flex justify-end space-x-2">
-              <button
-                onClick={applyChanges}
-                className="px-3 py-1.5 bg-blue-500 text-white rounded flex items-center text-sm hover:bg-blue-600 transition-colors"
-              >
-                <ArrowPathIcon className="h-4 w-4 mr-1" />
-                プレビューに反映
-              </button>
-              <button
-                onClick={downloadHtml}
-                className="px-3 py-1.5 bg-green-500 text-white rounded flex items-center text-sm hover:bg-green-600 transition-colors"
-              >
-                <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
-                HTMLをダウンロード
-              </button>
+        {/* コンテンツエリア */}
+        <div className="flex-1 overflow-auto bg-gray-50">
+          {activeTab === 'preview' ? (
+            <div className="h-full p-2">
+              <div className="bg-white shadow-sm rounded-lg h-full overflow-hidden border border-gray-200">
+                <PresentationViewer 
+                  htmlContent={previewHtml} 
+                  height="100%" 
+                />
+              </div>
             </div>
-            <textarea
-              value={editedHtml}
-              onChange={(e) => setEditedHtml(e.target.value)}
-              className="font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto h-full resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              spellCheck="false"
-            />
-          </div>
-        )}
+          ) : (
+            <div className="h-full flex flex-col p-2">
+              <div className="mb-2 flex justify-end space-x-2">
+                <button
+                  onClick={applyChanges}
+                  className="px-3 py-1.5 bg-blue-500 text-white rounded flex items-center text-sm hover:bg-blue-600 transition-colors shadow-sm"
+                >
+                  <ArrowPathIcon className="h-4 w-4 mr-1" />
+                  プレビューに反映
+                </button>
+                <button
+                  onClick={downloadHtml}
+                  className="px-3 py-1.5 bg-green-500 text-white rounded flex items-center text-sm hover:bg-green-600 transition-colors shadow-sm"
+                >
+                  <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                  HTMLをダウンロード
+                </button>
+              </div>
+              <div className="flex-1 border border-gray-300 rounded-md shadow-sm overflow-hidden">
+                <textarea
+                  value={editedHtml}
+                  onChange={(e) => setEditedHtml(e.target.value)}
+                  className="font-mono text-sm bg-gray-900 text-gray-100 p-4 w-full h-full resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  spellCheck="false"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }; 

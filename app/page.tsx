@@ -44,6 +44,8 @@ export default function AppPage() {
     title: '生成AIプレゼンテーション',
     forcePanelOpen: false
   });
+  // プレビューパネルの表示状態
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   
   // 標準のuseChatフック
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
@@ -380,7 +382,7 @@ export default function AppPage() {
   return (
     <div className="flex h-screen bg-white antialiased">
       <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden bg-white">
+      <div className={`flex flex-col flex-1 overflow-hidden bg-white transition-all duration-300 ${isPreviewOpen ? 'mr-1/2' : ''}`}>
         <MainHeader />
         <main className="flex-1 flex flex-col p-6 overflow-y-auto">
           {toolEventDetected && (
@@ -397,6 +399,8 @@ export default function AppPage() {
                 title={slideToolState.title}
                 autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
                 forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                onPreviewOpen={() => setIsPreviewOpen(true)}
+                onPreviewClose={() => setIsPreviewOpen(false)}
                 onCreatePresentation={() => {
                   // スライド編集機能を開く
                   console.log("Edit in AI Slides clicked");
@@ -411,7 +415,12 @@ export default function AppPage() {
               </div>
             )}
             {combinedMessages.map((m, i) => (
-              <ChatMessage key={`${m.id}-${i}`} message={m} />
+              <ChatMessage 
+                key={`${m.id}-${i}`} 
+                message={m} 
+                onPreviewOpen={() => setIsPreviewOpen(true)}
+                onPreviewClose={() => setIsPreviewOpen(false)}
+              />
             ))}
           </div>
 
