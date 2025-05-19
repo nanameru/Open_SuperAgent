@@ -20,7 +20,7 @@ export const ChatInputArea = ({
   return (
     <div className="bg-white px-6 pb-4 pt-2 border-t border-slate-200">
       <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
-        <div className="relative flex items-center bg-slate-50 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all">
+        <div className="relative flex items-center bg-slate-50 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-gray-600 focus-within:border-gray-600 transition-all">
           <button type="button" className="p-3 text-slate-500 hover:text-slate-700">
             <User className="h-5 w-5" />
           </button>
@@ -42,7 +42,7 @@ export const ChatInputArea = ({
             <button 
               type="submit" 
               disabled={isLoading || !input.trim()} 
-              className="p-2 text-white bg-sky-500 rounded-md hover:bg-sky-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              className="p-2 text-white bg-gray-800 rounded-md hover:bg-gray-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
             >
               <SendHorizonal className="h-5 w-5" />
             </button>

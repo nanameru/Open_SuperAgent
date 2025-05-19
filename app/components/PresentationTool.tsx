@@ -89,12 +89,12 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
       <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <DocumentTextIcon className="h-5 w-5 text-blue-500" />
+            <DocumentTextIcon className="h-5 w-5 text-gray-600" />
             <h2 className="text-lg font-medium">Using Tool | {currentTitle}</h2>
           </div>
           <button
             onClick={openPreviewPanel}
-            className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
+            className="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
             disabled={!currentContent}
           >
             <PlayIcon className="h-4 w-4" />
@@ -114,7 +114,7 @@ export const PresentationTool: React.FC<PresentationToolProps> = ({
 
         <button
           onClick={onCreatePresentation}
-          className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 px-4 rounded-md transition-colors"
+          className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors"
         >
           Edit in AI Slides →
         </button>

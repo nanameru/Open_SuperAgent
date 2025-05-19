@@ -95,11 +95,11 @@ const CollapsibleToolSection = ({
       case 'partial-call':
       case 'running':
         return isLoading 
-          ? 'bg-blue-50 border-blue-100' 
+          ? 'bg-gray-100 border-gray-200' 
           : 'bg-[rgb(245,245,245)] border-[rgb(245,245,245)]';
       case 'result':
       case 'success':
-        return 'bg-green-50 border-green-100';
+        return 'bg-gray-50 border-gray-200';
       case 'error':
         return 'bg-red-50 border-red-200';
       default:
@@ -113,10 +113,10 @@ const CollapsibleToolSection = ({
       case 'call':
       case 'partial-call':
       case 'running':
-        return 'text-blue-500';
+        return 'text-gray-600';
       case 'result':
       case 'success':
-        return 'text-green-500';
+        return 'text-gray-700';
       case 'error':
         return 'text-red-500';
       default:
@@ -158,13 +158,13 @@ const CollapsibleToolSection = ({
           <span className="font-medium text-sm flex items-center">
             {toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
-              <span className="ml-2 inline-block text-blue-500 text-xs font-normal animate-pulse">処理中...</span>
+              <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
             )}
             {toolState === 'error' && (
               <span className="ml-2 text-red-500 text-xs font-normal">(エラー)</span>
             )}
             {(toolState === 'success' || toolState === 'result') && (
-              <span className="ml-2 text-green-500 text-xs font-normal">(完了)</span>
+              <span className="ml-2 text-gray-600 text-xs font-normal">(完了)</span>
             )}
           </span>
         </div>
@@ -177,7 +177,7 @@ const CollapsibleToolSection = ({
                 e.stopPropagation();
                 onPreviewClick();
               }}
-              className="mr-2 px-3 py-1 bg-blue-500 text-white rounded-md text-xs flex items-center hover:bg-blue-600 transition-colors"
+              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
               title="スライドをプレビュー表示"
             >
               <EyeIcon className="h-3 w-3 mr-1" />
@@ -463,7 +463,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
   if (message.role === 'user') {
     return (
       <div className="flex justify-end mb-4">
-        <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-blue-500 text-white shadow">
+        <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-800 text-white shadow">
           {typeof message.content === 'string'
             ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
             : Array.isArray(message.content)
@@ -536,7 +536,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                         toolState.result.htmlContent, 
                         toolState.result.title || 'プレゼンテーションプレビュー'
                       )}
-                      className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors"
+                      className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
                     >
                       <DocumentTextIcon className="h-4 w-4 mr-2" />
                       スライドをプレビュー表示
@@ -558,7 +558,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         <div className="flex justify-start mb-4 flex-col items-start">
           {/* アシスタントテキストコンテンツ */}
           {(hasTextContent || hasUiParts) && (
-            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-300 shadow-sm mb-2">
+            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-200 shadow-sm mb-2">
               {typeof message.content === 'string'
                 ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
                 : Array.isArray(message.content) && message.content.map((part, index) => {

@@ -51,16 +51,16 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
     <>
       {/* オーバーレイ（背景をやや暗くする） */}
       <div 
-        className="fixed inset-0 bg-black/10 z-40" 
+        className="fixed inset-0 bg-black/20 z-40" 
         onClick={onClose}
       />
     
       {/* サイドパネル */}
       <div className={`fixed inset-y-0 right-0 w-1/2 bg-white shadow-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* ヘッダー */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
+        <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-gray-100 to-white">
           <div className="flex items-center space-x-2">
-            <DocumentTextIcon className="h-5 w-5 text-blue-500" />
+            <DocumentTextIcon className="h-5 w-5 text-gray-600" />
             <h2 className="text-lg font-medium text-gray-900 truncate max-w-xs">{title}</h2>
           </div>
           <div className="flex items-center space-x-2">
@@ -79,7 +79,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
           <button
             className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
               activeTab === 'preview' 
-                ? 'border-b-2 border-blue-500 text-blue-600 bg-white' 
+                ? 'border-b-2 border-gray-700 text-gray-800 bg-white' 
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
             }`}
             onClick={() => setActiveTab('preview')}
@@ -89,7 +89,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
           <button
             className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
               activeTab === 'code' 
-                ? 'border-b-2 border-blue-500 text-blue-600 bg-white' 
+                ? 'border-b-2 border-gray-700 text-gray-800 bg-white' 
                 : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
             }`}
             onClick={() => setActiveTab('code')}
@@ -114,14 +114,14 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
               <div className="mb-2 flex justify-end space-x-2">
                 <button
                   onClick={applyChanges}
-                  className="px-3 py-1.5 bg-blue-500 text-white rounded flex items-center text-sm hover:bg-blue-600 transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded flex items-center text-sm hover:bg-gray-600 transition-colors shadow-sm"
                 >
                   <ArrowPathIcon className="h-4 w-4 mr-1" />
                   プレビューに反映
                 </button>
                 <button
                   onClick={downloadHtml}
-                  className="px-3 py-1.5 bg-green-500 text-white rounded flex items-center text-sm hover:bg-green-600 transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-gray-800 text-white rounded flex items-center text-sm hover:bg-gray-700 transition-colors shadow-sm"
                 >
                   <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
                   HTMLをダウンロード
@@ -131,7 +131,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
                 <textarea
                   value={editedHtml}
                   onChange={(e) => setEditedHtml(e.target.value)}
-                  className="font-mono text-sm bg-gray-900 text-gray-100 p-4 w-full h-full resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="font-mono text-sm bg-gray-900 text-gray-100 p-4 w-full h-full resize-none focus:outline-none focus:ring-2 focus:ring-gray-500"
                   spellCheck="false"
                 />
               </div>

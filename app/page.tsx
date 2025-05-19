@@ -380,13 +380,13 @@ export default function AppPage() {
   }
 
   return (
-    <div className="flex h-screen bg-white antialiased">
+    <div className="flex h-screen bg-gray-50 antialiased">
       <Sidebar />
       <div className={`flex flex-col flex-1 overflow-hidden bg-white transition-all duration-300 ${isPreviewOpen ? 'mr-1/2' : ''}`}>
         <MainHeader />
         <main className="flex-1 flex flex-col p-6 overflow-y-auto">
           {toolEventDetected && (
-            <div className="fixed top-4 right-4 bg-green-100 text-green-800 px-3 py-1 rounded shadow text-sm animate-fadeIn">
+            <div className="fixed top-4 right-4 bg-gray-100 text-gray-800 px-3 py-1 rounded shadow text-sm animate-fadeIn">
               ツール実行を検出しました
             </div>
           )}
