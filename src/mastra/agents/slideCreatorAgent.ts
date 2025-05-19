@@ -1,7 +1,12 @@
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai'; // Assuming OpenAI for the LLM
-import { htmlSlideTool } from '../tools/htmlSlideTool'; // Import the new tool
-import { presentationPreviewTool } from '../tools/presentationPreviewTool'; // Import the preview tool
+import { 
+  htmlSlideTool, 
+  presentationPreviewTool,
+  braveSearchTool,
+  advancedCalculatorTool,
+  geminiImageGenerationTool
+} from '../tools'; // Import all tools
 import { Memory } from '@mastra/memory'; // Import Memory
 
 export const slideCreatorAgent = new Agent({
@@ -34,6 +39,23 @@ content: |
           • success: 成功したかどうか
           • message: メッセージ
           • htmlContent: 表示されるHTMLコンテンツ
+    - \`braveSearchTool\`
+      - 引数:
+          • query: 検索クエリ（必須）
+          • count: 取得する結果の数（1-20、デフォルト: 10）
+      - 出力:
+          • results: 検索結果の配列（title, url, description）
+    - \`advancedCalculatorTool\`
+      - 引数:
+          • expression: 計算式（例: "2 * (3 + 4)", "10km to miles", "sqrt(16) + 5^2", "sin(pi/2)"）
+      - 出力:
+          • computationResult: 計算結果
+    - \`geminiImageGenerationTool\`
+      - 引数:
+          • prompt: 画像の説明（必須）
+      - 出力:
+          • images: 生成された画像の配列（b64_jsonでエンコード）
+          • message: 処理結果メッセージ
   - 1 回の呼び出しにつき 1 枚のスライドを生成する  
     (例: 5 枚要求 ⇒ \`htmlSlideTool\` を 5 回呼び出す)
 
@@ -59,6 +81,9 @@ content: |
      - 概要には各スライドの狙い・キーメッセージを 1 行で書く。 
      - プランは **必ずユーザーへ提示し承認を得る**。 
        (通常は "OK" などの短い返答で十分)
+     - トピックに関する最新情報や詳細が必要な場合は、\`braveSearchTool\`を使って情報収集できる。
+     - 数値計算が必要な場合は、\`advancedCalculatorTool\`を使って正確な計算を行う。
+     - スライドに視覚的な要素を追加したい場合は、\`geminiImageGenerationTool\`で画像を生成できる。
 
   3. **スライド生成ループ**  
      \`\`\`pseudo
@@ -70,6 +95,10 @@ content: |
      - 生成された \`htmlContent_i\` を解析し、
        次スライドの context として活用する。  
        例: 同じ配色・フォントを保持、前スライドの結論を踏まえる等。
+     - スライドの内容を充実させるために、必要に応じて次のツールを活用する:
+       • 最新情報や詳細データが必要なら \`braveSearchTool\` で検索
+       • 数値やグラフに使用する計算が必要なら \`advancedCalculatorTool\` で計算
+       • スライドを視覚的に強化するための画像が必要なら \`geminiImageGenerationTool\` で生成
  
   4. **結合 & 出力**  
      - すべての htmlContent_i を順序どおり連結し
@@ -88,11 +117,7 @@ content: |
   - プラン提示時: 上述「\`\`\`plan\`\`\`」ブロックのみ
   - ツール呼び出し時: **必ず** JSON で
     \`\`\`json
-    { "tool": "htmlSlideTool", "args": { ... } }
-    \`\`\`
-    または
-    \`\`\`json
-    { "tool": "presentationPreviewTool", "args": { ... } }
+    { "tool": "ツール名", "args": { ... } }
     \`\`\`
   - 最終納品時:  
     \`\`\`deliverable
@@ -108,7 +133,10 @@ content: |
   model: openai('gpt-4.1'), // Specify the model, e.g., gpt-4o or another model
   tools: { 
     htmlSlideTool, // Register the tool with the agent
-    presentationPreviewTool // Register the preview tool with the agent
+    presentationPreviewTool, // Register the preview tool with the agent
+    braveSearchTool, // Register the search tool
+    advancedCalculatorTool, // Register the calculator tool
+    geminiImageGenerationTool // Register the image generation tool
   },
   memory: new Memory({ // Add memory configuration
     options: {
