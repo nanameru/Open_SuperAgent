@@ -136,6 +136,26 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
             <h2 className="text-lg font-medium text-gray-900 truncate max-w-xs">{title}</h2>
           </div>
           <div className="flex items-center space-x-2">
+            {/* パネル幅入力フィールド */}
+            <div className="flex items-center mr-2">
+              <label htmlFor="panel-width" className="text-xs text-gray-500 mr-1">幅:</label>
+              <input
+                id="panel-width"
+                type="number"
+                min="20"
+                max="80"
+                value={Math.round(panelWidth)}
+                onChange={(e) => {
+                  const newWidth = Math.min(Math.max(parseInt(e.target.value, 10), 20), 80);
+                  if (!isNaN(newWidth)) {
+                    setPanelWidth(newWidth);
+                  }
+                }}
+                className="w-14 text-xs p-1 border border-gray-300 rounded"
+                aria-label="パネルの幅"
+              />
+              <span className="text-xs text-gray-500 ml-1">%</span>
+            </div>
             <button 
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
