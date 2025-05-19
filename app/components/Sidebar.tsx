@@ -20,7 +20,7 @@ export const Sidebar = () => {
       {/* Logo Area */}
       <div className="p-4 h-16 flex items-center border-b border-gray-800 bg-gradient-to-r from-gray-800 to-gray-900">
         <Aperture className="h-8 w-8 text-gray-200 mr-2" />
-        <span className="text-xl font-semibold text-white">Mastra AI</span>
+        <span className="text-xl font-semibold text-white">Open-SuperAgent</span>
       </div>
 
       {/* Navigation */}
