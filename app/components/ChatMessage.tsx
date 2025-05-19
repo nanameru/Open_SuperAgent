@@ -1,12 +1,52 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import type { Message, ToolCallPart, ToolResultPart } from '@ai-sdk/react';
+import React, { useState, useEffect, ReactNode } from 'react';
+import type { Message } from 'ai';
 import { ChevronDownIcon, ChevronUpIcon, CogIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { PuzzlePieceIcon } from '@heroicons/react/24/outline';
+import { PresentationPreviewPanel } from './PresentationPreviewPanel';
+import { EyeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+
+// 拡張メッセージパートの型
+type MessageContentPart = {
+  type: string;
+  text?: string;
+};
+
+// AIメッセージの拡張された型（ツール呼び出しなどの情報を含む）
+interface ExtendedMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'data';
+  content: string | MessageContentPart[];
+  createdAt?: Date;
+  tool_name?: string;
+  tool_calls?: Array<{
+    toolCallId: string;
+    toolName: string;
+    args: any;
+  }>;
+  tool_results?: Array<{
+    toolCallId: string;
+    result: any;
+    isError?: boolean;
+    autoOpen?: boolean;
+  }>;
+  toolInvocations?: Array<any>;
+  parts?: Array<{
+    type: string;
+    text?: string;
+    toolInvocation?: {
+      toolCallId: string;
+      toolName: string;
+      args?: any;
+      state?: string;
+      result?: any;
+    };
+  }>;
+}
 
 interface ChatMessageProps {
-  message: Message;
+  message: ExtendedMessage;
 }
 
 // ツール呼び出しの状態を管理するための型
@@ -19,17 +59,30 @@ interface ToolCallState {
   isExpanded: boolean;
 }
 
+// プレゼンテーションプレビュー状態
+interface PresentationPreviewState {
+  isOpen: boolean;
+  htmlContent: string;
+  title: string;
+}
+
 // 折りたたみ可能なツールセクションコンポーネント
 const CollapsibleToolSection = ({
   toolName,
   toolState,
   children,
   isLoading,
+  isPreviewTool = false,
+  onPreviewClick = () => {},
+  previewHtml = '',
 }: {
   toolName: string;
   toolState: 'call' | 'partial-call' | 'result' | string;
   children: React.ReactNode;
   isLoading: boolean;
+  isPreviewTool?: boolean;
+  onPreviewClick?: () => void;
+  previewHtml?: string;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -40,11 +93,11 @@ const CollapsibleToolSection = ({
       case 'partial-call':
       case 'running':
         return isLoading 
-          ? 'bg-[rgb(245,245,245)] border-[rgb(245,245,245)]' 
+          ? 'bg-blue-50 border-blue-100' 
           : 'bg-[rgb(245,245,245)] border-[rgb(245,245,245)]';
       case 'result':
       case 'success':
-        return 'bg-[rgb(245,245,245)] border-[rgb(245,245,245)]';
+        return 'bg-green-50 border-green-100';
       case 'error':
         return 'bg-red-50 border-red-200';
       default:
@@ -69,34 +122,79 @@ const CollapsibleToolSection = ({
     }
   };
 
+  // ツールの状態に応じたアイコンを表示
+  const getStateIcon = () => {
+    switch (toolState) {
+      case 'call':
+      case 'partial-call':
+      case 'running':
+        return isLoading ? <CogIcon className="h-4 w-4 animate-spin" /> : <PuzzlePieceIcon className="h-4 w-4" />;
+      case 'result':
+      case 'success':
+        return <CheckCircleIcon className="h-4 w-4" />;
+      case 'error':
+        return <ExclamationCircleIcon className="h-4 w-4" />;
+      default:
+        return <PuzzlePieceIcon className="h-4 w-4" />;
+    }
+  };
+
+  const handleHeaderClick = () => {
+    setIsExpanded(!isExpanded);
+  };
+
   return (
-    <div className={`rounded-lg border ${getBgColorClass()} overflow-hidden transition-colors duration-200 mb-3`}>
-      <div 
-        className="flex items-center justify-between px-3 py-2 cursor-pointer select-none hover:bg-gray-200 transition-colors"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center space-x-2">
-          <PuzzlePieceIcon className={`h-5 w-5 ${getIconColorClass()}`} />
-          <span className="font-medium text-sm">
+    <div className={`rounded-lg border ${getBgColorClass()} overflow-hidden transition-colors duration-200 mb-3 shadow-sm`}>
+      <div className="flex items-center justify-between px-3 py-2">
+        <div 
+          className="flex items-center space-x-2 cursor-pointer select-none hover:bg-gray-200/50 transition-colors flex-grow rounded px-2 py-1"
+          onClick={handleHeaderClick}
+        >
+          <div className={`flex items-center justify-center h-5 w-5 ${getIconColorClass()}`}>
+            {getStateIcon()}
+          </div>
+          <span className="font-medium text-sm flex items-center">
             {toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
-              <span className="ml-2 inline-block animate-pulse">処理中...</span>
+              <span className="ml-2 inline-block text-blue-500 text-xs font-normal animate-pulse">処理中...</span>
             )}
             {toolState === 'error' && (
-              <span className="ml-2 text-red-500">(エラー)</span>
+              <span className="ml-2 text-red-500 text-xs font-normal">(エラー)</span>
+            )}
+            {(toolState === 'success' || toolState === 'result') && (
+              <span className="ml-2 text-green-500 text-xs font-normal">(完了)</span>
             )}
           </span>
         </div>
-        <button 
-          className="text-gray-500 hover:text-gray-700 transition-colors"
-          aria-label={isExpanded ? "折りたたむ" : "展開する"}
-        >
-          {isExpanded ? (
-            <ChevronUpIcon className="h-5 w-5" />
-          ) : (
-            <ChevronDownIcon className="h-5 w-5" />
+
+        <div className="flex items-center">
+          {/* プレビューツールの場合はプレビューボタンを表示 */}
+          {isPreviewTool && (toolState === 'success' || toolState === 'result') && previewHtml && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreviewClick();
+              }}
+              className="mr-2 px-3 py-1 bg-blue-500 text-white rounded-md text-xs flex items-center hover:bg-blue-600 transition-colors"
+              title="スライドをプレビュー表示"
+            >
+              <EyeIcon className="h-3 w-3 mr-1" />
+              <span>プレビュー</span>
+            </button>
           )}
-        </button>
+          
+          <button 
+            className="text-gray-500 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-200/50"
+            aria-label={isExpanded ? "折りたたむ" : "展開する"}
+            onClick={handleHeaderClick}
+          >
+            {isExpanded ? (
+              <ChevronUpIcon className="h-5 w-5" />
+            ) : (
+              <ChevronDownIcon className="h-5 w-5" />
+            )}
+          </button>
+        </div>
       </div>
       
       {isExpanded && (
@@ -112,6 +210,21 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
+  
+  // プレゼンテーションプレビュー状態
+  const [presentationPreview, setPresentationPreview] = useState<PresentationPreviewState>({
+    isOpen: false,
+    htmlContent: '',
+    title: 'プレゼンテーションプレビュー'
+  });
+  
+  // プレゼンテーションツールの情報を保持
+  const [presentationTools, setPresentationTools] = useState<{
+    [key: string]: {
+      htmlContent: string;
+      title: string;
+    }
+  }>({});
   
   // デバッグ情報を表示
   useEffect(() => {
@@ -133,7 +246,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       if (message.tool_calls && message.tool_calls.length > 0) {
         setToolCallStates(prevStates => {
           const newStates = { ...prevStates };
-          message.tool_calls.forEach(tc => {
+          message.tool_calls?.forEach(tc => {
             const existingState = prevStates[tc.toolCallId];
             newStates[tc.toolCallId] = {
               id: tc.toolCallId,
@@ -145,6 +258,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 : 'running', // If result exists, it's success/error, else running
               isExpanded: existingState?.isExpanded || false,
             };
+            
+            // presentationPreviewToolのデータを保存（ただし自動表示はしない）
+            if (tc.toolName === 'presentationPreviewTool' && tc.args.htmlContent) {
+              setPresentationTools(prev => ({
+                ...prev,
+                [tc.toolCallId]: {
+                  htmlContent: tc.args.htmlContent as string,
+                  title: (tc.args.title as string) || 'プレゼンテーションプレビュー'
+                }
+              }));
+            }
           });
           return newStates;
         });
@@ -154,13 +278,32 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       if (message.tool_results && message.tool_results.length > 0) {
         setToolCallStates(prevStates => {
           const updatedStates = { ...prevStates };
-          message.tool_results.forEach(tr => {
+          message.tool_results?.forEach(tr => {
             if (updatedStates[tr.toolCallId]) {
               updatedStates[tr.toolCallId] = {
                 ...updatedStates[tr.toolCallId],
                 result: tr.result,
                 status: tr.isError ? 'error' : 'success',
               };
+              // presentationPreviewToolの結果データを保存（ただし自動表示はしない）
+              const toolState = updatedStates[tr.toolCallId];
+              if ((toolState.toolName === 'presentationPreviewTool' || toolState.toolName === 'htmlSlideTool') && tr.result?.htmlContent) {
+                setPresentationTools(prev => ({
+                  ...prev,
+                  [tr.toolCallId]: {
+                    htmlContent: tr.result.htmlContent,
+                    title: tr.result.title || 'プレゼンテーションプレビュー'
+                  }
+                }));
+                // autoOpen: true なら自動でプレビューパネルを開く
+                if (tr.result.autoOpen) {
+                  setPresentationPreview({
+                    isOpen: true,
+                    htmlContent: tr.result.htmlContent,
+                    title: tr.result.title || 'プレゼンテーションプレビュー'
+                  });
+                }
+              }
             }
           });
           return updatedStates;
@@ -171,7 +314,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       if (message.parts && message.parts.length > 0) {
         setToolCallStates(prev => {
           const updatedStates = { ...prev };
-          message.parts.forEach(part => {
+          message.parts?.forEach(part => {
             if (part.type === 'tool-invocation' && part.toolInvocation) {
               const { toolCallId, toolName, args, state } = part.toolInvocation;
               
@@ -195,6 +338,30 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   status,
                   isExpanded: updatedStates[toolCallId]?.isExpanded || false,
                 };
+                
+                // presentationPreviewToolのデータを保存（ただし自動表示はしない）
+                if (toolName === 'presentationPreviewTool') {
+                  if (args && (args as any).htmlContent) {
+                    setPresentationTools(prev => ({
+                      ...prev,
+                      [toolCallId]: {
+                        htmlContent: (args as any).htmlContent,
+                        title: (args as any).title || 'プレゼンテーションプレビュー'
+                      }
+                    }));
+                  }
+                  
+                  // 結果が既に存在する場合
+                  if (state === 'result' && result && result.htmlContent) {
+                    setPresentationTools(prev => ({
+                      ...prev,
+                      [toolCallId]: {
+                        htmlContent: result.htmlContent,
+                        title: result.title || 'プレゼンテーションプレビュー'
+                      }
+                    }));
+                  }
+                }
               }
             }
           });
@@ -206,7 +373,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       if (message.toolInvocations && message.toolInvocations.length > 0) {
         setToolCallStates(prev => {
           const updatedStates = { ...prev };
-          message.toolInvocations.forEach(inv => {
+          message.toolInvocations?.forEach(inv => {
             const genericInv = inv as any;
             const toolName = genericInv.toolName || (genericInv.function ? genericInv.function.name : 'unknown_tool');
             const toolCallId = genericInv.toolCallId || genericInv.id || `fallback-id-${Math.random()}`;
@@ -232,6 +399,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
               status,
               isExpanded: updatedStates[toolCallId]?.isExpanded || false,
             };
+            
+            // presentationPreviewToolのデータを保存（ただし自動表示はしない）
+            if (toolName === 'presentationPreviewTool') {
+              // 引数からHTMLコンテンツを取得
+              if (args && args.htmlContent) {
+                setPresentationTools(prev => ({
+                  ...prev,
+                  [toolCallId]: {
+                    htmlContent: args.htmlContent,
+                    title: args.title || 'プレゼンテーションプレビュー'
+                  }
+                }));
+              }
+              
+              // 結果からHTMLコンテンツを取得
+              if (result && result.htmlContent) {
+                setPresentationTools(prev => ({
+                  ...prev,
+                  [toolCallId]: {
+                    htmlContent: result.htmlContent,
+                    title: result.title || 'プレゼンテーションプレビュー'
+                  }
+                }));
+              }
+            }
           });
           return updatedStates;
         });
@@ -245,13 +437,41 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       [id]: { ...prev[id], isExpanded: !prev[id]?.isExpanded }
     }));
   };
+  
+  // プレゼンテーションプレビューパネルを開く
+  const openPreviewPanel = (htmlContent: string, title: string) => {
+    setPresentationPreview({
+      isOpen: true,
+      htmlContent,
+      title
+    });
+  };
+  
+  // プレゼンテーションプレビューパネルを閉じる
+  const closePreviewPanel = () => {
+    setPresentationPreview(prev => ({
+      ...prev,
+      isOpen: false
+    }));
+  };
 
   // ユーザーメッセージ
   if (message.role === 'user') {
     return (
       <div className="flex justify-end mb-4">
         <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-blue-500 text-white shadow">
-          {message.content}
+          {typeof message.content === 'string'
+            ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
+            : Array.isArray(message.content)
+              ? message.content.flatMap((part, index) => {
+                  if (part.type === 'text' && part.text) {
+                    return part.text.split('\n').map((line, i) => (
+                      <p key={`${index}-${i}`} className="mb-1">{line}</p>
+                    ));
+                  }
+                  return [];
+                })
+              : null}
         </div>
       </div>
     );
@@ -260,61 +480,112 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   // アシスタントメッセージ
   if (message.role === 'assistant') {
     // ツールの呼び出しUIを構築
-    const toolCallUiElements = Object.values(toolCallStates).map(toolState => (
-      <CollapsibleToolSection 
-        key={toolState.id} 
-        toolName={toolState.toolName} 
-        toolState={toolState.status} 
-        isLoading={isLoading}
-      >
-        <div className="space-y-3">
-          <div>
-            <h4 className="text-xs font-medium text-gray-500 mb-1">ツール引数</h4>
-            <pre className="text-xs bg-black/5 p-2 rounded-md overflow-auto">
-              {JSON.stringify(toolState.args, null, 2)}
-            </pre>
-          </div>
-          
-          {(toolState.status === 'success' || toolState.status === 'error') && toolState.result !== undefined && (
+    const toolCallUiElements = Object.values(toolCallStates).map(toolState => {
+      // プレゼンテーションプレビューツールかどうかを確認
+      const isPresentationTool = toolState.toolName === 'presentationPreviewTool' || 
+                               toolState.toolName === 'htmlSlideTool';
+      
+      // このツールのHTMLコンテンツを取得
+      const previewData = presentationTools[toolState.id];
+      
+      return (
+        <CollapsibleToolSection 
+          key={toolState.id} 
+          toolName={toolState.toolName} 
+          toolState={toolState.status} 
+          isLoading={isLoading}
+          isPreviewTool={isPresentationTool}
+          onPreviewClick={() => {
+            if (previewData) {
+              openPreviewPanel(previewData.htmlContent, previewData.title);
+            } else if (toolState.result?.htmlContent) {
+              openPreviewPanel(
+                toolState.result.htmlContent, 
+                toolState.result.title || 'プレゼンテーションプレビュー'
+              );
+            }
+          }}
+          previewHtml={previewData?.htmlContent || toolState.result?.htmlContent}
+        >
+          <div className="space-y-3">
             <div>
-              <h4 className="text-xs font-medium text-gray-500 mb-1">ツール結果</h4>
-              <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto`}>
-                {typeof toolState.result === 'string' 
-                  ? toolState.result 
-                  : JSON.stringify(toolState.result, null, 2)}
+              <h4 className="text-xs font-medium text-gray-500 mb-1">ツール引数</h4>
+              <pre className="text-xs bg-black/5 p-2 rounded-md overflow-auto">
+                {JSON.stringify(toolState.args, null, 2)}
               </pre>
             </div>
-          )}
-        </div>
-      </CollapsibleToolSection>
-    ));
+            
+            {(toolState.status === 'success' || toolState.status === 'error') && toolState.result !== undefined && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 mb-1">ツール結果</h4>
+                <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto`}>
+                  {typeof toolState.result === 'string' 
+                    ? toolState.result 
+                    : JSON.stringify(toolState.result, null, 2)}
+                </pre>
+                
+                {/* プレゼンテーションプレビューボタン（結果の下にも表示） */}
+                {isPresentationTool && toolState.result?.htmlContent && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => openPreviewPanel(
+                        toolState.result.htmlContent, 
+                        toolState.result.title || 'プレゼンテーションプレビュー'
+                      )}
+                      className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors"
+                    >
+                      <DocumentTextIcon className="h-4 w-4 mr-2" />
+                      スライドをプレビュー表示
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CollapsibleToolSection>
+      );
+    });
     
     const hasTextContent = typeof message.content === 'string' && message.content.trim().length > 0;
     const hasUiParts = message.content && typeof message.content !== 'string' && message.content.length > 0;
 
     return (
-      <div className="flex justify-start mb-4 flex-col items-start">
-        {/* アシスタントテキストコンテンツ */}
-        {(hasTextContent || hasUiParts) && (
-          <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-300 shadow-sm mb-2">
-            {typeof message.content === 'string'
-              ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
-              : message.content.map((part, index) => {
-                  if (part.type === 'text') {
-                    return part.text.split('\n').map((line, i) => <p key={`${index}-${i}`} className="mb-1">{line}</p>);
-                  }
-                  return null; 
-                })}
-          </div>
-        )}
+      <>
+        <div className="flex justify-start mb-4 flex-col items-start">
+          {/* アシスタントテキストコンテンツ */}
+          {(hasTextContent || hasUiParts) && (
+            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-300 shadow-sm mb-2">
+              {typeof message.content === 'string'
+                ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
+                : Array.isArray(message.content) && message.content.map((part, index) => {
+                    if (part.type === 'text' && part.text) {
+                      return part.text.split('\n').map((line, i) => (
+                        <p key={`${index}-${i}`} className="mb-1">{line}</p>
+                      ));
+                    }
+                    return null; 
+                  })}
+            </div>
+          )}
+          
+          {/* ツールUIの表示 */}
+          {toolCallUiElements.length > 0 && (
+            <div className="w-full max-w-xl lg:max-w-2xl">
+              {toolCallUiElements}
+            </div>
+          )}
+        </div>
         
-        {/* ツールUIの表示 */}
-        {toolCallUiElements.length > 0 && (
-          <div className="w-full max-w-xl lg:max-w-2xl">
-            {toolCallUiElements}
-          </div>
+        {/* プレゼンテーションプレビューパネル */}
+        {presentationPreview.htmlContent && (
+          <PresentationPreviewPanel
+            htmlContent={presentationPreview.htmlContent}
+            title={presentationPreview.title}
+            isOpen={presentationPreview.isOpen}
+            onClose={closePreviewPanel}
+          />
         )}
-      </div>
+      </>
     );
   }
 
@@ -323,7 +594,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     return (
       <div className="flex justify-center my-3">
         <div className="p-3 rounded-md bg-yellow-100 border border-yellow-300 text-yellow-700 text-xs shadow-sm max-w-xl lg:max-w-2xl">
-          <p className="font-semibold">ツール結果 ({ (message as any).tool_name || 'Unknown Tool'}):</p>
+          <p className="font-semibold">ツール結果 ({ message.tool_name || 'Unknown Tool'}):</p>
           <pre className="whitespace-pre-wrap break-all mt-1">{typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2)}</pre>
         </div>
       </div>
