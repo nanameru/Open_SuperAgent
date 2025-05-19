@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PresentationViewer } from './PresentationViewer';
 import { XMarkIcon, ArrowPathIcon, DocumentArrowDownIcon, CodeBracketIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
@@ -9,23 +9,75 @@ interface PresentationPreviewPanelProps {
   title: string;
   isOpen: boolean;
   onClose: () => void;
+  onWidthChange?: (width: number) => void; // パネルの幅が変更されたときに呼ばれるコールバック
 }
 
 export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> = ({
   htmlContent,
   title,
   isOpen,
-  onClose
+  onClose,
+  onWidthChange
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [editedHtml, setEditedHtml] = useState(htmlContent);
   const [previewHtml, setPreviewHtml] = useState(htmlContent);
+  // リサイズ機能のための状態
+  const [panelWidth, setPanelWidth] = useState<number>(50); // パネル幅（％）
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const resizeHandleRef = useRef<HTMLDivElement>(null);
   
   // htmlContentが変更されたらeditedHtmlも更新
   useEffect(() => {
     setEditedHtml(htmlContent);
     setPreviewHtml(htmlContent);
   }, [htmlContent]);
+  
+  // パネル幅変更時に親コンポーネントに通知
+  useEffect(() => {
+    onWidthChange?.(panelWidth);
+  }, [panelWidth, onWidthChange]);
+  
+  // ドラッグ操作の開始
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    document.body.style.cursor = 'ew-resize';
+    
+    // カスタムドラッグイベントリスナーを追加
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+  }, []);
+
+  // ドラッグ中の処理
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (!isDragging) return;
+    
+    // ウィンドウの幅に対する相対位置を計算（％）
+    const viewportWidth = window.innerWidth;
+    // 画面右端からマウス位置までの距離を計算し、パーセンテージに変換
+    const widthPercentage = Math.min(Math.max(((viewportWidth - e.clientX) / viewportWidth) * 100, 20), 80);
+    
+    setPanelWidth(widthPercentage);
+  }, [isDragging]);
+
+  // ドラッグ終了の処理
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    document.body.style.cursor = '';
+    
+    // イベントリスナーを削除
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+  }, [handleDragMove]);
+
+  // コンポーネントのアンマウント時にイベントリスナーをクリーンアップ
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleDragMove);
+      document.removeEventListener('mouseup', handleDragEnd);
+    };
+  }, [handleDragMove, handleDragEnd]);
   
   // 編集内容をプレビューに適用
   const applyChanges = () => {
@@ -55,8 +107,28 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
         onClick={onClose}
       />
     
+      {/* リサイズハンドル */}
+      <div 
+        ref={resizeHandleRef}
+        className={`fixed inset-y-0 z-50 w-1 cursor-ew-resize bg-transparent hover:bg-gray-400/50 transition-colors
+                    ${isDragging ? 'bg-gray-400/50' : ''}`}
+        style={{ 
+          left: `calc(100% - ${panelWidth}% - 3px)`,
+          touchAction: 'none',
+          width: '6px'
+        }}
+        onMouseDown={handleDragStart}
+      >
+        <div className="h-full flex items-center justify-center">
+          <div className="h-16 w-1 bg-gray-400 rounded-full opacity-50"></div>
+        </div>
+      </div>
+    
       {/* サイドパネル */}
-      <div className={`fixed inset-y-0 right-0 w-1/2 bg-white shadow-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div 
+        className={`fixed inset-y-0 right-0 bg-white shadow-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ width: `${panelWidth}%` }}
+      >
         {/* ヘッダー */}
         <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-gray-100 to-white">
           <div className="flex items-center space-x-2">

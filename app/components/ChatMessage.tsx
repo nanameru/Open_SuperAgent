@@ -49,6 +49,7 @@ interface ChatMessageProps {
   message: ExtendedMessage;
   onPreviewOpen?: () => void; // プレビューが開かれたときのコールバック
   onPreviewClose?: () => void; // プレビューが閉じられたときのコールバック
+  onPreviewWidthChange?: (width: number) => void; // プレビューパネルの幅が変更されたときのコールバック
 }
 
 // ツール呼び出しの状態を管理するための型
@@ -208,7 +209,7 @@ const CollapsibleToolSection = ({
   );
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose, onPreviewWidthChange }) => {
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
@@ -459,6 +460,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     onPreviewClose?.(); // 親コンポーネントに通知
   };
 
+  // プレゼンテーションプレビューパネルの幅が変更されたときの処理
+  const handlePreviewPanelWidthChange = (width: number) => {
+    onPreviewWidthChange?.(width); // 親コンポーネントに通知
+  };
+
   // ユーザーメッセージ
   if (message.role === 'user') {
     return (
@@ -587,6 +593,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             title={presentationPreview.title}
             isOpen={presentationPreview.isOpen}
             onClose={closePreviewPanel}
+            onWidthChange={handlePreviewPanelWidthChange}
           />
         )}
       </>

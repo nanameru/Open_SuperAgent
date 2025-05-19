@@ -6,7 +6,7 @@ import { MainHeader } from '@/app/components/MainHeader';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -46,6 +46,8 @@ export default function AppPage() {
   });
   // プレビューパネルの表示状態
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
+  // プレビューパネルの幅（％）
+  const [previewPanelWidth, setPreviewPanelWidth] = useState<number>(50);
   
   // 標準のuseChatフック
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
@@ -379,10 +381,20 @@ export default function AppPage() {
     });
   }
 
+  // プレビューパネルの幅変更を処理する関数
+  const handlePreviewPanelWidthChange = useCallback((width: number) => {
+    setPreviewPanelWidth(width);
+  }, []);
+
   return (
     <div className="flex h-screen bg-gray-50 antialiased">
       <Sidebar />
-      <div className={`flex flex-col flex-1 overflow-hidden bg-white transition-all duration-300 ${isPreviewOpen ? 'mr-1/2' : ''}`}>
+      <div 
+        className={`flex flex-col flex-1 overflow-hidden bg-white transition-all duration-300`}
+        style={{ 
+          marginRight: isPreviewOpen ? `${previewPanelWidth}%` : '0' 
+        }}
+      >
         <MainHeader />
         <main className="flex-1 flex flex-col p-6 overflow-y-auto">
           {toolEventDetected && (
@@ -420,6 +432,7 @@ export default function AppPage() {
                 message={m} 
                 onPreviewOpen={() => setIsPreviewOpen(true)}
                 onPreviewClose={() => setIsPreviewOpen(false)}
+                onPreviewWidthChange={handlePreviewPanelWidthChange}
               />
             ))}
           </div>
