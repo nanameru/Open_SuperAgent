@@ -422,8 +422,8 @@ export default function AppPage() {
             
             {combinedMessages.length === 0 && !isLoading && !error && (
               <div className="flex-grow flex flex-col items-center justify-center">
-                <h1 className="text-2xl font-semibold text-gray-700">プレゼンテーションAIアシスタント</h1>
-                <p className="text-gray-500 mt-2">「生成AIについてのプレゼンテーションを作成して」などと指示してください</p>
+                <h1 className="text-2xl font-semibold text-gray-700">Open-SuperAgent</h1>
+                <p className="text-gray-500 mt-2">OpenなSuperAgentです！なんでもできるので何か指示してください！たとえば、生成AIについて調べてプレゼンテーションを作成して。など。</p>
               </div>
             )}
             {combinedMessages.map((m, i) => (
