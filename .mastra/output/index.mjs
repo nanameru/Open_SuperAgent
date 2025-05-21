@@ -8,7 +8,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { presentationPreviewTool, htmlSlideTool, geminiImageGenerationTool, weatherTool } from './tools/fbc7fb2e-2b64-4210-9610-8728b7ae28ce.mjs';
+import { geminiImageGenerationTool, advancedCalculatorTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/c4d5e239-0642-4ae4-952c-dee17d38b1bb.mjs';
 import crypto, { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path/posix';
@@ -18,12 +18,20 @@ import { Readable } from 'stream';
 import { createReadStream, lstatSync } from 'fs';
 import { Telemetry } from '@mastra/core';
 import { RuntimeContext } from '@mastra/core/runtime-context';
-import { z } from 'zod';
+import { Readable as Readable$1, Writable } from 'node:stream';
+import util from 'node:util';
+import { Buffer as Buffer$1 } from 'node:buffer';
+import { z, ZodFirstPartyTypeKind, ZodOptional } from 'zod';
+import { A2AError } from '@mastra/core/a2a';
+import { RuntimeContext as RuntimeContext$1 } from '@mastra/core/di';
 import { isVercelTool } from '@mastra/core/tools';
 import { ReadableStream as ReadableStream$1 } from 'node:stream/web';
 import 'ai';
 import '@ai-sdk/anthropic';
 import 'mathjs';
+import 'axios';
+import 'path';
+import 'uuid';
 
 const slideCreatorAgent = new Agent({
   name: "Slide Creator Agent",
@@ -55,6 +63,23 @@ content: |
           \u2022 success: \u6210\u529F\u3057\u305F\u304B\u3069\u3046\u304B
           \u2022 message: \u30E1\u30C3\u30BB\u30FC\u30B8
           \u2022 htmlContent: \u8868\u793A\u3055\u308C\u308BHTML\u30B3\u30F3\u30C6\u30F3\u30C4
+    - \`braveSearchTool\`
+      - \u5F15\u6570:
+          \u2022 query: \u691C\u7D22\u30AF\u30A8\u30EA\uFF08\u5FC5\u9808\uFF09
+          \u2022 count: \u53D6\u5F97\u3059\u308B\u7D50\u679C\u306E\u6570\uFF081-20\u3001\u30C7\u30D5\u30A9\u30EB\u30C8: 10\uFF09
+      - \u51FA\u529B:
+          \u2022 results: \u691C\u7D22\u7D50\u679C\u306E\u914D\u5217\uFF08title, url, description\uFF09
+    - \`advancedCalculatorTool\`
+      - \u5F15\u6570:
+          \u2022 expression: \u8A08\u7B97\u5F0F\uFF08\u4F8B: "2 * (3 + 4)", "10km to miles", "sqrt(16) + 5^2", "sin(pi/2)"\uFF09
+      - \u51FA\u529B:
+          \u2022 computationResult: \u8A08\u7B97\u7D50\u679C
+    - \`geminiImageGenerationTool\`
+      - \u5F15\u6570:
+          \u2022 prompt: \u753B\u50CF\u306E\u8AAC\u660E\uFF08\u5FC5\u9808\uFF09
+      - \u51FA\u529B:
+          \u2022 images: \u751F\u6210\u3055\u308C\u305F\u753B\u50CF\u306E\u914D\u5217\uFF08b64_json\u3067\u30A8\u30F3\u30B3\u30FC\u30C9\uFF09
+          \u2022 message: \u51E6\u7406\u7D50\u679C\u30E1\u30C3\u30BB\u30FC\u30B8
   - 1 \u56DE\u306E\u547C\u3073\u51FA\u3057\u306B\u3064\u304D 1 \u679A\u306E\u30B9\u30E9\u30A4\u30C9\u3092\u751F\u6210\u3059\u308B  
     (\u4F8B: 5 \u679A\u8981\u6C42 \u21D2 \`htmlSlideTool\` \u3092 5 \u56DE\u547C\u3073\u51FA\u3059)
 
@@ -80,6 +105,9 @@ content: |
      - \u6982\u8981\u306B\u306F\u5404\u30B9\u30E9\u30A4\u30C9\u306E\u72D9\u3044\u30FB\u30AD\u30FC\u30E1\u30C3\u30BB\u30FC\u30B8\u3092 1 \u884C\u3067\u66F8\u304F\u3002 
      - \u30D7\u30E9\u30F3\u306F **\u5FC5\u305A\u30E6\u30FC\u30B6\u30FC\u3078\u63D0\u793A\u3057\u627F\u8A8D\u3092\u5F97\u308B**\u3002 
        (\u901A\u5E38\u306F "OK" \u306A\u3069\u306E\u77ED\u3044\u8FD4\u7B54\u3067\u5341\u5206)
+     - \u30C8\u30D4\u30C3\u30AF\u306B\u95A2\u3059\u308B\u6700\u65B0\u60C5\u5831\u3084\u8A73\u7D30\u304C\u5FC5\u8981\u306A\u5834\u5408\u306F\u3001\`braveSearchTool\`\u3092\u4F7F\u3063\u3066\u60C5\u5831\u53CE\u96C6\u3067\u304D\u308B\u3002
+     - \u6570\u5024\u8A08\u7B97\u304C\u5FC5\u8981\u306A\u5834\u5408\u306F\u3001\`advancedCalculatorTool\`\u3092\u4F7F\u3063\u3066\u6B63\u78BA\u306A\u8A08\u7B97\u3092\u884C\u3046\u3002
+     - \u30B9\u30E9\u30A4\u30C9\u306B\u8996\u899A\u7684\u306A\u8981\u7D20\u3092\u8FFD\u52A0\u3057\u305F\u3044\u5834\u5408\u306F\u3001\`geminiImageGenerationTool\`\u3067\u753B\u50CF\u3092\u751F\u6210\u3067\u304D\u308B\u3002
 
   3. **\u30B9\u30E9\u30A4\u30C9\u751F\u6210\u30EB\u30FC\u30D7**  
      \`\`\`pseudo
@@ -91,6 +119,10 @@ content: |
      - \u751F\u6210\u3055\u308C\u305F \`htmlContent_i\` \u3092\u89E3\u6790\u3057\u3001
        \u6B21\u30B9\u30E9\u30A4\u30C9\u306E context \u3068\u3057\u3066\u6D3B\u7528\u3059\u308B\u3002  
        \u4F8B: \u540C\u3058\u914D\u8272\u30FB\u30D5\u30A9\u30F3\u30C8\u3092\u4FDD\u6301\u3001\u524D\u30B9\u30E9\u30A4\u30C9\u306E\u7D50\u8AD6\u3092\u8E0F\u307E\u3048\u308B\u7B49\u3002
+     - \u30B9\u30E9\u30A4\u30C9\u306E\u5185\u5BB9\u3092\u5145\u5B9F\u3055\u305B\u308B\u305F\u3081\u306B\u3001\u5FC5\u8981\u306B\u5FDC\u3058\u3066\u6B21\u306E\u30C4\u30FC\u30EB\u3092\u6D3B\u7528\u3059\u308B:
+       \u2022 \u6700\u65B0\u60C5\u5831\u3084\u8A73\u7D30\u30C7\u30FC\u30BF\u304C\u5FC5\u8981\u306A\u3089 \`braveSearchTool\` \u3067\u691C\u7D22
+       \u2022 \u6570\u5024\u3084\u30B0\u30E9\u30D5\u306B\u4F7F\u7528\u3059\u308B\u8A08\u7B97\u304C\u5FC5\u8981\u306A\u3089 \`advancedCalculatorTool\` \u3067\u8A08\u7B97
+       \u2022 \u30B9\u30E9\u30A4\u30C9\u3092\u8996\u899A\u7684\u306B\u5F37\u5316\u3059\u308B\u305F\u3081\u306E\u753B\u50CF\u304C\u5FC5\u8981\u306A\u3089 \`geminiImageGenerationTool\` \u3067\u751F\u6210
  
   4. **\u7D50\u5408 & \u51FA\u529B**  
      - \u3059\u3079\u3066\u306E htmlContent_i \u3092\u9806\u5E8F\u3069\u304A\u308A\u9023\u7D50\u3057
@@ -109,11 +141,7 @@ content: |
   - \u30D7\u30E9\u30F3\u63D0\u793A\u6642: \u4E0A\u8FF0\u300C\`\`\`plan\`\`\`\u300D\u30D6\u30ED\u30C3\u30AF\u306E\u307F
   - \u30C4\u30FC\u30EB\u547C\u3073\u51FA\u3057\u6642: **\u5FC5\u305A** JSON \u3067
     \`\`\`json
-    { "tool": "htmlSlideTool", "args": { ... } }
-    \`\`\`
-    \u307E\u305F\u306F
-    \`\`\`json
-    { "tool": "presentationPreviewTool", "args": { ... } }
+    { "tool": "\u30C4\u30FC\u30EB\u540D", "args": { ... } }
     \`\`\`
   - \u6700\u7D42\u7D0D\u54C1\u6642:  
     \`\`\`deliverable
@@ -131,8 +159,14 @@ content: |
   tools: {
     htmlSlideTool,
     // Register the tool with the agent
-    presentationPreviewTool
+    presentationPreviewTool,
     // Register the preview tool with the agent
+    braveSearchTool,
+    // Register the search tool
+    advancedCalculatorTool,
+    // Register the calculator tool
+    geminiImageGenerationTool
+    // Register the image generation tool
   },
   memory: new Memory({
     // Add memory configuration
@@ -153,24 +187,26 @@ const imageCreatorAgent = new Agent({
   // agent_id: 'image-creator-agent-001', // Removed agent_id to address linter error
   name: "Image Creator Agent",
   instructions: `
-    You are an assistant that generates images based on user prompts and returns them as Markdown.
-    When a user asks for an image, understand their request and use the geminiImageGenerationTool to create it. // Updated tool name
-    After the tool returns the image data (base64), you MUST format your response as a Markdown image.
-    For example: "Here is the image you requested:
-
-![Generated Image](data:image/png;base64,BASE64_DATA_HERE)"
-    The Gemini tool currently generates one image at a time and does not provide a revised prompt.
-    If the user provides a detailed prompt, use it directly. If the prompt is vague, you can ask for clarification or try to enhance it creatively before calling the tool.
+    You are an assistant that generates images based on user prompts and returns them.
+    When a user asks for an image, understand their request and use the geminiImageGenerationTool to create it.
+    
+    After the tool returns the image data, you MUST format your response as follows:
+    - If the image has a URL (preferred), display it directly using Markdown image syntax: ![Generated Image](URL_HERE)
+    - If only base64 data is available, use data URL format: ![Generated Image](data:image/png;base64,BASE64_DATA_HERE)
+    
+    The Gemini tool generates images and saves them as files, providing both URL and base64 data.
+    ALWAYS prefer using the URL version when available as it's more efficient.
+    
+    If the user provides a detailed prompt, use it directly. If the prompt is vague, you can ask for clarification
+    or try to enhance it creatively before calling the tool.
+    
     If the image generation fails, inform the user clearly about the error reported by the tool.
   `,
-  model: openai("gpt-4o-mini"),
-  // You can choose a different model if preferred
-  // getTools: () => ({ // Changed to getTools
-  //   geminiImageGenerationTool // Updated tool registration
-  // }),
+  model: openai("gpt-4.1"),
+  // Changed to use the same model as slideCreatorAgent
   tools: {
-    // Reverted to the simple tools object
     geminiImageGenerationTool
+    // Register the tool with the agent
   },
   memory: new Memory()
   // Enable memory for conversation context
@@ -1210,6 +1246,8 @@ var Hono$1 = class Hono {
       router: this.router,
       getPath: this.getPath
     });
+    clone.errorHandler = this.errorHandler;
+    clone.#notFoundHandler = this.#notFoundHandler;
     clone.routes = this.routes;
     return clone;
   }
@@ -2193,6 +2231,614 @@ var timeout = (duration, exception = defaultTimeoutException) => {
   };
 };
 
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/server/handlers/a2a.ts
+var a2a_exports = {};
+__export(a2a_exports, {
+  getAgentCardByIdHandler: () => getAgentCardByIdHandler$1,
+  getAgentExecutionHandler: () => getAgentExecutionHandler$1,
+  handleTaskCancel: () => handleTaskCancel,
+  handleTaskGet: () => handleTaskGet,
+  handleTaskSend: () => handleTaskSend,
+  handleTaskSendSubscribe: () => handleTaskSendSubscribe
+});
+function normalizeError(error, reqId, taskId, logger) {
+  let a2aError;
+  if (error instanceof A2AError) {
+    a2aError = error;
+  } else if (error instanceof Error) {
+    a2aError = A2AError.internalError(error.message, { stack: error.stack });
+  } else {
+    a2aError = A2AError.internalError("An unknown error occurred.", error);
+  }
+  if (taskId && !a2aError.taskId) {
+    a2aError.taskId = taskId;
+  }
+  logger?.error(`Error processing request (Task: ${a2aError.taskId ?? "N/A"}, ReqID: ${reqId ?? "N/A"}):`, a2aError);
+  return createErrorResponse(reqId, a2aError.toJSONRPCError());
+}
+function createErrorResponse(id, error) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    // Can be null if request ID was invalid/missing
+    error
+  };
+}
+function createSuccessResponse(id, result) {
+  if (!id) {
+    throw A2AError.internalError("Cannot create success response for null ID.");
+  }
+  return {
+    jsonrpc: "2.0",
+    id,
+    result
+  };
+}
+function convertToCoreMessage(message) {
+  return {
+    role: message.role === "user" ? "user" : "assistant",
+    content: message.parts.map((msg) => convertToCoreMessagePart(msg))
+  };
+}
+function convertToCoreMessagePart(part) {
+  switch (part.type) {
+    case "text":
+      return {
+        type: "text",
+        text: part.text
+      };
+    case "file":
+      return {
+        type: "file",
+        data: new URL(part.file.uri),
+        mimeType: part.file.mimeType
+      };
+    case "data":
+      throw new Error("Data parts are not supported in core messages");
+  }
+}
+
+// src/server/a2a/store.ts
+var InMemoryTaskStore = class {
+  store = /* @__PURE__ */ new Map();
+  activeCancellations = /* @__PURE__ */ new Set();
+  async load({ agentId, taskId }) {
+    const entry = this.store.get(`${agentId}-${taskId}`);
+    if (!entry) {
+      return null;
+    }
+    return { task: { ...entry.task }, history: [...entry.history] };
+  }
+  async save({ agentId, data }) {
+    const key = `${agentId}-${data.task.id}`;
+    if (!data.task.id) {
+      throw new Error("Task ID is required");
+    }
+    this.store.set(key, {
+      task: { ...data.task },
+      history: [...data.history]
+    });
+  }
+};
+
+// src/server/a2a/tasks.ts
+function isTaskStatusUpdate(update) {
+  return "state" in update && !("parts" in update);
+}
+function isArtifactUpdate(update) {
+  return "parts" in update;
+}
+function applyUpdateToTaskAndHistory(current, update) {
+  let newTask = structuredClone(current.task);
+  let newHistory = structuredClone(current.history);
+  if (isTaskStatusUpdate(update)) {
+    newTask.status = {
+      ...newTask.status,
+      // Keep existing properties if not overwritten
+      ...update,
+      // Apply updates
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (update.message?.role === "agent") {
+      newHistory.push(update.message);
+    }
+  } else if (isArtifactUpdate(update)) {
+    if (!newTask.artifacts) {
+      newTask.artifacts = [];
+    } else {
+      newTask.artifacts = [...newTask.artifacts];
+    }
+    const existingIndex = update.index ?? -1;
+    let replaced = false;
+    if (existingIndex >= 0 && existingIndex < newTask.artifacts.length) {
+      const existingArtifact = newTask.artifacts[existingIndex];
+      if (update.append) {
+        const appendedArtifact = JSON.parse(JSON.stringify(existingArtifact));
+        appendedArtifact.parts.push(...update.parts);
+        if (update.metadata) {
+          appendedArtifact.metadata = {
+            ...appendedArtifact.metadata || {},
+            ...update.metadata
+          };
+        }
+        if (update.lastChunk !== void 0) appendedArtifact.lastChunk = update.lastChunk;
+        if (update.description) appendedArtifact.description = update.description;
+        newTask.artifacts[existingIndex] = appendedArtifact;
+        replaced = true;
+      } else {
+        newTask.artifacts[existingIndex] = { ...update };
+        replaced = true;
+      }
+    } else if (update.name) {
+      const namedIndex = newTask.artifacts.findIndex((a) => a.name === update.name);
+      if (namedIndex >= 0) {
+        newTask.artifacts[namedIndex] = { ...update };
+        replaced = true;
+      }
+    }
+    if (!replaced) {
+      newTask.artifacts.push({ ...update });
+      if (newTask.artifacts.some((a) => a.index !== void 0)) {
+        newTask.artifacts.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+      }
+    }
+  }
+  return { task: newTask, history: newHistory };
+}
+async function loadOrCreateTaskAndHistory({
+  agentId,
+  taskId,
+  taskStore,
+  message,
+  sessionId,
+  metadata,
+  logger
+}) {
+  const data = await taskStore.load({ agentId, taskId });
+  if (!data) {
+    const initialTask = {
+      id: taskId,
+      sessionId,
+      status: {
+        state: "submitted",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        message: null
+      },
+      artifacts: [],
+      metadata
+    };
+    const initialData = {
+      task: initialTask,
+      history: [message]
+    };
+    logger?.info(`[Task ${taskId}] Created new task and history.`);
+    await taskStore.save({ agentId, data: initialData });
+    return initialData;
+  }
+  logger?.info(`[Task ${taskId}] Loaded existing task and history.`);
+  let updatedData = {
+    task: data.task,
+    history: [...data.history, message]
+  };
+  const { status } = data.task;
+  const finalStates = ["completed", "failed", "canceled"];
+  if (finalStates.includes(status.state)) {
+    logger?.warn(`[Task ${taskId}] Received message for task in final state ${status.state}. Restarting.`);
+    updatedData = applyUpdateToTaskAndHistory(updatedData, {
+      state: "submitted",
+      message: null
+    });
+  } else if (status.state === "input-required") {
+    logger?.info(`[Task ${taskId}] Changing state from 'input-required' to 'working'.`);
+    updatedData = applyUpdateToTaskAndHistory(updatedData, { state: "working" });
+  } else if (status.state === "working") {
+    logger?.warn(`[Task ${taskId}] Received message while already 'working'. Proceeding.`);
+  }
+  await taskStore.save({ agentId, data: updatedData });
+  return {
+    task: { ...updatedData.task },
+    history: [...updatedData.history]
+  };
+}
+function createTaskContext({
+  task,
+  userMessage,
+  history,
+  activeCancellations
+}) {
+  return {
+    task: structuredClone(task),
+    userMessage,
+    history: structuredClone(history),
+    isCancelled: () => activeCancellations.has(task.id)
+  };
+}
+
+// src/server/handlers/a2a.ts
+var taskSendParamsSchema = z.object({
+  id: z.string().min(1, "Invalid or missing task ID (params.id)."),
+  message: z.object({
+    parts: z.array(
+      z.object({
+        type: z.enum(["text"]),
+        text: z.string()
+      })
+    )
+  })
+});
+async function getAgentCardByIdHandler$1({
+  mastra,
+  agentId,
+  executionUrl = `/a2a/${agentId}`,
+  provider = {
+    organization: "Mastra",
+    url: "https://mastra.ai"
+  },
+  version = "1.0",
+  runtimeContext
+}) {
+  const agent = mastra.getAgent(agentId);
+  if (!agent) {
+    throw new Error(`Agent with ID ${agentId} not found`);
+  }
+  const [instructions, tools] = await Promise.all([
+    agent.getInstructions({ runtimeContext }),
+    agent.getTools({ runtimeContext })
+  ]);
+  const agentCard = {
+    name: agent.id || agentId,
+    description: instructions,
+    url: executionUrl,
+    provider,
+    version,
+    capabilities: {
+      streaming: true,
+      // All agents support streaming
+      pushNotifications: false,
+      stateTransitionHistory: false
+    },
+    defaultInputModes: ["text"],
+    defaultOutputModes: ["text"],
+    // Convert agent tools to skills format for A2A protocol
+    skills: Object.entries(tools).map(([toolId, tool]) => ({
+      id: toolId,
+      name: toolId,
+      description: tool.description || `Tool: ${toolId}`,
+      // Optional fields
+      tags: ["tool"]
+    }))
+  };
+  return agentCard;
+}
+function validateTaskSendParams(params) {
+  try {
+    taskSendParamsSchema.parse(params);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw A2AError.invalidParams(error.errors[0].message);
+    }
+    throw error;
+  }
+}
+async function handleTaskSend({
+  requestId,
+  params,
+  taskStore,
+  agent,
+  logger,
+  runtimeContext
+}) {
+  validateTaskSendParams(params);
+  const agentId = agent.id;
+  const { id: taskId, message, sessionId, metadata } = params;
+  let currentData = await loadOrCreateTaskAndHistory({
+    taskId,
+    taskStore,
+    agentId,
+    message,
+    sessionId,
+    metadata
+  });
+  createTaskContext({
+    task: currentData.task,
+    userMessage: message,
+    history: currentData.history,
+    activeCancellations: taskStore.activeCancellations
+  });
+  try {
+    const { text } = await agent.generate([convertToCoreMessage(message)], {
+      runId: taskId,
+      runtimeContext
+    });
+    currentData = applyUpdateToTaskAndHistory(currentData, {
+      state: "completed",
+      message: {
+        role: "agent",
+        parts: [
+          {
+            type: "text",
+            text
+          }
+        ]
+      }
+    });
+    await taskStore.save({ agentId, data: currentData });
+  } catch (handlerError) {
+    const failureStatusUpdate = {
+      state: "failed",
+      message: {
+        role: "agent",
+        parts: [
+          {
+            type: "text",
+            text: `Handler failed: ${handlerError instanceof Error ? handlerError.message : String(handlerError)}`
+          }
+        ]
+      }
+    };
+    currentData = applyUpdateToTaskAndHistory(currentData, failureStatusUpdate);
+    try {
+      await taskStore.save({ agentId, data: currentData });
+    } catch (saveError) {
+      logger?.error(`Failed to save task ${taskId} after handler error:`, saveError?.message);
+    }
+    return normalizeError(handlerError, requestId, taskId, logger);
+  }
+  return createSuccessResponse(requestId, currentData.task);
+}
+async function handleTaskGet({
+  requestId,
+  taskStore,
+  agentId,
+  taskId
+}) {
+  const task = await taskStore.load({ agentId, taskId });
+  if (!task) {
+    throw A2AError.taskNotFound(taskId);
+  }
+  return createSuccessResponse(requestId, task);
+}
+async function* handleTaskSendSubscribe({
+  requestId,
+  params,
+  taskStore,
+  agent,
+  logger,
+  runtimeContext
+}) {
+  yield createSuccessResponse(requestId, {
+    state: "working",
+    message: {
+      role: "agent",
+      parts: [{ type: "text", text: "Generating response..." }]
+    }
+  });
+  let result;
+  try {
+    result = await handleTaskSend({
+      requestId,
+      params,
+      taskStore,
+      agent,
+      runtimeContext,
+      logger
+    });
+  } catch (err) {
+    if (!(err instanceof A2AError)) {
+      throw err;
+    }
+    result = createErrorResponse(requestId, err.toJSONRPCError());
+  }
+  yield result;
+}
+async function handleTaskCancel({
+  requestId,
+  taskStore,
+  agentId,
+  taskId,
+  logger
+}) {
+  let data = await taskStore.load({
+    agentId,
+    taskId
+  });
+  if (!data) {
+    throw A2AError.taskNotFound(taskId);
+  }
+  const finalStates = ["completed", "failed", "canceled"];
+  if (finalStates.includes(data.task.status.state)) {
+    logger?.info(`Task ${taskId} already in final state ${data.task.status.state}, cannot cancel.`);
+    return createSuccessResponse(requestId, data.task);
+  }
+  taskStore.activeCancellations.add(taskId);
+  const cancelUpdate = {
+    state: "canceled",
+    message: {
+      role: "agent",
+      parts: [{ type: "text", text: "Task cancelled by request." }]
+    }
+  };
+  data = applyUpdateToTaskAndHistory(data, cancelUpdate);
+  await taskStore.save({ agentId, data });
+  taskStore.activeCancellations.delete(taskId);
+  return createSuccessResponse(requestId, data.task);
+}
+async function getAgentExecutionHandler$1({
+  requestId,
+  mastra,
+  agentId,
+  runtimeContext,
+  method,
+  params,
+  taskStore = new InMemoryTaskStore(),
+  logger
+}) {
+  const agent = mastra.getAgent(agentId);
+  let taskId;
+  try {
+    taskId = params.id;
+    switch (method) {
+      case "tasks/send": {
+        const result2 = await handleTaskSend({
+          requestId,
+          params,
+          taskStore,
+          agent,
+          runtimeContext
+        });
+        return result2;
+      }
+      case "tasks/sendSubscribe":
+        const result = await handleTaskSendSubscribe({
+          requestId,
+          taskStore,
+          params,
+          agent,
+          runtimeContext
+        });
+        return result;
+      case "tasks/get": {
+        const result2 = await handleTaskGet({
+          requestId,
+          taskStore,
+          agentId,
+          taskId
+        });
+        return result2;
+      }
+      case "tasks/cancel": {
+        const result2 = await handleTaskCancel({
+          requestId,
+          taskStore,
+          agentId,
+          taskId
+        });
+        return result2;
+      }
+      default:
+        throw A2AError.methodNotFound(method);
+    }
+  } catch (error) {
+    if (error instanceof A2AError && taskId && !error.taskId) {
+      error.taskId = taskId;
+    }
+    return normalizeError(error, requestId, taskId, logger);
+  }
+}
+
+// src/utils/stream.ts
+var StreamingApi = class {
+  writer;
+  encoder;
+  writable;
+  abortSubscribers = [];
+  responseReadable;
+  aborted = false;
+  closed = false;
+  constructor(writable, _readable) {
+    this.writable = writable;
+    this.writer = writable.getWriter();
+    this.encoder = new TextEncoder();
+    const reader = _readable.getReader();
+    this.abortSubscribers.push(async () => {
+      await reader.cancel();
+    });
+    this.responseReadable = new ReadableStream({
+      async pull(controller) {
+        const { done, value } = await reader.read();
+        done ? controller.close() : controller.enqueue(value);
+      },
+      cancel: () => {
+        this.abort();
+      }
+    });
+  }
+  async write(input) {
+    try {
+      if (typeof input === "string") {
+        input = this.encoder.encode(input);
+      }
+      await this.writer.write(input);
+    } catch {
+    }
+    return this;
+  }
+  async writeln(input) {
+    await this.write(input + "\n");
+    return this;
+  }
+  sleep(ms) {
+    return new Promise((res) => setTimeout(res, ms));
+  }
+  async close() {
+    try {
+      await this.writer.close();
+    } catch {
+    }
+    this.closed = true;
+  }
+  async pipe(body) {
+    this.writer.releaseLock();
+    await body.pipeTo(this.writable, { preventClose: true });
+    this.writer = this.writable.getWriter();
+  }
+  onAbort(listener) {
+    this.abortSubscribers.push(listener);
+  }
+  abort() {
+    if (!this.aborted) {
+      this.aborted = true;
+      this.abortSubscribers.forEach((subscriber) => subscriber());
+    }
+  }
+};
+
+// src/helper/streaming/utils.ts
+var isOldBunVersion = () => {
+  const version = typeof Bun !== "undefined" ? Bun.version : void 0;
+  if (version === void 0) {
+    return false;
+  }
+  const result = version.startsWith("1.1") || version.startsWith("1.0") || version.startsWith("0.");
+  isOldBunVersion = () => result;
+  return result;
+};
+
+// src/helper/streaming/stream.ts
+var contextStash = /* @__PURE__ */ new WeakMap();
+var stream = (c, cb, onError) => {
+  const { readable, writable } = new TransformStream();
+  const stream2 = new StreamingApi(writable, readable);
+  if (isOldBunVersion()) {
+    c.req.raw.signal.addEventListener("abort", () => {
+      if (!stream2.closed) {
+        stream2.abort();
+      }
+    });
+  }
+  contextStash.set(stream2.responseReadable, c);
+  (async () => {
+    try {
+      await cb(stream2);
+    } catch (e) {
+      if (e === void 0) ; else if (e instanceof Error && onError) {
+        await onError(e, stream2);
+      } else {
+        console.error(e);
+      }
+    } finally {
+      stream2.close();
+    }
+  })();
+  return c.newResponse(stream2.responseReadable);
+};
+
 // ../../node_modules/.pnpm/superjson@2.2.2/node_modules/superjson/dist/double-indexed-kv.js
 var DoubleIndexedKV = class {
   constructor() {
@@ -2957,7 +3603,7 @@ SuperJSON.registerCustom = SuperJSON.defaultInstance.registerCustom.bind(SuperJS
 SuperJSON.allowErrorProps = SuperJSON.defaultInstance.allowErrorProps.bind(SuperJSON.defaultInstance);
 var stringify = SuperJSON.stringify;
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/Options.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/Options.js
 var ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use");
 var defaultOptions = {
   name: void 0,
@@ -2990,7 +3636,7 @@ var getDefaultOptions = (options) => typeof options === "string" ? {
   ...options
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/Refs.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/Refs.js
 var getRefs = (options) => {
   const _options = getDefaultOptions(options);
   const currentPath = _options.name !== void 0 ? [..._options.basePath, _options.definitionPath, _options.name] : _options.basePath;
@@ -3010,7 +3656,7 @@ var getRefs = (options) => {
   };
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/errorMessages.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/errorMessages.js
 function addErrorMessage(res, key, errorMessage, refs) {
   if (!refs?.errorMessages)
     return;
@@ -3026,3585 +3672,10 @@ function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
   addErrorMessage(res, key, errorMessage, refs);
 }
 
-// ../../node_modules/.pnpm/zod@3.24.3/node_modules/zod/lib/index.mjs
-var util;
-(function(util2) {
-  util2.assertEqual = (val) => val;
-  function assertIs(_arg) {
-  }
-  util2.assertIs = assertIs;
-  function assertNever(_x) {
-    throw new Error();
-  }
-  util2.assertNever = assertNever;
-  util2.arrayToEnum = (items) => {
-    const obj = {};
-    for (const item of items) {
-      obj[item] = item;
-    }
-    return obj;
-  };
-  util2.getValidEnumValues = (obj) => {
-    const validKeys = util2.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
-    const filtered = {};
-    for (const k of validKeys) {
-      filtered[k] = obj[k];
-    }
-    return util2.objectValues(filtered);
-  };
-  util2.objectValues = (obj) => {
-    return util2.objectKeys(obj).map(function(e) {
-      return obj[e];
-    });
-  };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
-    const keys = [];
-    for (const key in object) {
-      if (Object.prototype.hasOwnProperty.call(object, key)) {
-        keys.push(key);
-      }
-    }
-    return keys;
-  };
-  util2.find = (arr, checker) => {
-    for (const item of arr) {
-      if (checker(item))
-        return item;
-    }
-    return void 0;
-  };
-  util2.isInteger = typeof Number.isInteger === "function" ? (val) => Number.isInteger(val) : (val) => typeof val === "number" && isFinite(val) && Math.floor(val) === val;
-  function joinValues(array, separator = " | ") {
-    return array.map((val) => typeof val === "string" ? `'${val}'` : val).join(separator);
-  }
-  util2.joinValues = joinValues;
-  util2.jsonStringifyReplacer = (_, value) => {
-    if (typeof value === "bigint") {
-      return value.toString();
-    }
-    return value;
-  };
-})(util || (util = {}));
-var objectUtil;
-(function(objectUtil2) {
-  objectUtil2.mergeShapes = (first, second) => {
-    return {
-      ...first,
-      ...second
-      // second overwrites first
-    };
-  };
-})(objectUtil || (objectUtil = {}));
-var ZodParsedType = util.arrayToEnum([
-  "string",
-  "nan",
-  "number",
-  "integer",
-  "float",
-  "boolean",
-  "date",
-  "bigint",
-  "symbol",
-  "function",
-  "undefined",
-  "null",
-  "array",
-  "object",
-  "unknown",
-  "promise",
-  "void",
-  "never",
-  "map",
-  "set"
-]);
-var getParsedType = (data) => {
-  const t = typeof data;
-  switch (t) {
-    case "undefined":
-      return ZodParsedType.undefined;
-    case "string":
-      return ZodParsedType.string;
-    case "number":
-      return isNaN(data) ? ZodParsedType.nan : ZodParsedType.number;
-    case "boolean":
-      return ZodParsedType.boolean;
-    case "function":
-      return ZodParsedType.function;
-    case "bigint":
-      return ZodParsedType.bigint;
-    case "symbol":
-      return ZodParsedType.symbol;
-    case "object":
-      if (Array.isArray(data)) {
-        return ZodParsedType.array;
-      }
-      if (data === null) {
-        return ZodParsedType.null;
-      }
-      if (data.then && typeof data.then === "function" && data.catch && typeof data.catch === "function") {
-        return ZodParsedType.promise;
-      }
-      if (typeof Map !== "undefined" && data instanceof Map) {
-        return ZodParsedType.map;
-      }
-      if (typeof Set !== "undefined" && data instanceof Set) {
-        return ZodParsedType.set;
-      }
-      if (typeof Date !== "undefined" && data instanceof Date) {
-        return ZodParsedType.date;
-      }
-      return ZodParsedType.object;
-    default:
-      return ZodParsedType.unknown;
-  }
-};
-var ZodIssueCode = util.arrayToEnum([
-  "invalid_type",
-  "invalid_literal",
-  "custom",
-  "invalid_union",
-  "invalid_union_discriminator",
-  "invalid_enum_value",
-  "unrecognized_keys",
-  "invalid_arguments",
-  "invalid_return_type",
-  "invalid_date",
-  "invalid_string",
-  "too_small",
-  "too_big",
-  "invalid_intersection_types",
-  "not_multiple_of",
-  "not_finite"
-]);
-var ZodError = class _ZodError extends Error {
-  get errors() {
-    return this.issues;
-  }
-  constructor(issues) {
-    super();
-    this.issues = [];
-    this.addIssue = (sub) => {
-      this.issues = [...this.issues, sub];
-    };
-    this.addIssues = (subs = []) => {
-      this.issues = [...this.issues, ...subs];
-    };
-    const actualProto = new.target.prototype;
-    if (Object.setPrototypeOf) {
-      Object.setPrototypeOf(this, actualProto);
-    } else {
-      this.__proto__ = actualProto;
-    }
-    this.name = "ZodError";
-    this.issues = issues;
-  }
-  format(_mapper) {
-    const mapper = _mapper || function(issue) {
-      return issue.message;
-    };
-    const fieldErrors = { _errors: [] };
-    const processError = (error) => {
-      for (const issue of error.issues) {
-        if (issue.code === "invalid_union") {
-          issue.unionErrors.map(processError);
-        } else if (issue.code === "invalid_return_type") {
-          processError(issue.returnTypeError);
-        } else if (issue.code === "invalid_arguments") {
-          processError(issue.argumentsError);
-        } else if (issue.path.length === 0) {
-          fieldErrors._errors.push(mapper(issue));
-        } else {
-          let curr = fieldErrors;
-          let i = 0;
-          while (i < issue.path.length) {
-            const el = issue.path[i];
-            const terminal = i === issue.path.length - 1;
-            if (!terminal) {
-              curr[el] = curr[el] || { _errors: [] };
-            } else {
-              curr[el] = curr[el] || { _errors: [] };
-              curr[el]._errors.push(mapper(issue));
-            }
-            curr = curr[el];
-            i++;
-          }
-        }
-      }
-    };
-    processError(this);
-    return fieldErrors;
-  }
-  static assert(value) {
-    if (!(value instanceof _ZodError)) {
-      throw new Error(`Not a ZodError: ${value}`);
-    }
-  }
-  toString() {
-    return this.message;
-  }
-  get message() {
-    return JSON.stringify(this.issues, util.jsonStringifyReplacer, 2);
-  }
-  get isEmpty() {
-    return this.issues.length === 0;
-  }
-  flatten(mapper = (issue) => issue.message) {
-    const fieldErrors = {};
-    const formErrors = [];
-    for (const sub of this.issues) {
-      if (sub.path.length > 0) {
-        fieldErrors[sub.path[0]] = fieldErrors[sub.path[0]] || [];
-        fieldErrors[sub.path[0]].push(mapper(sub));
-      } else {
-        formErrors.push(mapper(sub));
-      }
-    }
-    return { formErrors, fieldErrors };
-  }
-  get formErrors() {
-    return this.flatten();
-  }
-};
-ZodError.create = (issues) => {
-  const error = new ZodError(issues);
-  return error;
-};
-var errorMap = (issue, _ctx) => {
-  let message;
-  switch (issue.code) {
-    case ZodIssueCode.invalid_type:
-      if (issue.received === ZodParsedType.undefined) {
-        message = "Required";
-      } else {
-        message = `Expected ${issue.expected}, received ${issue.received}`;
-      }
-      break;
-    case ZodIssueCode.invalid_literal:
-      message = `Invalid literal value, expected ${JSON.stringify(issue.expected, util.jsonStringifyReplacer)}`;
-      break;
-    case ZodIssueCode.unrecognized_keys:
-      message = `Unrecognized key(s) in object: ${util.joinValues(issue.keys, ", ")}`;
-      break;
-    case ZodIssueCode.invalid_union:
-      message = `Invalid input`;
-      break;
-    case ZodIssueCode.invalid_union_discriminator:
-      message = `Invalid discriminator value. Expected ${util.joinValues(issue.options)}`;
-      break;
-    case ZodIssueCode.invalid_enum_value:
-      message = `Invalid enum value. Expected ${util.joinValues(issue.options)}, received '${issue.received}'`;
-      break;
-    case ZodIssueCode.invalid_arguments:
-      message = `Invalid function arguments`;
-      break;
-    case ZodIssueCode.invalid_return_type:
-      message = `Invalid function return type`;
-      break;
-    case ZodIssueCode.invalid_date:
-      message = `Invalid date`;
-      break;
-    case ZodIssueCode.invalid_string:
-      if (typeof issue.validation === "object") {
-        if ("includes" in issue.validation) {
-          message = `Invalid input: must include "${issue.validation.includes}"`;
-          if (typeof issue.validation.position === "number") {
-            message = `${message} at one or more positions greater than or equal to ${issue.validation.position}`;
-          }
-        } else if ("startsWith" in issue.validation) {
-          message = `Invalid input: must start with "${issue.validation.startsWith}"`;
-        } else if ("endsWith" in issue.validation) {
-          message = `Invalid input: must end with "${issue.validation.endsWith}"`;
-        } else {
-          util.assertNever(issue.validation);
-        }
-      } else if (issue.validation !== "regex") {
-        message = `Invalid ${issue.validation}`;
-      } else {
-        message = "Invalid";
-      }
-      break;
-    case ZodIssueCode.too_small:
-      if (issue.type === "array")
-        message = `Array must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `more than`} ${issue.minimum} element(s)`;
-      else if (issue.type === "string")
-        message = `String must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `over`} ${issue.minimum} character(s)`;
-      else if (issue.type === "number")
-        message = `Number must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${issue.minimum}`;
-      else if (issue.type === "date")
-        message = `Date must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue.minimum))}`;
-      else
-        message = "Invalid input";
-      break;
-    case ZodIssueCode.too_big:
-      if (issue.type === "array")
-        message = `Array must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `less than`} ${issue.maximum} element(s)`;
-      else if (issue.type === "string")
-        message = `String must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `under`} ${issue.maximum} character(s)`;
-      else if (issue.type === "number")
-        message = `Number must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
-      else if (issue.type === "bigint")
-        message = `BigInt must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
-      else if (issue.type === "date")
-        message = `Date must be ${issue.exact ? `exactly` : issue.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue.maximum))}`;
-      else
-        message = "Invalid input";
-      break;
-    case ZodIssueCode.custom:
-      message = `Invalid input`;
-      break;
-    case ZodIssueCode.invalid_intersection_types:
-      message = `Intersection results could not be merged`;
-      break;
-    case ZodIssueCode.not_multiple_of:
-      message = `Number must be a multiple of ${issue.multipleOf}`;
-      break;
-    case ZodIssueCode.not_finite:
-      message = "Number must be finite";
-      break;
-    default:
-      message = _ctx.defaultError;
-      util.assertNever(issue);
-  }
-  return { message };
-};
-var overrideErrorMap = errorMap;
-function getErrorMap() {
-  return overrideErrorMap;
-}
-var makeIssue = (params) => {
-  const { data, path, errorMaps, issueData } = params;
-  const fullPath = [...path, ...issueData.path || []];
-  const fullIssue = {
-    ...issueData,
-    path: fullPath
-  };
-  if (issueData.message !== void 0) {
-    return {
-      ...issueData,
-      path: fullPath,
-      message: issueData.message
-    };
-  }
-  let errorMessage = "";
-  const maps = errorMaps.filter((m) => !!m).slice().reverse();
-  for (const map of maps) {
-    errorMessage = map(fullIssue, { data, defaultError: errorMessage }).message;
-  }
-  return {
-    ...issueData,
-    path: fullPath,
-    message: errorMessage
-  };
-};
-function addIssueToContext(ctx, issueData) {
-  const overrideMap = getErrorMap();
-  const issue = makeIssue({
-    issueData,
-    data: ctx.data,
-    path: ctx.path,
-    errorMaps: [
-      ctx.common.contextualErrorMap,
-      // contextual error map is first priority
-      ctx.schemaErrorMap,
-      // then schema-bound map if available
-      overrideMap,
-      // then global override map
-      overrideMap === errorMap ? void 0 : errorMap
-      // then global default map
-    ].filter((x) => !!x)
-  });
-  ctx.common.issues.push(issue);
-}
-var ParseStatus = class _ParseStatus {
-  constructor() {
-    this.value = "valid";
-  }
-  dirty() {
-    if (this.value === "valid")
-      this.value = "dirty";
-  }
-  abort() {
-    if (this.value !== "aborted")
-      this.value = "aborted";
-  }
-  static mergeArray(status, results) {
-    const arrayValue = [];
-    for (const s of results) {
-      if (s.status === "aborted")
-        return INVALID;
-      if (s.status === "dirty")
-        status.dirty();
-      arrayValue.push(s.value);
-    }
-    return { status: status.value, value: arrayValue };
-  }
-  static async mergeObjectAsync(status, pairs) {
-    const syncPairs = [];
-    for (const pair of pairs) {
-      const key = await pair.key;
-      const value = await pair.value;
-      syncPairs.push({
-        key,
-        value
-      });
-    }
-    return _ParseStatus.mergeObjectSync(status, syncPairs);
-  }
-  static mergeObjectSync(status, pairs) {
-    const finalObject = {};
-    for (const pair of pairs) {
-      const { key, value } = pair;
-      if (key.status === "aborted")
-        return INVALID;
-      if (value.status === "aborted")
-        return INVALID;
-      if (key.status === "dirty")
-        status.dirty();
-      if (value.status === "dirty")
-        status.dirty();
-      if (key.value !== "__proto__" && (typeof value.value !== "undefined" || pair.alwaysSet)) {
-        finalObject[key.value] = value.value;
-      }
-    }
-    return { status: status.value, value: finalObject };
-  }
-};
-var INVALID = Object.freeze({
-  status: "aborted"
-});
-var DIRTY = (value) => ({ status: "dirty", value });
-var OK = (value) => ({ status: "valid", value });
-var isAborted = (x) => x.status === "aborted";
-var isDirty = (x) => x.status === "dirty";
-var isValid = (x) => x.status === "valid";
-var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
-function __classPrivateFieldGet(receiver, state, kind, f) {
-  if (typeof state === "function" ? receiver !== state || true : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return state.get(receiver);
-}
-function __classPrivateFieldSet(receiver, state, value, kind, f) {
-  if (typeof state === "function" ? receiver !== state || true : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return state.set(receiver, value), value;
-}
-var errorUtil;
-(function(errorUtil2) {
-  errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
-  errorUtil2.toString = (message) => typeof message === "string" ? message : message === null || message === void 0 ? void 0 : message.message;
-})(errorUtil || (errorUtil = {}));
-var _ZodEnum_cache;
-var _ZodNativeEnum_cache;
-var ParseInputLazyPath = class {
-  constructor(parent, value, path, key) {
-    this._cachedPath = [];
-    this.parent = parent;
-    this.data = value;
-    this._path = path;
-    this._key = key;
-  }
-  get path() {
-    if (!this._cachedPath.length) {
-      if (this._key instanceof Array) {
-        this._cachedPath.push(...this._path, ...this._key);
-      } else {
-        this._cachedPath.push(...this._path, this._key);
-      }
-    }
-    return this._cachedPath;
-  }
-};
-var handleResult = (ctx, result) => {
-  if (isValid(result)) {
-    return { success: true, data: result.value };
-  } else {
-    if (!ctx.common.issues.length) {
-      throw new Error("Validation failed but no issues detected.");
-    }
-    return {
-      success: false,
-      get error() {
-        if (this._error)
-          return this._error;
-        const error = new ZodError(ctx.common.issues);
-        this._error = error;
-        return this._error;
-      }
-    };
-  }
-};
-function processCreateParams(params) {
-  if (!params)
-    return {};
-  const { errorMap: errorMap2, invalid_type_error, required_error, description } = params;
-  if (errorMap2 && (invalid_type_error || required_error)) {
-    throw new Error(`Can't use "invalid_type_error" or "required_error" in conjunction with custom error map.`);
-  }
-  if (errorMap2)
-    return { errorMap: errorMap2, description };
-  const customMap = (iss, ctx) => {
-    var _a, _b;
-    const { message } = params;
-    if (iss.code === "invalid_enum_value") {
-      return { message: message !== null && message !== void 0 ? message : ctx.defaultError };
-    }
-    if (typeof ctx.data === "undefined") {
-      return { message: (_a = message !== null && message !== void 0 ? message : required_error) !== null && _a !== void 0 ? _a : ctx.defaultError };
-    }
-    if (iss.code !== "invalid_type")
-      return { message: ctx.defaultError };
-    return { message: (_b = message !== null && message !== void 0 ? message : invalid_type_error) !== null && _b !== void 0 ? _b : ctx.defaultError };
-  };
-  return { errorMap: customMap, description };
-}
-var ZodType = class {
-  get description() {
-    return this._def.description;
-  }
-  _getType(input) {
-    return getParsedType(input.data);
-  }
-  _getOrReturnCtx(input, ctx) {
-    return ctx || {
-      common: input.parent.common,
-      data: input.data,
-      parsedType: getParsedType(input.data),
-      schemaErrorMap: this._def.errorMap,
-      path: input.path,
-      parent: input.parent
-    };
-  }
-  _processInputParams(input) {
-    return {
-      status: new ParseStatus(),
-      ctx: {
-        common: input.parent.common,
-        data: input.data,
-        parsedType: getParsedType(input.data),
-        schemaErrorMap: this._def.errorMap,
-        path: input.path,
-        parent: input.parent
-      }
-    };
-  }
-  _parseSync(input) {
-    const result = this._parse(input);
-    if (isAsync(result)) {
-      throw new Error("Synchronous parse encountered promise.");
-    }
-    return result;
-  }
-  _parseAsync(input) {
-    const result = this._parse(input);
-    return Promise.resolve(result);
-  }
-  parse(data, params) {
-    const result = this.safeParse(data, params);
-    if (result.success)
-      return result.data;
-    throw result.error;
-  }
-  safeParse(data, params) {
-    var _a;
-    const ctx = {
-      common: {
-        issues: [],
-        async: (_a = params === null || params === void 0 ? void 0 : params.async) !== null && _a !== void 0 ? _a : false,
-        contextualErrorMap: params === null || params === void 0 ? void 0 : params.errorMap
-      },
-      path: (params === null || params === void 0 ? void 0 : params.path) || [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    const result = this._parseSync({ data, path: ctx.path, parent: ctx });
-    return handleResult(ctx, result);
-  }
-  "~validate"(data) {
-    var _a, _b;
-    const ctx = {
-      common: {
-        issues: [],
-        async: !!this["~standard"].async
-      },
-      path: [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    if (!this["~standard"].async) {
-      try {
-        const result = this._parseSync({ data, path: [], parent: ctx });
-        return isValid(result) ? {
-          value: result.value
-        } : {
-          issues: ctx.common.issues
-        };
-      } catch (err) {
-        if ((_b = (_a = err === null || err === void 0 ? void 0 : err.message) === null || _a === void 0 ? void 0 : _a.toLowerCase()) === null || _b === void 0 ? void 0 : _b.includes("encountered")) {
-          this["~standard"].async = true;
-        }
-        ctx.common = {
-          issues: [],
-          async: true
-        };
-      }
-    }
-    return this._parseAsync({ data, path: [], parent: ctx }).then((result) => isValid(result) ? {
-      value: result.value
-    } : {
-      issues: ctx.common.issues
-    });
-  }
-  async parseAsync(data, params) {
-    const result = await this.safeParseAsync(data, params);
-    if (result.success)
-      return result.data;
-    throw result.error;
-  }
-  async safeParseAsync(data, params) {
-    const ctx = {
-      common: {
-        issues: [],
-        contextualErrorMap: params === null || params === void 0 ? void 0 : params.errorMap,
-        async: true
-      },
-      path: (params === null || params === void 0 ? void 0 : params.path) || [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    const maybeAsyncResult = this._parse({ data, path: ctx.path, parent: ctx });
-    const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
-    return handleResult(ctx, result);
-  }
-  refine(check, message) {
-    const getIssueProperties = (val) => {
-      if (typeof message === "string" || typeof message === "undefined") {
-        return { message };
-      } else if (typeof message === "function") {
-        return message(val);
-      } else {
-        return message;
-      }
-    };
-    return this._refinement((val, ctx) => {
-      const result = check(val);
-      const setError = () => ctx.addIssue({
-        code: ZodIssueCode.custom,
-        ...getIssueProperties(val)
-      });
-      if (typeof Promise !== "undefined" && result instanceof Promise) {
-        return result.then((data) => {
-          if (!data) {
-            setError();
-            return false;
-          } else {
-            return true;
-          }
-        });
-      }
-      if (!result) {
-        setError();
-        return false;
-      } else {
-        return true;
-      }
-    });
-  }
-  refinement(check, refinementData) {
-    return this._refinement((val, ctx) => {
-      if (!check(val)) {
-        ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
-        return false;
-      } else {
-        return true;
-      }
-    });
-  }
-  _refinement(refinement) {
-    return new ZodEffects({
-      schema: this,
-      typeName: ZodFirstPartyTypeKind.ZodEffects,
-      effect: { type: "refinement", refinement }
-    });
-  }
-  superRefine(refinement) {
-    return this._refinement(refinement);
-  }
-  constructor(def) {
-    this.spa = this.safeParseAsync;
-    this._def = def;
-    this.parse = this.parse.bind(this);
-    this.safeParse = this.safeParse.bind(this);
-    this.parseAsync = this.parseAsync.bind(this);
-    this.safeParseAsync = this.safeParseAsync.bind(this);
-    this.spa = this.spa.bind(this);
-    this.refine = this.refine.bind(this);
-    this.refinement = this.refinement.bind(this);
-    this.superRefine = this.superRefine.bind(this);
-    this.optional = this.optional.bind(this);
-    this.nullable = this.nullable.bind(this);
-    this.nullish = this.nullish.bind(this);
-    this.array = this.array.bind(this);
-    this.promise = this.promise.bind(this);
-    this.or = this.or.bind(this);
-    this.and = this.and.bind(this);
-    this.transform = this.transform.bind(this);
-    this.brand = this.brand.bind(this);
-    this.default = this.default.bind(this);
-    this.catch = this.catch.bind(this);
-    this.describe = this.describe.bind(this);
-    this.pipe = this.pipe.bind(this);
-    this.readonly = this.readonly.bind(this);
-    this.isNullable = this.isNullable.bind(this);
-    this.isOptional = this.isOptional.bind(this);
-    this["~standard"] = {
-      version: 1,
-      vendor: "zod",
-      validate: (data) => this["~validate"](data)
-    };
-  }
-  optional() {
-    return ZodOptional.create(this, this._def);
-  }
-  nullable() {
-    return ZodNullable.create(this, this._def);
-  }
-  nullish() {
-    return this.nullable().optional();
-  }
-  array() {
-    return ZodArray.create(this);
-  }
-  promise() {
-    return ZodPromise.create(this, this._def);
-  }
-  or(option) {
-    return ZodUnion.create([this, option], this._def);
-  }
-  and(incoming) {
-    return ZodIntersection.create(this, incoming, this._def);
-  }
-  transform(transform) {
-    return new ZodEffects({
-      ...processCreateParams(this._def),
-      schema: this,
-      typeName: ZodFirstPartyTypeKind.ZodEffects,
-      effect: { type: "transform", transform }
-    });
-  }
-  default(def) {
-    const defaultValueFunc = typeof def === "function" ? def : () => def;
-    return new ZodDefault({
-      ...processCreateParams(this._def),
-      innerType: this,
-      defaultValue: defaultValueFunc,
-      typeName: ZodFirstPartyTypeKind.ZodDefault
-    });
-  }
-  brand() {
-    return new ZodBranded({
-      typeName: ZodFirstPartyTypeKind.ZodBranded,
-      type: this,
-      ...processCreateParams(this._def)
-    });
-  }
-  catch(def) {
-    const catchValueFunc = typeof def === "function" ? def : () => def;
-    return new ZodCatch({
-      ...processCreateParams(this._def),
-      innerType: this,
-      catchValue: catchValueFunc,
-      typeName: ZodFirstPartyTypeKind.ZodCatch
-    });
-  }
-  describe(description) {
-    const This = this.constructor;
-    return new This({
-      ...this._def,
-      description
-    });
-  }
-  pipe(target) {
-    return ZodPipeline.create(this, target);
-  }
-  readonly() {
-    return ZodReadonly.create(this);
-  }
-  isOptional() {
-    return this.safeParse(void 0).success;
-  }
-  isNullable() {
-    return this.safeParse(null).success;
-  }
-};
-var cuidRegex = /^c[^\s-]{8,}$/i;
-var cuid2Regex = /^[0-9a-z]+$/;
-var ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
-var uuidRegex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i;
-var nanoidRegex = /^[a-z0-9_-]{21}$/i;
-var jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
-var durationRegex = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
-var emailRegex = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-\.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9\-]*\.)+[A-Z]{2,}$/i;
-var _emojiRegex = `^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$`;
-var emojiRegex;
-var ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/;
-var ipv4CidrRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/(3[0-2]|[12]?[0-9])$/;
-var ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
-var ipv6CidrRegex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/;
-var base64Regex = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
-var base64urlRegex = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/;
-var dateRegexSource = `((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))`;
-var dateRegex = new RegExp(`^${dateRegexSource}$`);
-function timeRegexSource(args) {
-  let regex = `([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d`;
-  if (args.precision) {
-    regex = `${regex}\\.\\d{${args.precision}}`;
-  } else if (args.precision == null) {
-    regex = `${regex}(\\.\\d+)?`;
-  }
-  return regex;
-}
-function timeRegex(args) {
-  return new RegExp(`^${timeRegexSource(args)}$`);
-}
-function datetimeRegex(args) {
-  let regex = `${dateRegexSource}T${timeRegexSource(args)}`;
-  const opts = [];
-  opts.push(args.local ? `Z?` : `Z`);
-  if (args.offset)
-    opts.push(`([+-]\\d{2}:?\\d{2})`);
-  regex = `${regex}(${opts.join("|")})`;
-  return new RegExp(`^${regex}$`);
-}
-function isValidIP(ip, version) {
-  if ((version === "v4" || !version) && ipv4Regex.test(ip)) {
-    return true;
-  }
-  if ((version === "v6" || !version) && ipv6Regex.test(ip)) {
-    return true;
-  }
-  return false;
-}
-function isValidJWT(jwt, alg) {
-  if (!jwtRegex.test(jwt))
-    return false;
-  try {
-    const [header] = jwt.split(".");
-    const base64 = header.replace(/-/g, "+").replace(/_/g, "/").padEnd(header.length + (4 - header.length % 4) % 4, "=");
-    const decoded = JSON.parse(atob(base64));
-    if (typeof decoded !== "object" || decoded === null)
-      return false;
-    if (!decoded.typ || !decoded.alg)
-      return false;
-    if (alg && decoded.alg !== alg)
-      return false;
-    return true;
-  } catch (_a) {
-    return false;
-  }
-}
-function isValidCidr(ip, version) {
-  if ((version === "v4" || !version) && ipv4CidrRegex.test(ip)) {
-    return true;
-  }
-  if ((version === "v6" || !version) && ipv6CidrRegex.test(ip)) {
-    return true;
-  }
-  return false;
-}
-var ZodString = class _ZodString extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = String(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.string) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.string,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    const status = new ParseStatus();
-    let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.length < check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            minimum: check.value,
-            type: "string",
-            inclusive: true,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        if (input.data.length > check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            maximum: check.value,
-            type: "string",
-            inclusive: true,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "length") {
-        const tooBig = input.data.length > check.value;
-        const tooSmall = input.data.length < check.value;
-        if (tooBig || tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          if (tooBig) {
-            addIssueToContext(ctx, {
-              code: ZodIssueCode.too_big,
-              maximum: check.value,
-              type: "string",
-              inclusive: true,
-              exact: true,
-              message: check.message
-            });
-          } else if (tooSmall) {
-            addIssueToContext(ctx, {
-              code: ZodIssueCode.too_small,
-              minimum: check.value,
-              type: "string",
-              inclusive: true,
-              exact: true,
-              message: check.message
-            });
-          }
-          status.dirty();
-        }
-      } else if (check.kind === "email") {
-        if (!emailRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "email",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "emoji") {
-        if (!emojiRegex) {
-          emojiRegex = new RegExp(_emojiRegex, "u");
-        }
-        if (!emojiRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "emoji",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "uuid") {
-        if (!uuidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "uuid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "nanoid") {
-        if (!nanoidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "nanoid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cuid") {
-        if (!cuidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cuid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cuid2") {
-        if (!cuid2Regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cuid2",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "ulid") {
-        if (!ulidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "ulid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "url") {
-        try {
-          new URL(input.data);
-        } catch (_a) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "url",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "regex") {
-        check.regex.lastIndex = 0;
-        const testResult = check.regex.test(input.data);
-        if (!testResult) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "regex",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "trim") {
-        input.data = input.data.trim();
-      } else if (check.kind === "includes") {
-        if (!input.data.includes(check.value, check.position)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { includes: check.value, position: check.position },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "toLowerCase") {
-        input.data = input.data.toLowerCase();
-      } else if (check.kind === "toUpperCase") {
-        input.data = input.data.toUpperCase();
-      } else if (check.kind === "startsWith") {
-        if (!input.data.startsWith(check.value)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { startsWith: check.value },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "endsWith") {
-        if (!input.data.endsWith(check.value)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { endsWith: check.value },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "datetime") {
-        const regex = datetimeRegex(check);
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "datetime",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "date") {
-        const regex = dateRegex;
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "date",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "time") {
-        const regex = timeRegex(check);
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "time",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "duration") {
-        if (!durationRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "duration",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "ip") {
-        if (!isValidIP(input.data, check.version)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "ip",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "jwt") {
-        if (!isValidJWT(input.data, check.alg)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "jwt",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cidr") {
-        if (!isValidCidr(input.data, check.version)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cidr",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "base64") {
-        if (!base64Regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "base64",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "base64url") {
-        if (!base64urlRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "base64url",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  _regex(regex, validation, message) {
-    return this.refinement((data) => regex.test(data), {
-      validation,
-      code: ZodIssueCode.invalid_string,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  _addCheck(check) {
-    return new _ZodString({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  email(message) {
-    return this._addCheck({ kind: "email", ...errorUtil.errToObj(message) });
-  }
-  url(message) {
-    return this._addCheck({ kind: "url", ...errorUtil.errToObj(message) });
-  }
-  emoji(message) {
-    return this._addCheck({ kind: "emoji", ...errorUtil.errToObj(message) });
-  }
-  uuid(message) {
-    return this._addCheck({ kind: "uuid", ...errorUtil.errToObj(message) });
-  }
-  nanoid(message) {
-    return this._addCheck({ kind: "nanoid", ...errorUtil.errToObj(message) });
-  }
-  cuid(message) {
-    return this._addCheck({ kind: "cuid", ...errorUtil.errToObj(message) });
-  }
-  cuid2(message) {
-    return this._addCheck({ kind: "cuid2", ...errorUtil.errToObj(message) });
-  }
-  ulid(message) {
-    return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
-  }
-  base64(message) {
-    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
-  }
-  base64url(message) {
-    return this._addCheck({
-      kind: "base64url",
-      ...errorUtil.errToObj(message)
-    });
-  }
-  jwt(options) {
-    return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options) });
-  }
-  ip(options) {
-    return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
-  }
-  cidr(options) {
-    return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options) });
-  }
-  datetime(options) {
-    var _a, _b;
-    if (typeof options === "string") {
-      return this._addCheck({
-        kind: "datetime",
-        precision: null,
-        offset: false,
-        local: false,
-        message: options
-      });
-    }
-    return this._addCheck({
-      kind: "datetime",
-      precision: typeof (options === null || options === void 0 ? void 0 : options.precision) === "undefined" ? null : options === null || options === void 0 ? void 0 : options.precision,
-      offset: (_a = options === null || options === void 0 ? void 0 : options.offset) !== null && _a !== void 0 ? _a : false,
-      local: (_b = options === null || options === void 0 ? void 0 : options.local) !== null && _b !== void 0 ? _b : false,
-      ...errorUtil.errToObj(options === null || options === void 0 ? void 0 : options.message)
-    });
-  }
-  date(message) {
-    return this._addCheck({ kind: "date", message });
-  }
-  time(options) {
-    if (typeof options === "string") {
-      return this._addCheck({
-        kind: "time",
-        precision: null,
-        message: options
-      });
-    }
-    return this._addCheck({
-      kind: "time",
-      precision: typeof (options === null || options === void 0 ? void 0 : options.precision) === "undefined" ? null : options === null || options === void 0 ? void 0 : options.precision,
-      ...errorUtil.errToObj(options === null || options === void 0 ? void 0 : options.message)
-    });
-  }
-  duration(message) {
-    return this._addCheck({ kind: "duration", ...errorUtil.errToObj(message) });
-  }
-  regex(regex, message) {
-    return this._addCheck({
-      kind: "regex",
-      regex,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  includes(value, options) {
-    return this._addCheck({
-      kind: "includes",
-      value,
-      position: options === null || options === void 0 ? void 0 : options.position,
-      ...errorUtil.errToObj(options === null || options === void 0 ? void 0 : options.message)
-    });
-  }
-  startsWith(value, message) {
-    return this._addCheck({
-      kind: "startsWith",
-      value,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  endsWith(value, message) {
-    return this._addCheck({
-      kind: "endsWith",
-      value,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  min(minLength, message) {
-    return this._addCheck({
-      kind: "min",
-      value: minLength,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  max(maxLength, message) {
-    return this._addCheck({
-      kind: "max",
-      value: maxLength,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  length(len, message) {
-    return this._addCheck({
-      kind: "length",
-      value: len,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  /**
-   * Equivalent to `.min(1)`
-   */
-  nonempty(message) {
-    return this.min(1, errorUtil.errToObj(message));
-  }
-  trim() {
-    return new _ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "trim" }]
-    });
-  }
-  toLowerCase() {
-    return new _ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "toLowerCase" }]
-    });
-  }
-  toUpperCase() {
-    return new _ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "toUpperCase" }]
-    });
-  }
-  get isDatetime() {
-    return !!this._def.checks.find((ch) => ch.kind === "datetime");
-  }
-  get isDate() {
-    return !!this._def.checks.find((ch) => ch.kind === "date");
-  }
-  get isTime() {
-    return !!this._def.checks.find((ch) => ch.kind === "time");
-  }
-  get isDuration() {
-    return !!this._def.checks.find((ch) => ch.kind === "duration");
-  }
-  get isEmail() {
-    return !!this._def.checks.find((ch) => ch.kind === "email");
-  }
-  get isURL() {
-    return !!this._def.checks.find((ch) => ch.kind === "url");
-  }
-  get isEmoji() {
-    return !!this._def.checks.find((ch) => ch.kind === "emoji");
-  }
-  get isUUID() {
-    return !!this._def.checks.find((ch) => ch.kind === "uuid");
-  }
-  get isNANOID() {
-    return !!this._def.checks.find((ch) => ch.kind === "nanoid");
-  }
-  get isCUID() {
-    return !!this._def.checks.find((ch) => ch.kind === "cuid");
-  }
-  get isCUID2() {
-    return !!this._def.checks.find((ch) => ch.kind === "cuid2");
-  }
-  get isULID() {
-    return !!this._def.checks.find((ch) => ch.kind === "ulid");
-  }
-  get isIP() {
-    return !!this._def.checks.find((ch) => ch.kind === "ip");
-  }
-  get isCIDR() {
-    return !!this._def.checks.find((ch) => ch.kind === "cidr");
-  }
-  get isBase64() {
-    return !!this._def.checks.find((ch) => ch.kind === "base64");
-  }
-  get isBase64url() {
-    return !!this._def.checks.find((ch) => ch.kind === "base64url");
-  }
-  get minLength() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxLength() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-};
-ZodString.create = (params) => {
-  var _a;
-  return new ZodString({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodString,
-    coerce: (_a = params === null || params === void 0 ? void 0 : params.coerce) !== null && _a !== void 0 ? _a : false,
-    ...processCreateParams(params)
-  });
-};
-function floatSafeRemainder(val, step) {
-  const valDecCount = (val.toString().split(".")[1] || "").length;
-  const stepDecCount = (step.toString().split(".")[1] || "").length;
-  const decCount = valDecCount > stepDecCount ? valDecCount : stepDecCount;
-  const valInt = parseInt(val.toFixed(decCount).replace(".", ""));
-  const stepInt = parseInt(step.toFixed(decCount).replace(".", ""));
-  return valInt % stepInt / Math.pow(10, decCount);
-}
-var ZodNumber = class _ZodNumber extends ZodType {
-  constructor() {
-    super(...arguments);
-    this.min = this.gte;
-    this.max = this.lte;
-    this.step = this.multipleOf;
-  }
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = Number(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.number) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.number,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    let ctx = void 0;
-    const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "int") {
-        if (!util.isInteger(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_type,
-            expected: "integer",
-            received: "float",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
-        if (tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            minimum: check.value,
-            type: "number",
-            inclusive: check.inclusive,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
-        if (tooBig) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            maximum: check.value,
-            type: "number",
-            inclusive: check.inclusive,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "multipleOf") {
-        if (floatSafeRemainder(input.data, check.value) !== 0) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "finite") {
-        if (!Number.isFinite(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_finite,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
-  }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
-  }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
-  }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
-  }
-  setLimit(kind, value, inclusive, message) {
-    return new _ZodNumber({
-      ...this._def,
-      checks: [
-        ...this._def.checks,
-        {
-          kind,
-          value,
-          inclusive,
-          message: errorUtil.toString(message)
-        }
-      ]
-    });
-  }
-  _addCheck(check) {
-    return new _ZodNumber({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  int(message) {
-    return this._addCheck({
-      kind: "int",
-      message: errorUtil.toString(message)
-    });
-  }
-  positive(message) {
-    return this._addCheck({
-      kind: "min",
-      value: 0,
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  negative(message) {
-    return this._addCheck({
-      kind: "max",
-      value: 0,
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonpositive(message) {
-    return this._addCheck({
-      kind: "max",
-      value: 0,
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonnegative(message) {
-    return this._addCheck({
-      kind: "min",
-      value: 0,
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  multipleOf(value, message) {
-    return this._addCheck({
-      kind: "multipleOf",
-      value,
-      message: errorUtil.toString(message)
-    });
-  }
-  finite(message) {
-    return this._addCheck({
-      kind: "finite",
-      message: errorUtil.toString(message)
-    });
-  }
-  safe(message) {
-    return this._addCheck({
-      kind: "min",
-      inclusive: true,
-      value: Number.MIN_SAFE_INTEGER,
-      message: errorUtil.toString(message)
-    })._addCheck({
-      kind: "max",
-      inclusive: true,
-      value: Number.MAX_SAFE_INTEGER,
-      message: errorUtil.toString(message)
-    });
-  }
-  get minValue() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxValue() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-  get isInt() {
-    return !!this._def.checks.find((ch) => ch.kind === "int" || ch.kind === "multipleOf" && util.isInteger(ch.value));
-  }
-  get isFinite() {
-    let max = null, min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "finite" || ch.kind === "int" || ch.kind === "multipleOf") {
-        return true;
-      } else if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      } else if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return Number.isFinite(min) && Number.isFinite(max);
-  }
-};
-ZodNumber.create = (params) => {
-  return new ZodNumber({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodNumber,
-    coerce: (params === null || params === void 0 ? void 0 : params.coerce) || false,
-    ...processCreateParams(params)
-  });
-};
-var ZodBigInt = class _ZodBigInt extends ZodType {
-  constructor() {
-    super(...arguments);
-    this.min = this.gte;
-    this.max = this.lte;
-  }
-  _parse(input) {
-    if (this._def.coerce) {
-      try {
-        input.data = BigInt(input.data);
-      } catch (_a) {
-        return this._getInvalidInput(input);
-      }
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.bigint) {
-      return this._getInvalidInput(input);
-    }
-    let ctx = void 0;
-    const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
-        if (tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            type: "bigint",
-            minimum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
-        if (tooBig) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            type: "bigint",
-            maximum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "multipleOf") {
-        if (input.data % check.value !== BigInt(0)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  _getInvalidInput(input) {
-    const ctx = this._getOrReturnCtx(input);
-    addIssueToContext(ctx, {
-      code: ZodIssueCode.invalid_type,
-      expected: ZodParsedType.bigint,
-      received: ctx.parsedType
-    });
-    return INVALID;
-  }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
-  }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
-  }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
-  }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
-  }
-  setLimit(kind, value, inclusive, message) {
-    return new _ZodBigInt({
-      ...this._def,
-      checks: [
-        ...this._def.checks,
-        {
-          kind,
-          value,
-          inclusive,
-          message: errorUtil.toString(message)
-        }
-      ]
-    });
-  }
-  _addCheck(check) {
-    return new _ZodBigInt({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  positive(message) {
-    return this._addCheck({
-      kind: "min",
-      value: BigInt(0),
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  negative(message) {
-    return this._addCheck({
-      kind: "max",
-      value: BigInt(0),
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonpositive(message) {
-    return this._addCheck({
-      kind: "max",
-      value: BigInt(0),
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonnegative(message) {
-    return this._addCheck({
-      kind: "min",
-      value: BigInt(0),
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  multipleOf(value, message) {
-    return this._addCheck({
-      kind: "multipleOf",
-      value,
-      message: errorUtil.toString(message)
-    });
-  }
-  get minValue() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxValue() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-};
-ZodBigInt.create = (params) => {
-  var _a;
-  return new ZodBigInt({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodBigInt,
-    coerce: (_a = params === null || params === void 0 ? void 0 : params.coerce) !== null && _a !== void 0 ? _a : false,
-    ...processCreateParams(params)
-  });
-};
-var ZodBoolean = class extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = Boolean(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.boolean) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.boolean,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-};
-ZodBoolean.create = (params) => {
-  return new ZodBoolean({
-    typeName: ZodFirstPartyTypeKind.ZodBoolean,
-    coerce: (params === null || params === void 0 ? void 0 : params.coerce) || false,
-    ...processCreateParams(params)
-  });
-};
-var ZodDate = class _ZodDate extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = new Date(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.date) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.date,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    if (isNaN(input.data.getTime())) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_date
-      });
-      return INVALID;
-    }
-    const status = new ParseStatus();
-    let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.getTime() < check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            message: check.message,
-            inclusive: true,
-            exact: false,
-            minimum: check.value,
-            type: "date"
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        if (input.data.getTime() > check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            message: check.message,
-            inclusive: true,
-            exact: false,
-            maximum: check.value,
-            type: "date"
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return {
-      status: status.value,
-      value: new Date(input.data.getTime())
-    };
-  }
-  _addCheck(check) {
-    return new _ZodDate({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  min(minDate, message) {
-    return this._addCheck({
-      kind: "min",
-      value: minDate.getTime(),
-      message: errorUtil.toString(message)
-    });
-  }
-  max(maxDate, message) {
-    return this._addCheck({
-      kind: "max",
-      value: maxDate.getTime(),
-      message: errorUtil.toString(message)
-    });
-  }
-  get minDate() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min != null ? new Date(min) : null;
-  }
-  get maxDate() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max != null ? new Date(max) : null;
-  }
-};
-ZodDate.create = (params) => {
-  return new ZodDate({
-    checks: [],
-    coerce: (params === null || params === void 0 ? void 0 : params.coerce) || false,
-    typeName: ZodFirstPartyTypeKind.ZodDate,
-    ...processCreateParams(params)
-  });
-};
-var ZodSymbol = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.symbol) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.symbol,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-};
-ZodSymbol.create = (params) => {
-  return new ZodSymbol({
-    typeName: ZodFirstPartyTypeKind.ZodSymbol,
-    ...processCreateParams(params)
-  });
-};
-var ZodUndefined = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.undefined) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.undefined,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-};
-ZodUndefined.create = (params) => {
-  return new ZodUndefined({
-    typeName: ZodFirstPartyTypeKind.ZodUndefined,
-    ...processCreateParams(params)
-  });
-};
-var ZodNull = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.null) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.null,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-};
-ZodNull.create = (params) => {
-  return new ZodNull({
-    typeName: ZodFirstPartyTypeKind.ZodNull,
-    ...processCreateParams(params)
-  });
-};
-var ZodAny = class extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._any = true;
-  }
-  _parse(input) {
-    return OK(input.data);
-  }
-};
-ZodAny.create = (params) => {
-  return new ZodAny({
-    typeName: ZodFirstPartyTypeKind.ZodAny,
-    ...processCreateParams(params)
-  });
-};
-var ZodUnknown = class extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._unknown = true;
-  }
-  _parse(input) {
-    return OK(input.data);
-  }
-};
-ZodUnknown.create = (params) => {
-  return new ZodUnknown({
-    typeName: ZodFirstPartyTypeKind.ZodUnknown,
-    ...processCreateParams(params)
-  });
-};
-var ZodNever = class extends ZodType {
-  _parse(input) {
-    const ctx = this._getOrReturnCtx(input);
-    addIssueToContext(ctx, {
-      code: ZodIssueCode.invalid_type,
-      expected: ZodParsedType.never,
-      received: ctx.parsedType
-    });
-    return INVALID;
-  }
-};
-ZodNever.create = (params) => {
-  return new ZodNever({
-    typeName: ZodFirstPartyTypeKind.ZodNever,
-    ...processCreateParams(params)
-  });
-};
-var ZodVoid = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.undefined) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.void,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-};
-ZodVoid.create = (params) => {
-  return new ZodVoid({
-    typeName: ZodFirstPartyTypeKind.ZodVoid,
-    ...processCreateParams(params)
-  });
-};
-var ZodArray = class _ZodArray extends ZodType {
-  _parse(input) {
-    const { ctx, status } = this._processInputParams(input);
-    const def = this._def;
-    if (ctx.parsedType !== ZodParsedType.array) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.array,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    if (def.exactLength !== null) {
-      const tooBig = ctx.data.length > def.exactLength.value;
-      const tooSmall = ctx.data.length < def.exactLength.value;
-      if (tooBig || tooSmall) {
-        addIssueToContext(ctx, {
-          code: tooBig ? ZodIssueCode.too_big : ZodIssueCode.too_small,
-          minimum: tooSmall ? def.exactLength.value : void 0,
-          maximum: tooBig ? def.exactLength.value : void 0,
-          type: "array",
-          inclusive: true,
-          exact: true,
-          message: def.exactLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.minLength !== null) {
-      if (ctx.data.length < def.minLength.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_small,
-          minimum: def.minLength.value,
-          type: "array",
-          inclusive: true,
-          exact: false,
-          message: def.minLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.maxLength !== null) {
-      if (ctx.data.length > def.maxLength.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_big,
-          maximum: def.maxLength.value,
-          type: "array",
-          inclusive: true,
-          exact: false,
-          message: def.maxLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (ctx.common.async) {
-      return Promise.all([...ctx.data].map((item, i) => {
-        return def.type._parseAsync(new ParseInputLazyPath(ctx, item, ctx.path, i));
-      })).then((result2) => {
-        return ParseStatus.mergeArray(status, result2);
-      });
-    }
-    const result = [...ctx.data].map((item, i) => {
-      return def.type._parseSync(new ParseInputLazyPath(ctx, item, ctx.path, i));
-    });
-    return ParseStatus.mergeArray(status, result);
-  }
-  get element() {
-    return this._def.type;
-  }
-  min(minLength, message) {
-    return new _ZodArray({
-      ...this._def,
-      minLength: { value: minLength, message: errorUtil.toString(message) }
-    });
-  }
-  max(maxLength, message) {
-    return new _ZodArray({
-      ...this._def,
-      maxLength: { value: maxLength, message: errorUtil.toString(message) }
-    });
-  }
-  length(len, message) {
-    return new _ZodArray({
-      ...this._def,
-      exactLength: { value: len, message: errorUtil.toString(message) }
-    });
-  }
-  nonempty(message) {
-    return this.min(1, message);
-  }
-};
-ZodArray.create = (schema, params) => {
-  return new ZodArray({
-    type: schema,
-    minLength: null,
-    maxLength: null,
-    exactLength: null,
-    typeName: ZodFirstPartyTypeKind.ZodArray,
-    ...processCreateParams(params)
-  });
-};
-function deepPartialify(schema) {
-  if (schema instanceof ZodObject) {
-    const newShape = {};
-    for (const key in schema.shape) {
-      const fieldSchema = schema.shape[key];
-      newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
-    }
-    return new ZodObject({
-      ...schema._def,
-      shape: () => newShape
-    });
-  } else if (schema instanceof ZodArray) {
-    return new ZodArray({
-      ...schema._def,
-      type: deepPartialify(schema.element)
-    });
-  } else if (schema instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema.unwrap()));
-  } else if (schema instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema.unwrap()));
-  } else if (schema instanceof ZodTuple) {
-    return ZodTuple.create(schema.items.map((item) => deepPartialify(item)));
-  } else {
-    return schema;
-  }
-}
-var ZodObject = class _ZodObject extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._cached = null;
-    this.nonstrict = this.passthrough;
-    this.augment = this.extend;
-  }
-  _getCached() {
-    if (this._cached !== null)
-      return this._cached;
-    const shape = this._def.shape();
-    const keys = util.objectKeys(shape);
-    return this._cached = { shape, keys };
-  }
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.object) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.object,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    const { status, ctx } = this._processInputParams(input);
-    const { shape, keys: shapeKeys } = this._getCached();
-    const extraKeys = [];
-    if (!(this._def.catchall instanceof ZodNever && this._def.unknownKeys === "strip")) {
-      for (const key in ctx.data) {
-        if (!shapeKeys.includes(key)) {
-          extraKeys.push(key);
-        }
-      }
-    }
-    const pairs = [];
-    for (const key of shapeKeys) {
-      const keyValidator = shape[key];
-      const value = ctx.data[key];
-      pairs.push({
-        key: { status: "valid", value: key },
-        value: keyValidator._parse(new ParseInputLazyPath(ctx, value, ctx.path, key)),
-        alwaysSet: key in ctx.data
-      });
-    }
-    if (this._def.catchall instanceof ZodNever) {
-      const unknownKeys = this._def.unknownKeys;
-      if (unknownKeys === "passthrough") {
-        for (const key of extraKeys) {
-          pairs.push({
-            key: { status: "valid", value: key },
-            value: { status: "valid", value: ctx.data[key] }
-          });
-        }
-      } else if (unknownKeys === "strict") {
-        if (extraKeys.length > 0) {
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.unrecognized_keys,
-            keys: extraKeys
-          });
-          status.dirty();
-        }
-      } else if (unknownKeys === "strip") ;
-      else {
-        throw new Error(`Internal ZodObject error: invalid unknownKeys value.`);
-      }
-    } else {
-      const catchall = this._def.catchall;
-      for (const key of extraKeys) {
-        const value = ctx.data[key];
-        pairs.push({
-          key: { status: "valid", value: key },
-          value: catchall._parse(
-            new ParseInputLazyPath(ctx, value, ctx.path, key)
-            //, ctx.child(key), value, getParsedType(value)
-          ),
-          alwaysSet: key in ctx.data
-        });
-      }
-    }
-    if (ctx.common.async) {
-      return Promise.resolve().then(async () => {
-        const syncPairs = [];
-        for (const pair of pairs) {
-          const key = await pair.key;
-          const value = await pair.value;
-          syncPairs.push({
-            key,
-            value,
-            alwaysSet: pair.alwaysSet
-          });
-        }
-        return syncPairs;
-      }).then((syncPairs) => {
-        return ParseStatus.mergeObjectSync(status, syncPairs);
-      });
-    } else {
-      return ParseStatus.mergeObjectSync(status, pairs);
-    }
-  }
-  get shape() {
-    return this._def.shape();
-  }
-  strict(message) {
-    return new _ZodObject({
-      ...this._def,
-      unknownKeys: "strict",
-      ...message !== void 0 ? {
-        errorMap: (issue, ctx) => {
-          var _a, _b, _c, _d;
-          const defaultError = (_c = (_b = (_a = this._def).errorMap) === null || _b === void 0 ? void 0 : _b.call(_a, issue, ctx).message) !== null && _c !== void 0 ? _c : ctx.defaultError;
-          if (issue.code === "unrecognized_keys")
-            return {
-              message: (_d = errorUtil.errToObj(message).message) !== null && _d !== void 0 ? _d : defaultError
-            };
-          return {
-            message: defaultError
-          };
-        }
-      } : {}
-    });
-  }
-  strip() {
-    return new _ZodObject({
-      ...this._def,
-      unknownKeys: "strip"
-    });
-  }
-  passthrough() {
-    return new _ZodObject({
-      ...this._def,
-      unknownKeys: "passthrough"
-    });
-  }
-  // const AugmentFactory =
-  //   <Def extends ZodObjectDef>(def: Def) =>
-  //   <Augmentation extends ZodRawShape>(
-  //     augmentation: Augmentation
-  //   ): ZodObject<
-  //     extendShape<ReturnType<Def["shape"]>, Augmentation>,
-  //     Def["unknownKeys"],
-  //     Def["catchall"]
-  //   > => {
-  //     return new ZodObject({
-  //       ...def,
-  //       shape: () => ({
-  //         ...def.shape(),
-  //         ...augmentation,
-  //       }),
-  //     }) as any;
-  //   };
-  extend(augmentation) {
-    return new _ZodObject({
-      ...this._def,
-      shape: () => ({
-        ...this._def.shape(),
-        ...augmentation
-      })
-    });
-  }
-  /**
-   * Prior to zod@1.0.12 there was a bug in the
-   * inferred type of merged objects. Please
-   * upgrade if you are experiencing issues.
-   */
-  merge(merging) {
-    const merged = new _ZodObject({
-      unknownKeys: merging._def.unknownKeys,
-      catchall: merging._def.catchall,
-      shape: () => ({
-        ...this._def.shape(),
-        ...merging._def.shape()
-      }),
-      typeName: ZodFirstPartyTypeKind.ZodObject
-    });
-    return merged;
-  }
-  // merge<
-  //   Incoming extends AnyZodObject,
-  //   Augmentation extends Incoming["shape"],
-  //   NewOutput extends {
-  //     [k in keyof Augmentation | keyof Output]: k extends keyof Augmentation
-  //       ? Augmentation[k]["_output"]
-  //       : k extends keyof Output
-  //       ? Output[k]
-  //       : never;
-  //   },
-  //   NewInput extends {
-  //     [k in keyof Augmentation | keyof Input]: k extends keyof Augmentation
-  //       ? Augmentation[k]["_input"]
-  //       : k extends keyof Input
-  //       ? Input[k]
-  //       : never;
-  //   }
-  // >(
-  //   merging: Incoming
-  // ): ZodObject<
-  //   extendShape<T, ReturnType<Incoming["_def"]["shape"]>>,
-  //   Incoming["_def"]["unknownKeys"],
-  //   Incoming["_def"]["catchall"],
-  //   NewOutput,
-  //   NewInput
-  // > {
-  //   const merged: any = new ZodObject({
-  //     unknownKeys: merging._def.unknownKeys,
-  //     catchall: merging._def.catchall,
-  //     shape: () =>
-  //       objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
-  //     typeName: ZodFirstPartyTypeKind.ZodObject,
-  //   }) as any;
-  //   return merged;
-  // }
-  setKey(key, schema) {
-    return this.augment({ [key]: schema });
-  }
-  // merge<Incoming extends AnyZodObject>(
-  //   merging: Incoming
-  // ): //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
-  // ZodObject<
-  //   extendShape<T, ReturnType<Incoming["_def"]["shape"]>>,
-  //   Incoming["_def"]["unknownKeys"],
-  //   Incoming["_def"]["catchall"]
-  // > {
-  //   // const mergedShape = objectUtil.mergeShapes(
-  //   //   this._def.shape(),
-  //   //   merging._def.shape()
-  //   // );
-  //   const merged: any = new ZodObject({
-  //     unknownKeys: merging._def.unknownKeys,
-  //     catchall: merging._def.catchall,
-  //     shape: () =>
-  //       objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
-  //     typeName: ZodFirstPartyTypeKind.ZodObject,
-  //   }) as any;
-  //   return merged;
-  // }
-  catchall(index) {
-    return new _ZodObject({
-      ...this._def,
-      catchall: index
-    });
-  }
-  pick(mask) {
-    const shape = {};
-    util.objectKeys(mask).forEach((key) => {
-      if (mask[key] && this.shape[key]) {
-        shape[key] = this.shape[key];
-      }
-    });
-    return new _ZodObject({
-      ...this._def,
-      shape: () => shape
-    });
-  }
-  omit(mask) {
-    const shape = {};
-    util.objectKeys(this.shape).forEach((key) => {
-      if (!mask[key]) {
-        shape[key] = this.shape[key];
-      }
-    });
-    return new _ZodObject({
-      ...this._def,
-      shape: () => shape
-    });
-  }
-  /**
-   * @deprecated
-   */
-  deepPartial() {
-    return deepPartialify(this);
-  }
-  partial(mask) {
-    const newShape = {};
-    util.objectKeys(this.shape).forEach((key) => {
-      const fieldSchema = this.shape[key];
-      if (mask && !mask[key]) {
-        newShape[key] = fieldSchema;
-      } else {
-        newShape[key] = fieldSchema.optional();
-      }
-    });
-    return new _ZodObject({
-      ...this._def,
-      shape: () => newShape
-    });
-  }
-  required(mask) {
-    const newShape = {};
-    util.objectKeys(this.shape).forEach((key) => {
-      if (mask && !mask[key]) {
-        newShape[key] = this.shape[key];
-      } else {
-        const fieldSchema = this.shape[key];
-        let newField = fieldSchema;
-        while (newField instanceof ZodOptional) {
-          newField = newField._def.innerType;
-        }
-        newShape[key] = newField;
-      }
-    });
-    return new _ZodObject({
-      ...this._def,
-      shape: () => newShape
-    });
-  }
-  keyof() {
-    return createZodEnum(util.objectKeys(this.shape));
-  }
-};
-ZodObject.create = (shape, params) => {
-  return new ZodObject({
-    shape: () => shape,
-    unknownKeys: "strip",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-ZodObject.strictCreate = (shape, params) => {
-  return new ZodObject({
-    shape: () => shape,
-    unknownKeys: "strict",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-ZodObject.lazycreate = (shape, params) => {
-  return new ZodObject({
-    shape,
-    unknownKeys: "strip",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-var ZodUnion = class extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const options = this._def.options;
-    function handleResults(results) {
-      for (const result of results) {
-        if (result.result.status === "valid") {
-          return result.result;
-        }
-      }
-      for (const result of results) {
-        if (result.result.status === "dirty") {
-          ctx.common.issues.push(...result.ctx.common.issues);
-          return result.result;
-        }
-      }
-      const unionErrors = results.map((result) => new ZodError(result.ctx.common.issues));
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_union,
-        unionErrors
-      });
-      return INVALID;
-    }
-    if (ctx.common.async) {
-      return Promise.all(options.map(async (option) => {
-        const childCtx = {
-          ...ctx,
-          common: {
-            ...ctx.common,
-            issues: []
-          },
-          parent: null
-        };
-        return {
-          result: await option._parseAsync({
-            data: ctx.data,
-            path: ctx.path,
-            parent: childCtx
-          }),
-          ctx: childCtx
-        };
-      })).then(handleResults);
-    } else {
-      let dirty = void 0;
-      const issues = [];
-      for (const option of options) {
-        const childCtx = {
-          ...ctx,
-          common: {
-            ...ctx.common,
-            issues: []
-          },
-          parent: null
-        };
-        const result = option._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: childCtx
-        });
-        if (result.status === "valid") {
-          return result;
-        } else if (result.status === "dirty" && !dirty) {
-          dirty = { result, ctx: childCtx };
-        }
-        if (childCtx.common.issues.length) {
-          issues.push(childCtx.common.issues);
-        }
-      }
-      if (dirty) {
-        ctx.common.issues.push(...dirty.ctx.common.issues);
-        return dirty.result;
-      }
-      const unionErrors = issues.map((issues2) => new ZodError(issues2));
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_union,
-        unionErrors
-      });
-      return INVALID;
-    }
-  }
-  get options() {
-    return this._def.options;
-  }
-};
-ZodUnion.create = (types, params) => {
-  return new ZodUnion({
-    options: types,
-    typeName: ZodFirstPartyTypeKind.ZodUnion,
-    ...processCreateParams(params)
-  });
-};
-function mergeValues(a, b) {
-  const aType = getParsedType(a);
-  const bType = getParsedType(b);
-  if (a === b) {
-    return { valid: true, data: a };
-  } else if (aType === ZodParsedType.object && bType === ZodParsedType.object) {
-    const bKeys = util.objectKeys(b);
-    const sharedKeys = util.objectKeys(a).filter((key) => bKeys.indexOf(key) !== -1);
-    const newObj = { ...a, ...b };
-    for (const key of sharedKeys) {
-      const sharedValue = mergeValues(a[key], b[key]);
-      if (!sharedValue.valid) {
-        return { valid: false };
-      }
-      newObj[key] = sharedValue.data;
-    }
-    return { valid: true, data: newObj };
-  } else if (aType === ZodParsedType.array && bType === ZodParsedType.array) {
-    if (a.length !== b.length) {
-      return { valid: false };
-    }
-    const newArray = [];
-    for (let index = 0; index < a.length; index++) {
-      const itemA = a[index];
-      const itemB = b[index];
-      const sharedValue = mergeValues(itemA, itemB);
-      if (!sharedValue.valid) {
-        return { valid: false };
-      }
-      newArray.push(sharedValue.data);
-    }
-    return { valid: true, data: newArray };
-  } else if (aType === ZodParsedType.date && bType === ZodParsedType.date && +a === +b) {
-    return { valid: true, data: a };
-  } else {
-    return { valid: false };
-  }
-}
-var ZodIntersection = class extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    const handleParsed = (parsedLeft, parsedRight) => {
-      if (isAborted(parsedLeft) || isAborted(parsedRight)) {
-        return INVALID;
-      }
-      const merged = mergeValues(parsedLeft.value, parsedRight.value);
-      if (!merged.valid) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.invalid_intersection_types
-        });
-        return INVALID;
-      }
-      if (isDirty(parsedLeft) || isDirty(parsedRight)) {
-        status.dirty();
-      }
-      return { status: status.value, value: merged.data };
-    };
-    if (ctx.common.async) {
-      return Promise.all([
-        this._def.left._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        }),
-        this._def.right._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        })
-      ]).then(([left, right]) => handleParsed(left, right));
-    } else {
-      return handleParsed(this._def.left._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      }), this._def.right._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      }));
-    }
-  }
-};
-ZodIntersection.create = (left, right, params) => {
-  return new ZodIntersection({
-    left,
-    right,
-    typeName: ZodFirstPartyTypeKind.ZodIntersection,
-    ...processCreateParams(params)
-  });
-};
-var ZodTuple = class _ZodTuple extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.array) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.array,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    if (ctx.data.length < this._def.items.length) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.too_small,
-        minimum: this._def.items.length,
-        inclusive: true,
-        exact: false,
-        type: "array"
-      });
-      return INVALID;
-    }
-    const rest = this._def.rest;
-    if (!rest && ctx.data.length > this._def.items.length) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.too_big,
-        maximum: this._def.items.length,
-        inclusive: true,
-        exact: false,
-        type: "array"
-      });
-      status.dirty();
-    }
-    const items = [...ctx.data].map((item, itemIndex) => {
-      const schema = this._def.items[itemIndex] || this._def.rest;
-      if (!schema)
-        return null;
-      return schema._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
-    }).filter((x) => !!x);
-    if (ctx.common.async) {
-      return Promise.all(items).then((results) => {
-        return ParseStatus.mergeArray(status, results);
-      });
-    } else {
-      return ParseStatus.mergeArray(status, items);
-    }
-  }
-  get items() {
-    return this._def.items;
-  }
-  rest(rest) {
-    return new _ZodTuple({
-      ...this._def,
-      rest
-    });
-  }
-};
-ZodTuple.create = (schemas, params) => {
-  if (!Array.isArray(schemas)) {
-    throw new Error("You must pass an array of schemas to z.tuple([ ... ])");
-  }
-  return new ZodTuple({
-    items: schemas,
-    typeName: ZodFirstPartyTypeKind.ZodTuple,
-    rest: null,
-    ...processCreateParams(params)
-  });
-};
-var ZodMap = class extends ZodType {
-  get keySchema() {
-    return this._def.keyType;
-  }
-  get valueSchema() {
-    return this._def.valueType;
-  }
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.map) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.map,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const keyType = this._def.keyType;
-    const valueType = this._def.valueType;
-    const pairs = [...ctx.data.entries()].map(([key, value], index) => {
-      return {
-        key: keyType._parse(new ParseInputLazyPath(ctx, key, ctx.path, [index, "key"])),
-        value: valueType._parse(new ParseInputLazyPath(ctx, value, ctx.path, [index, "value"]))
-      };
-    });
-    if (ctx.common.async) {
-      const finalMap = /* @__PURE__ */ new Map();
-      return Promise.resolve().then(async () => {
-        for (const pair of pairs) {
-          const key = await pair.key;
-          const value = await pair.value;
-          if (key.status === "aborted" || value.status === "aborted") {
-            return INVALID;
-          }
-          if (key.status === "dirty" || value.status === "dirty") {
-            status.dirty();
-          }
-          finalMap.set(key.value, value.value);
-        }
-        return { status: status.value, value: finalMap };
-      });
-    } else {
-      const finalMap = /* @__PURE__ */ new Map();
-      for (const pair of pairs) {
-        const key = pair.key;
-        const value = pair.value;
-        if (key.status === "aborted" || value.status === "aborted") {
-          return INVALID;
-        }
-        if (key.status === "dirty" || value.status === "dirty") {
-          status.dirty();
-        }
-        finalMap.set(key.value, value.value);
-      }
-      return { status: status.value, value: finalMap };
-    }
-  }
-};
-ZodMap.create = (keyType, valueType, params) => {
-  return new ZodMap({
-    valueType,
-    keyType,
-    typeName: ZodFirstPartyTypeKind.ZodMap,
-    ...processCreateParams(params)
-  });
-};
-var ZodSet = class _ZodSet extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.set) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.set,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const def = this._def;
-    if (def.minSize !== null) {
-      if (ctx.data.size < def.minSize.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_small,
-          minimum: def.minSize.value,
-          type: "set",
-          inclusive: true,
-          exact: false,
-          message: def.minSize.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.maxSize !== null) {
-      if (ctx.data.size > def.maxSize.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_big,
-          maximum: def.maxSize.value,
-          type: "set",
-          inclusive: true,
-          exact: false,
-          message: def.maxSize.message
-        });
-        status.dirty();
-      }
-    }
-    const valueType = this._def.valueType;
-    function finalizeSet(elements2) {
-      const parsedSet = /* @__PURE__ */ new Set();
-      for (const element of elements2) {
-        if (element.status === "aborted")
-          return INVALID;
-        if (element.status === "dirty")
-          status.dirty();
-        parsedSet.add(element.value);
-      }
-      return { status: status.value, value: parsedSet };
-    }
-    const elements = [...ctx.data.values()].map((item, i) => valueType._parse(new ParseInputLazyPath(ctx, item, ctx.path, i)));
-    if (ctx.common.async) {
-      return Promise.all(elements).then((elements2) => finalizeSet(elements2));
-    } else {
-      return finalizeSet(elements);
-    }
-  }
-  min(minSize, message) {
-    return new _ZodSet({
-      ...this._def,
-      minSize: { value: minSize, message: errorUtil.toString(message) }
-    });
-  }
-  max(maxSize, message) {
-    return new _ZodSet({
-      ...this._def,
-      maxSize: { value: maxSize, message: errorUtil.toString(message) }
-    });
-  }
-  size(size, message) {
-    return this.min(size, message).max(size, message);
-  }
-  nonempty(message) {
-    return this.min(1, message);
-  }
-};
-ZodSet.create = (valueType, params) => {
-  return new ZodSet({
-    valueType,
-    minSize: null,
-    maxSize: null,
-    typeName: ZodFirstPartyTypeKind.ZodSet,
-    ...processCreateParams(params)
-  });
-};
-var ZodLazy = class extends ZodType {
-  get schema() {
-    return this._def.getter();
-  }
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const lazySchema = this._def.getter();
-    return lazySchema._parse({ data: ctx.data, path: ctx.path, parent: ctx });
-  }
-};
-ZodLazy.create = (getter, params) => {
-  return new ZodLazy({
-    getter,
-    typeName: ZodFirstPartyTypeKind.ZodLazy,
-    ...processCreateParams(params)
-  });
-};
-var ZodLiteral = class extends ZodType {
-  _parse(input) {
-    if (input.data !== this._def.value) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_literal,
-        expected: this._def.value
-      });
-      return INVALID;
-    }
-    return { status: "valid", value: input.data };
-  }
-  get value() {
-    return this._def.value;
-  }
-};
-ZodLiteral.create = (value, params) => {
-  return new ZodLiteral({
-    value,
-    typeName: ZodFirstPartyTypeKind.ZodLiteral,
-    ...processCreateParams(params)
-  });
-};
-function createZodEnum(values, params) {
-  return new ZodEnum({
-    values,
-    typeName: ZodFirstPartyTypeKind.ZodEnum,
-    ...processCreateParams(params)
-  });
-}
-var ZodEnum = class _ZodEnum extends ZodType {
-  constructor() {
-    super(...arguments);
-    _ZodEnum_cache.set(this, void 0);
-  }
-  _parse(input) {
-    if (typeof input.data !== "string") {
-      const ctx = this._getOrReturnCtx(input);
-      const expectedValues = this._def.values;
-      addIssueToContext(ctx, {
-        expected: util.joinValues(expectedValues),
-        received: ctx.parsedType,
-        code: ZodIssueCode.invalid_type
-      });
-      return INVALID;
-    }
-    if (!__classPrivateFieldGet(this, _ZodEnum_cache)) {
-      __classPrivateFieldSet(this, _ZodEnum_cache, new Set(this._def.values));
-    }
-    if (!__classPrivateFieldGet(this, _ZodEnum_cache).has(input.data)) {
-      const ctx = this._getOrReturnCtx(input);
-      const expectedValues = this._def.values;
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_enum_value,
-        options: expectedValues
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-  get options() {
-    return this._def.values;
-  }
-  get enum() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  get Values() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  get Enum() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  extract(values, newDef = this._def) {
-    return _ZodEnum.create(values, {
-      ...this._def,
-      ...newDef
-    });
-  }
-  exclude(values, newDef = this._def) {
-    return _ZodEnum.create(this.options.filter((opt) => !values.includes(opt)), {
-      ...this._def,
-      ...newDef
-    });
-  }
-};
-_ZodEnum_cache = /* @__PURE__ */ new WeakMap();
-ZodEnum.create = createZodEnum;
-var ZodNativeEnum = class extends ZodType {
-  constructor() {
-    super(...arguments);
-    _ZodNativeEnum_cache.set(this, void 0);
-  }
-  _parse(input) {
-    const nativeEnumValues = util.getValidEnumValues(this._def.values);
-    const ctx = this._getOrReturnCtx(input);
-    if (ctx.parsedType !== ZodParsedType.string && ctx.parsedType !== ZodParsedType.number) {
-      const expectedValues = util.objectValues(nativeEnumValues);
-      addIssueToContext(ctx, {
-        expected: util.joinValues(expectedValues),
-        received: ctx.parsedType,
-        code: ZodIssueCode.invalid_type
-      });
-      return INVALID;
-    }
-    if (!__classPrivateFieldGet(this, _ZodNativeEnum_cache)) {
-      __classPrivateFieldSet(this, _ZodNativeEnum_cache, new Set(util.getValidEnumValues(this._def.values)));
-    }
-    if (!__classPrivateFieldGet(this, _ZodNativeEnum_cache).has(input.data)) {
-      const expectedValues = util.objectValues(nativeEnumValues);
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_enum_value,
-        options: expectedValues
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-  get enum() {
-    return this._def.values;
-  }
-};
-_ZodNativeEnum_cache = /* @__PURE__ */ new WeakMap();
-ZodNativeEnum.create = (values, params) => {
-  return new ZodNativeEnum({
-    values,
-    typeName: ZodFirstPartyTypeKind.ZodNativeEnum,
-    ...processCreateParams(params)
-  });
-};
-var ZodPromise = class extends ZodType {
-  unwrap() {
-    return this._def.type;
-  }
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.promise && ctx.common.async === false) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.promise,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const promisified = ctx.parsedType === ZodParsedType.promise ? ctx.data : Promise.resolve(ctx.data);
-    return OK(promisified.then((data) => {
-      return this._def.type.parseAsync(data, {
-        path: ctx.path,
-        errorMap: ctx.common.contextualErrorMap
-      });
-    }));
-  }
-};
-ZodPromise.create = (schema, params) => {
-  return new ZodPromise({
-    type: schema,
-    typeName: ZodFirstPartyTypeKind.ZodPromise,
-    ...processCreateParams(params)
-  });
-};
-var ZodEffects = class extends ZodType {
-  innerType() {
-    return this._def.schema;
-  }
-  sourceType() {
-    return this._def.schema._def.typeName === ZodFirstPartyTypeKind.ZodEffects ? this._def.schema.sourceType() : this._def.schema;
-  }
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    const effect = this._def.effect || null;
-    const checkCtx = {
-      addIssue: (arg) => {
-        addIssueToContext(ctx, arg);
-        if (arg.fatal) {
-          status.abort();
-        } else {
-          status.dirty();
-        }
-      },
-      get path() {
-        return ctx.path;
-      }
-    };
-    checkCtx.addIssue = checkCtx.addIssue.bind(checkCtx);
-    if (effect.type === "preprocess") {
-      const processed = effect.transform(ctx.data, checkCtx);
-      if (ctx.common.async) {
-        return Promise.resolve(processed).then(async (processed2) => {
-          if (status.value === "aborted")
-            return INVALID;
-          const result = await this._def.schema._parseAsync({
-            data: processed2,
-            path: ctx.path,
-            parent: ctx
-          });
-          if (result.status === "aborted")
-            return INVALID;
-          if (result.status === "dirty")
-            return DIRTY(result.value);
-          if (status.value === "dirty")
-            return DIRTY(result.value);
-          return result;
-        });
-      } else {
-        if (status.value === "aborted")
-          return INVALID;
-        const result = this._def.schema._parseSync({
-          data: processed,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (result.status === "aborted")
-          return INVALID;
-        if (result.status === "dirty")
-          return DIRTY(result.value);
-        if (status.value === "dirty")
-          return DIRTY(result.value);
-        return result;
-      }
-    }
-    if (effect.type === "refinement") {
-      const executeRefinement = (acc) => {
-        const result = effect.refinement(acc, checkCtx);
-        if (ctx.common.async) {
-          return Promise.resolve(result);
-        }
-        if (result instanceof Promise) {
-          throw new Error("Async refinement encountered during synchronous parse operation. Use .parseAsync instead.");
-        }
-        return acc;
-      };
-      if (ctx.common.async === false) {
-        const inner = this._def.schema._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (inner.status === "aborted")
-          return INVALID;
-        if (inner.status === "dirty")
-          status.dirty();
-        executeRefinement(inner.value);
-        return { status: status.value, value: inner.value };
-      } else {
-        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((inner) => {
-          if (inner.status === "aborted")
-            return INVALID;
-          if (inner.status === "dirty")
-            status.dirty();
-          return executeRefinement(inner.value).then(() => {
-            return { status: status.value, value: inner.value };
-          });
-        });
-      }
-    }
-    if (effect.type === "transform") {
-      if (ctx.common.async === false) {
-        const base = this._def.schema._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (!isValid(base))
-          return base;
-        const result = effect.transform(base.value, checkCtx);
-        if (result instanceof Promise) {
-          throw new Error(`Asynchronous transform encountered during synchronous parse operation. Use .parseAsync instead.`);
-        }
-        return { status: status.value, value: result };
-      } else {
-        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((base) => {
-          if (!isValid(base))
-            return base;
-          return Promise.resolve(effect.transform(base.value, checkCtx)).then((result) => ({ status: status.value, value: result }));
-        });
-      }
-    }
-    util.assertNever(effect);
-  }
-};
-ZodEffects.create = (schema, effect, params) => {
-  return new ZodEffects({
-    schema,
-    typeName: ZodFirstPartyTypeKind.ZodEffects,
-    effect,
-    ...processCreateParams(params)
-  });
-};
-ZodEffects.createWithPreprocess = (preprocess, schema, params) => {
-  return new ZodEffects({
-    schema,
-    effect: { type: "preprocess", transform: preprocess },
-    typeName: ZodFirstPartyTypeKind.ZodEffects,
-    ...processCreateParams(params)
-  });
-};
-var ZodOptional = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType === ZodParsedType.undefined) {
-      return OK(void 0);
-    }
-    return this._def.innerType._parse(input);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-};
-ZodOptional.create = (type, params) => {
-  return new ZodOptional({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodOptional,
-    ...processCreateParams(params)
-  });
-};
-var ZodNullable = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType === ZodParsedType.null) {
-      return OK(null);
-    }
-    return this._def.innerType._parse(input);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-};
-ZodNullable.create = (type, params) => {
-  return new ZodNullable({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodNullable,
-    ...processCreateParams(params)
-  });
-};
-var ZodDefault = class extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    let data = ctx.data;
-    if (ctx.parsedType === ZodParsedType.undefined) {
-      data = this._def.defaultValue();
-    }
-    return this._def.innerType._parse({
-      data,
-      path: ctx.path,
-      parent: ctx
-    });
-  }
-  removeDefault() {
-    return this._def.innerType;
-  }
-};
-ZodDefault.create = (type, params) => {
-  return new ZodDefault({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodDefault,
-    defaultValue: typeof params.default === "function" ? params.default : () => params.default,
-    ...processCreateParams(params)
-  });
-};
-var ZodCatch = class extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const newCtx = {
-      ...ctx,
-      common: {
-        ...ctx.common,
-        issues: []
-      }
-    };
-    const result = this._def.innerType._parse({
-      data: newCtx.data,
-      path: newCtx.path,
-      parent: {
-        ...newCtx
-      }
-    });
-    if (isAsync(result)) {
-      return result.then((result2) => {
-        return {
-          status: "valid",
-          value: result2.status === "valid" ? result2.value : this._def.catchValue({
-            get error() {
-              return new ZodError(newCtx.common.issues);
-            },
-            input: newCtx.data
-          })
-        };
-      });
-    } else {
-      return {
-        status: "valid",
-        value: result.status === "valid" ? result.value : this._def.catchValue({
-          get error() {
-            return new ZodError(newCtx.common.issues);
-          },
-          input: newCtx.data
-        })
-      };
-    }
-  }
-  removeCatch() {
-    return this._def.innerType;
-  }
-};
-ZodCatch.create = (type, params) => {
-  return new ZodCatch({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodCatch,
-    catchValue: typeof params.catch === "function" ? params.catch : () => params.catch,
-    ...processCreateParams(params)
-  });
-};
-var ZodNaN = class extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.nan) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.nan,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return { status: "valid", value: input.data };
-  }
-};
-ZodNaN.create = (params) => {
-  return new ZodNaN({
-    typeName: ZodFirstPartyTypeKind.ZodNaN,
-    ...processCreateParams(params)
-  });
-};
-var ZodBranded = class extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const data = ctx.data;
-    return this._def.type._parse({
-      data,
-      path: ctx.path,
-      parent: ctx
-    });
-  }
-  unwrap() {
-    return this._def.type;
-  }
-};
-var ZodPipeline = class _ZodPipeline extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.common.async) {
-      const handleAsync = async () => {
-        const inResult = await this._def.in._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (inResult.status === "aborted")
-          return INVALID;
-        if (inResult.status === "dirty") {
-          status.dirty();
-          return DIRTY(inResult.value);
-        } else {
-          return this._def.out._parseAsync({
-            data: inResult.value,
-            path: ctx.path,
-            parent: ctx
-          });
-        }
-      };
-      return handleAsync();
-    } else {
-      const inResult = this._def.in._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      });
-      if (inResult.status === "aborted")
-        return INVALID;
-      if (inResult.status === "dirty") {
-        status.dirty();
-        return {
-          status: "dirty",
-          value: inResult.value
-        };
-      } else {
-        return this._def.out._parseSync({
-          data: inResult.value,
-          path: ctx.path,
-          parent: ctx
-        });
-      }
-    }
-  }
-  static create(a, b) {
-    return new _ZodPipeline({
-      in: a,
-      out: b,
-      typeName: ZodFirstPartyTypeKind.ZodPipeline
-    });
-  }
-};
-var ZodReadonly = class extends ZodType {
-  _parse(input) {
-    const result = this._def.innerType._parse(input);
-    const freeze = (data) => {
-      if (isValid(data)) {
-        data.value = Object.freeze(data.value);
-      }
-      return data;
-    };
-    return isAsync(result) ? result.then((data) => freeze(data)) : freeze(result);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-};
-ZodReadonly.create = (type, params) => {
-  return new ZodReadonly({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodReadonly,
-    ...processCreateParams(params)
-  });
-};
-var ZodFirstPartyTypeKind;
-(function(ZodFirstPartyTypeKind2) {
-  ZodFirstPartyTypeKind2["ZodString"] = "ZodString";
-  ZodFirstPartyTypeKind2["ZodNumber"] = "ZodNumber";
-  ZodFirstPartyTypeKind2["ZodNaN"] = "ZodNaN";
-  ZodFirstPartyTypeKind2["ZodBigInt"] = "ZodBigInt";
-  ZodFirstPartyTypeKind2["ZodBoolean"] = "ZodBoolean";
-  ZodFirstPartyTypeKind2["ZodDate"] = "ZodDate";
-  ZodFirstPartyTypeKind2["ZodSymbol"] = "ZodSymbol";
-  ZodFirstPartyTypeKind2["ZodUndefined"] = "ZodUndefined";
-  ZodFirstPartyTypeKind2["ZodNull"] = "ZodNull";
-  ZodFirstPartyTypeKind2["ZodAny"] = "ZodAny";
-  ZodFirstPartyTypeKind2["ZodUnknown"] = "ZodUnknown";
-  ZodFirstPartyTypeKind2["ZodNever"] = "ZodNever";
-  ZodFirstPartyTypeKind2["ZodVoid"] = "ZodVoid";
-  ZodFirstPartyTypeKind2["ZodArray"] = "ZodArray";
-  ZodFirstPartyTypeKind2["ZodObject"] = "ZodObject";
-  ZodFirstPartyTypeKind2["ZodUnion"] = "ZodUnion";
-  ZodFirstPartyTypeKind2["ZodDiscriminatedUnion"] = "ZodDiscriminatedUnion";
-  ZodFirstPartyTypeKind2["ZodIntersection"] = "ZodIntersection";
-  ZodFirstPartyTypeKind2["ZodTuple"] = "ZodTuple";
-  ZodFirstPartyTypeKind2["ZodRecord"] = "ZodRecord";
-  ZodFirstPartyTypeKind2["ZodMap"] = "ZodMap";
-  ZodFirstPartyTypeKind2["ZodSet"] = "ZodSet";
-  ZodFirstPartyTypeKind2["ZodFunction"] = "ZodFunction";
-  ZodFirstPartyTypeKind2["ZodLazy"] = "ZodLazy";
-  ZodFirstPartyTypeKind2["ZodLiteral"] = "ZodLiteral";
-  ZodFirstPartyTypeKind2["ZodEnum"] = "ZodEnum";
-  ZodFirstPartyTypeKind2["ZodEffects"] = "ZodEffects";
-  ZodFirstPartyTypeKind2["ZodNativeEnum"] = "ZodNativeEnum";
-  ZodFirstPartyTypeKind2["ZodOptional"] = "ZodOptional";
-  ZodFirstPartyTypeKind2["ZodNullable"] = "ZodNullable";
-  ZodFirstPartyTypeKind2["ZodDefault"] = "ZodDefault";
-  ZodFirstPartyTypeKind2["ZodCatch"] = "ZodCatch";
-  ZodFirstPartyTypeKind2["ZodPromise"] = "ZodPromise";
-  ZodFirstPartyTypeKind2["ZodBranded"] = "ZodBranded";
-  ZodFirstPartyTypeKind2["ZodPipeline"] = "ZodPipeline";
-  ZodFirstPartyTypeKind2["ZodReadonly"] = "ZodReadonly";
-})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
-
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/any.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/any.js
 function parseAnyDef() {
   return {};
 }
-
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 function parseArrayDef(def, refs) {
   const res = {
     type: "array"
@@ -6628,7 +3699,7 @@ function parseArrayDef(def, refs) {
   return res;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
 function parseBigintDef(def, refs) {
   const res = {
     type: "integer",
@@ -6674,24 +3745,24 @@ function parseBigintDef(def, refs) {
   return res;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
 function parseBooleanDef() {
   return {
     type: "boolean"
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
 function parseBrandedDef(_def, refs) {
   return parseDef(_def.type._def, refs);
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
 var parseCatchDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/date.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/date.js
 function parseDateDef(def, refs, overrideDateStrategy) {
   const strategy = overrideDateStrategy ?? refs.dateStrategy;
   if (Array.isArray(strategy)) {
@@ -6750,7 +3821,7 @@ var integerDateParser = (def, refs) => {
   return res;
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/default.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/default.js
 function parseDefaultDef(_def, refs) {
   return {
     ...parseDef(_def.innerType._def, refs),
@@ -6758,12 +3829,12 @@ function parseDefaultDef(_def, refs) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
 function parseEffectsDef(_def, refs) {
   return refs.effectStrategy === "input" ? parseDef(_def.schema._def, refs) : {};
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
 function parseEnumDef(def) {
   return {
     type: "string",
@@ -6771,7 +3842,7 @@ function parseEnumDef(def) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
 var isJsonSchema7AllOfType = (type) => {
   if ("type" in type && type.type === "string")
     return false;
@@ -6813,7 +3884,7 @@ function parseIntersectionDef(def, refs) {
   } : void 0;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
 function parseLiteralDef(def, refs) {
   const parsedType = typeof def.value;
   if (parsedType !== "bigint" && parsedType !== "number" && parsedType !== "boolean" && parsedType !== "string") {
@@ -6833,8 +3904,8 @@ function parseLiteralDef(def, refs) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
-var emojiRegex2 = void 0;
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
+var emojiRegex = void 0;
 var zodPatterns = {
   /**
    * `c` was changed to `[cC]` to replicate /i flag
@@ -6858,10 +3929,10 @@ var zodPatterns = {
    * https://github.com/colinhacks/zod/commit/9340fd51e48576a75adc919bff65dbc4a5d4c99b
    */
   emoji: () => {
-    if (emojiRegex2 === void 0) {
-      emojiRegex2 = RegExp("^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$", "u");
+    if (emojiRegex === void 0) {
+      emojiRegex = RegExp("^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$", "u");
     }
-    return emojiRegex2;
+    return emojiRegex;
   },
   /**
    * Unused
@@ -7145,7 +4216,7 @@ function stringifyRegExpWithFlags(regex, refs) {
   return pattern;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/record.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/record.js
 function parseRecordDef(def, refs) {
   if (refs.target === "openAi") {
     console.warn("Warning: OpenAI may not support records in schemas! Try an array of key-value pairs instead.");
@@ -7197,7 +4268,7 @@ function parseRecordDef(def, refs) {
   return schema;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/map.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/map.js
 function parseMapDef(def, refs) {
   if (refs.mapStrategy === "record") {
     return parseRecordDef(def, refs);
@@ -7222,7 +4293,7 @@ function parseMapDef(def, refs) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
 function parseNativeEnumDef(def) {
   const object = def.values;
   const actualKeys = Object.keys(def.values).filter((key) => {
@@ -7236,14 +4307,14 @@ function parseNativeEnumDef(def) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/never.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/never.js
 function parseNeverDef() {
   return {
     not: {}
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/null.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/null.js
 function parseNullDef(refs) {
   return refs.target === "openApi3" ? {
     enum: ["null"],
@@ -7253,7 +4324,7 @@ function parseNullDef(refs) {
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/union.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/union.js
 var primitiveMappings = {
   ZodString: "string",
   ZodNumber: "number",
@@ -7321,7 +4392,7 @@ var asAnyOf = (def, refs) => {
   return anyOf.length ? { anyOf } : void 0;
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
 function parseNullableDef(def, refs) {
   if (["ZodString", "ZodNumber", "ZodBigInt", "ZodBoolean", "ZodNull"].includes(def.innerType._def.typeName) && (!def.innerType._def.checks || !def.innerType._def.checks.length)) {
     if (refs.target === "openApi3") {
@@ -7353,7 +4424,7 @@ function parseNullableDef(def, refs) {
   return base && { anyOf: [base, { type: "null" }] };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/number.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/number.js
 function parseNumberDef(def, refs) {
   const res = {
     type: "number"
@@ -7401,8 +4472,6 @@ function parseNumberDef(def, refs) {
   }
   return res;
 }
-
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/object.js
 function parseObjectDef(def, refs) {
   const forceOptionalIntoNullable = refs.target === "openAi";
   const result = {
@@ -7472,7 +4541,7 @@ function safeIsOptional(schema) {
   }
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
 var parseOptionalDef = (def, refs) => {
   if (refs.currentPath.toString() === refs.propertyPath?.toString()) {
     return parseDef(def.innerType._def, refs);
@@ -7491,7 +4560,7 @@ var parseOptionalDef = (def, refs) => {
   } : {};
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
 var parsePipelineDef = (def, refs) => {
   if (refs.pipeStrategy === "input") {
     return parseDef(def.in._def, refs);
@@ -7511,12 +4580,12 @@ var parsePipelineDef = (def, refs) => {
   };
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
 function parsePromiseDef(def, refs) {
   return parseDef(def.type._def, refs);
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/set.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/set.js
 function parseSetDef(def, refs) {
   const items = parseDef(def.valueType._def, {
     ...refs,
@@ -7536,7 +4605,7 @@ function parseSetDef(def, refs) {
   return schema;
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
 function parseTupleDef(def, refs) {
   if (def.rest) {
     return {
@@ -7564,24 +4633,24 @@ function parseTupleDef(def, refs) {
   }
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
 function parseUndefinedDef() {
   return {
     not: {}
   };
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
 function parseUnknownDef() {
   return {};
 }
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
 var parseReadonlyDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/selectParser.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/selectParser.js
 var selectParser = (def, typeName, refs) => {
   switch (typeName) {
     case ZodFirstPartyTypeKind.ZodString:
@@ -7657,7 +4726,7 @@ var selectParser = (def, typeName, refs) => {
   }
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/parseDef.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/parseDef.js
 function parseDef(def, refs, forceResolution = false) {
   const seenItem = refs.seen.get(def);
   if (refs.override) {
@@ -7721,7 +4790,7 @@ var addMeta = (def, refs, jsonSchema) => {
   return jsonSchema;
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
 var zodToJsonSchema = (schema, options) => {
   const refs = getRefs(options);
   const definitions = typeof options === "object" && options.definitions ? Object.entries(options.definitions).reduce((acc, [name2, schema2]) => ({
@@ -7765,14 +4834,8 @@ var zodToJsonSchema = (schema, options) => {
   return combined;
 };
 
-// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.3/node_modules/zod-to-json-schema/dist/esm/index.js
+// ../../node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.24.4/node_modules/zod-to-json-schema/dist/esm/index.js
 var esm_default = zodToJsonSchema;
-
-var __defProp = Object.defineProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 
 // src/server/http-exception.ts
 var HTTPException = class extends Error {
@@ -7855,11 +4918,29 @@ async function getAgentsHandler$1({ mastra, runtimeContext }) {
           };
           return acc;
         }, {});
+        let serializedAgentWorkflows = {};
+        if ("getWorkflows" in agent) {
+          const logger = mastra.getLogger();
+          try {
+            const workflows = await agent.getWorkflows({ runtimeContext });
+            serializedAgentWorkflows = Object.entries(workflows || {}).reduce((acc, [key, workflow]) => {
+              return {
+                ...acc,
+                [key]: {
+                  name: workflow.name
+                }
+              };
+            }, {});
+          } catch (error) {
+            logger.error("Error getting workflows for agent", { agentName: agent.name, error });
+          }
+        }
         return {
           id,
           name: agent.name,
           instructions,
           tools: serializedAgentTools,
+          workflows: serializedAgentWorkflows,
           provider: llm?.getProvider(),
           modelId: llm?.getModelId()
         };
@@ -7894,12 +4975,30 @@ async function getAgentByIdHandler$1({
       };
       return acc;
     }, {});
+    let serializedAgentWorkflows = {};
+    if ("getWorkflows" in agent) {
+      const logger = mastra.getLogger();
+      try {
+        const workflows = await agent.getWorkflows({ runtimeContext });
+        serializedAgentWorkflows = Object.entries(workflows || {}).reduce((acc, [key, workflow]) => {
+          return {
+            ...acc,
+            [key]: {
+              name: workflow.name
+            }
+          };
+        }, {});
+      } catch (error) {
+        logger.error("Error getting workflows for agent", { agentName: agent.name, error });
+      }
+    }
     const instructions = await agent.getInstructions({ runtimeContext });
     const llm = await agent.getLLM({ runtimeContext });
     return {
       name: agent.name,
       instructions,
       tools: serializedAgentTools,
+      workflows: serializedAgentWorkflows,
       provider: llm?.getProvider(),
       modelId: llm?.getModelId()
     };
@@ -7956,14 +5055,18 @@ async function generateHandler$2({
     if (!agent) {
       throw new HTTPException(404, { message: "Agent not found" });
     }
-    const { messages, resourceId, resourceid, ...rest } = body;
+    const { messages, resourceId, resourceid, runtimeContext: agentRuntimeContext, ...rest } = body;
     const finalResourceId = resourceId ?? resourceid;
+    const finalRuntimeContext = new RuntimeContext([
+      ...Array.from(runtimeContext.entries()),
+      ...Array.from(Object.entries(agentRuntimeContext ?? {}))
+    ]);
     validateBody({ messages });
     const result = await agent.generate(messages, {
       ...rest,
       // @ts-expect-error TODO fix types
       resourceId: finalResourceId,
-      runtimeContext
+      runtimeContext: finalRuntimeContext
     });
     return result;
   } catch (error) {
@@ -7981,14 +5084,18 @@ async function streamGenerateHandler$2({
     if (!agent) {
       throw new HTTPException(404, { message: "Agent not found" });
     }
-    const { messages, resourceId, resourceid, ...rest } = body;
+    const { messages, resourceId, resourceid, runtimeContext: agentRuntimeContext, ...rest } = body;
     const finalResourceId = resourceId ?? resourceid;
+    const finalRuntimeContext = new RuntimeContext([
+      ...Array.from(runtimeContext.entries()),
+      ...Array.from(Object.entries(agentRuntimeContext ?? {}))
+    ]);
     validateBody({ messages });
     const streamResult = await agent.stream(messages, {
       ...rest,
       // @ts-expect-error TODO fix types
       resourceId: finalResourceId,
-      runtimeContext
+      runtimeContext: finalRuntimeContext
     });
     const streamResponse = rest.output ? streamResult.toTextStreamResponse() : streamResult.toDataStreamResponse({
       sendUsage: true,
@@ -8226,8 +5333,12 @@ async function deleteThreadHandler$1({
 async function getMessagesHandler$1({
   mastra,
   agentId,
-  threadId
+  threadId,
+  limit
 }) {
+  if (limit !== void 0 && (!Number.isInteger(limit) || limit <= 0)) {
+    throw new HTTPException(400, { message: "Invalid limit: must be a positive integer" });
+  }
   try {
     validateBody({ threadId });
     const memory = getMemoryFromContext({ mastra, agentId });
@@ -8238,7 +5349,10 @@ async function getMessagesHandler$1({
     if (!thread) {
       throw new HTTPException(404, { message: "Thread not found" });
     }
-    const result = await memory.query({ threadId });
+    const result = await memory.query({
+      threadId,
+      ...limit && { selectBy: { last: limit } }
+    });
     return result;
   } catch (error) {
     return handleError$1(error, "Error getting messages");
@@ -8400,7 +5514,7 @@ async function getTelemetryHandler$1({ mastra, body }) {
     if (!body) {
       throw new HTTPException(400, { message: "Body is required" });
     }
-    const { name, scope, page, perPage, attribute } = body;
+    const { name, scope, page, perPage, attribute, fromDate, toDate } = body;
     const attributes = attribute ? Object.fromEntries(
       (Array.isArray(attribute) ? attribute : [attribute]).map((attr) => {
         const [key, value] = attr.split(":");
@@ -8412,7 +5526,9 @@ async function getTelemetryHandler$1({ mastra, body }) {
       scope,
       page: Number(page ?? 0),
       perPage: Number(perPage ?? 100),
-      attributes
+      attributes,
+      fromDate: fromDate ? new Date(fromDate) : void 0,
+      toDate: toDate ? new Date(toDate) : void 0
     });
     return traces;
   } catch (error2) {
@@ -8564,7 +5680,8 @@ function executeToolHandler$1(tools) {
     runId,
     toolId,
     data,
-    runtimeContext
+    runtimeContext,
+    runtimeContextFromRequest
   }) => {
     try {
       if (!toolId) {
@@ -8582,11 +5699,15 @@ function executeToolHandler$1(tools) {
         const result2 = await tool.execute(data);
         return result2;
       }
+      const finalRuntimeContext = new RuntimeContext$1([
+        ...Array.from(runtimeContext.entries()),
+        ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+      ]);
       const result = await tool.execute({
         context: data,
         mastra,
         runId,
-        runtimeContext
+        runtimeContext: finalRuntimeContext
       });
       return result;
     } catch (error) {
@@ -8599,7 +5720,8 @@ async function executeAgentToolHandler$1({
   agentId,
   toolId,
   data,
-  runtimeContext
+  runtimeContext,
+  runtimeContextFromRequest
 }) {
   try {
     const agent = agentId ? mastra.getAgent(agentId) : null;
@@ -8613,9 +5735,13 @@ async function executeAgentToolHandler$1({
     if (!tool?.execute) {
       throw new HTTPException(400, { message: "Tool is not executable" });
     }
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext.entries()),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
     const result = await tool.execute({
       context: data,
-      runtimeContext,
+      runtimeContext: finalRuntimeContext,
       mastra,
       runId: agentId
     });
@@ -8746,7 +5872,7 @@ var vNextWorkflows_exports = {};
 __export(vNextWorkflows_exports, {
   createVNextWorkflowRunHandler: () => createVNextWorkflowRunHandler$1,
   getVNextWorkflowByIdHandler: () => getVNextWorkflowByIdHandler$1,
-  getVNextWorkflowRunHandler: () => getVNextWorkflowRunHandler,
+  getVNextWorkflowRunByIdHandler: () => getVNextWorkflowRunByIdHandler,
   getVNextWorkflowRunsHandler: () => getVNextWorkflowRunsHandler$1,
   getVNextWorkflowsHandler: () => getVNextWorkflowsHandler$1,
   resumeAsyncVNextWorkflowHandler: () => resumeAsyncVNextWorkflowHandler$1,
@@ -8763,14 +5889,16 @@ async function getVNextWorkflowsHandler$1({ mastra }) {
         name: workflow.name,
         steps: Object.entries(workflow.steps).reduce((acc2, [key2, step]) => {
           acc2[key2] = {
-            ...step,
+            id: step.id,
+            description: step.description,
             inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
             outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
-            resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0
+            resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
+            suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
           };
           return acc2;
         }, {}),
-        stepGraph: workflow.stepGraph,
+        stepGraph: workflow.serializedStepGraph,
         inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
         outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
       };
@@ -8793,15 +5921,17 @@ async function getVNextWorkflowByIdHandler$1({ mastra, workflowId }) {
     return {
       steps: Object.entries(workflow.steps).reduce((acc, [key, step]) => {
         acc[key] = {
-          ...step,
+          id: step.id,
+          description: step.description,
           inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
           outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
-          resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0
+          resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
+          suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
         };
         return acc;
       }, {}),
       name: workflow.name,
-      stepGraph: workflow.stepGraph,
+      stepGraph: workflow.serializedStepGraph,
       inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
       outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
     };
@@ -8809,7 +5939,7 @@ async function getVNextWorkflowByIdHandler$1({ mastra, workflowId }) {
     throw new HTTPException(500, { message: error?.message || "Error getting workflow" });
   }
 }
-async function getVNextWorkflowRunHandler({
+async function getVNextWorkflowRunByIdHandler({
   mastra,
   workflowId,
   runId
@@ -8825,7 +5955,7 @@ async function getVNextWorkflowRunHandler({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
-    const run = await workflow.getWorkflowRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -8858,7 +5988,8 @@ async function startAsyncVNextWorkflowHandler$1({
   runtimeContext,
   workflowId,
   runId,
-  inputData
+  inputData,
+  runtimeContextFromRequest
 }) {
   try {
     if (!workflowId) {
@@ -8868,10 +5999,14 @@ async function startAsyncVNextWorkflowHandler$1({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
     const _run = workflow.createRun({ runId });
     const result = await _run.start({
       inputData,
-      runtimeContext
+      runtimeContext: finalRuntimeContext
     });
     return result;
   } catch (error) {
@@ -8883,7 +6018,8 @@ async function startVNextWorkflowRunHandler$1({
   runtimeContext,
   workflowId,
   runId,
-  inputData
+  inputData,
+  runtimeContextFromRequest
 }) {
   try {
     if (!workflowId) {
@@ -8893,14 +6029,18 @@ async function startVNextWorkflowRunHandler$1({
       throw new HTTPException(400, { message: "runId required to start run" });
     }
     const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
     const _run = workflow.createRun({ runId });
-    await _run.start({
+    void _run.start({
       inputData,
-      runtimeContext
+      runtimeContext: finalRuntimeContext
     });
     return { message: "Workflow run started" };
   } catch (e) {
@@ -8920,7 +6060,7 @@ async function watchVNextWorkflowHandler$1({
       throw new HTTPException(400, { message: "runId required to watch workflow" });
     }
     const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -8958,7 +6098,8 @@ async function resumeAsyncVNextWorkflowHandler$1({
   workflowId,
   runId,
   body,
-  runtimeContext
+  runtimeContext,
+  runtimeContextFromRequest
 }) {
   try {
     if (!workflowId) {
@@ -8971,15 +6112,19 @@ async function resumeAsyncVNextWorkflowHandler$1({
       throw new HTTPException(400, { message: "step required to resume workflow" });
     }
     const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
     const _run = workflow.createRun({ runId });
     const result = await _run.resume({
       step: body.step,
       resumeData: body.resumeData,
-      runtimeContext
+      runtimeContext: finalRuntimeContext
     });
     return result;
   } catch (error) {
@@ -9004,12 +6149,12 @@ async function resumeVNextWorkflowHandler$1({
       throw new HTTPException(400, { message: "step required to resume workflow" });
     }
     const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
     const _run = workflow.createRun({ runId });
-    await _run.resume({
+    void _run.resume({
       step: body.step,
       resumeData: body.resumeData,
       runtimeContext
@@ -9019,13 +6164,21 @@ async function resumeVNextWorkflowHandler$1({
     return handleError$1(error, "Error resuming workflow");
   }
 }
-async function getVNextWorkflowRunsHandler$1({ mastra, workflowId }) {
+async function getVNextWorkflowRunsHandler$1({
+  mastra,
+  workflowId,
+  fromDate,
+  toDate,
+  limit,
+  offset,
+  resourceId
+}) {
   try {
     if (!workflowId) {
       throw new HTTPException(400, { message: "Workflow ID is required" });
     }
     const workflow = mastra.vnext_getWorkflow(workflowId);
-    const workflowRuns = await workflow.getWorkflowRuns() || {
+    const workflowRuns = await workflow.getWorkflowRuns({ fromDate, toDate, limit, offset, resourceId }) || {
       runs: [],
       total: 0
     };
@@ -9034,113 +6187,6 @@ async function getVNextWorkflowRunsHandler$1({ mastra, workflowId }) {
     return handleError$1(error, "Error getting workflow runs");
   }
 }
-
-// src/utils/stream.ts
-var StreamingApi = class {
-  writer;
-  encoder;
-  writable;
-  abortSubscribers = [];
-  responseReadable;
-  aborted = false;
-  closed = false;
-  constructor(writable, _readable) {
-    this.writable = writable;
-    this.writer = writable.getWriter();
-    this.encoder = new TextEncoder();
-    const reader = _readable.getReader();
-    this.abortSubscribers.push(async () => {
-      await reader.cancel();
-    });
-    this.responseReadable = new ReadableStream({
-      async pull(controller) {
-        const { done, value } = await reader.read();
-        done ? controller.close() : controller.enqueue(value);
-      },
-      cancel: () => {
-        this.abort();
-      }
-    });
-  }
-  async write(input) {
-    try {
-      if (typeof input === "string") {
-        input = this.encoder.encode(input);
-      }
-      await this.writer.write(input);
-    } catch {
-    }
-    return this;
-  }
-  async writeln(input) {
-    await this.write(input + "\n");
-    return this;
-  }
-  sleep(ms) {
-    return new Promise((res) => setTimeout(res, ms));
-  }
-  async close() {
-    try {
-      await this.writer.close();
-    } catch {
-    }
-    this.closed = true;
-  }
-  async pipe(body) {
-    this.writer.releaseLock();
-    await body.pipeTo(this.writable, { preventClose: true });
-    this.writer = this.writable.getWriter();
-  }
-  onAbort(listener) {
-    this.abortSubscribers.push(listener);
-  }
-  abort() {
-    if (!this.aborted) {
-      this.aborted = true;
-      this.abortSubscribers.forEach((subscriber) => subscriber());
-    }
-  }
-};
-
-// src/helper/streaming/utils.ts
-var isOldBunVersion = () => {
-  const version = typeof Bun !== "undefined" ? Bun.version : void 0;
-  if (version === void 0) {
-    return false;
-  }
-  const result = version.startsWith("1.1") || version.startsWith("1.0") || version.startsWith("0.");
-  isOldBunVersion = () => result;
-  return result;
-};
-
-// src/helper/streaming/stream.ts
-var contextStash = /* @__PURE__ */ new WeakMap();
-var stream = (c, cb, onError) => {
-  const { readable, writable } = new TransformStream();
-  const stream2 = new StreamingApi(writable, readable);
-  if (isOldBunVersion()) {
-    c.req.raw.signal.addEventListener("abort", () => {
-      if (!stream2.closed) {
-        stream2.abort();
-      }
-    });
-  }
-  contextStash.set(stream2.responseReadable, c);
-  (async () => {
-    try {
-      await cb(stream2);
-    } catch (e) {
-      if (e === void 0) ; else if (e instanceof Error && onError) {
-        await onError(e, stream2);
-      } else {
-        console.error(e);
-      }
-    } finally {
-      stream2.close();
-    }
-  })();
-  return c.newResponse(stream2.responseReadable);
-};
 
 // src/server/handlers/voice.ts
 var voice_exports = {};
@@ -9253,7 +6299,9 @@ async function getWorkflowsHandler$1({ mastra }) {
         steps: Object.entries(workflow.steps).reduce((acc2, [key2, step]) => {
           const _step = step;
           acc2[key2] = {
-            ..._step,
+            id: _step.id,
+            description: _step.description,
+            workflowId: _step.workflowId,
             inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
             outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
           };
@@ -9286,7 +6334,9 @@ async function getWorkflowByIdHandler$1({ mastra, workflowId }) {
       steps: Object.entries(workflow.steps).reduce((acc, [key, step]) => {
         const _step = step;
         acc[key] = {
-          ..._step,
+          id: _step.id,
+          description: _step.description,
+          workflowId: _step.workflowId,
           inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
           outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
         };
@@ -9313,14 +6363,14 @@ async function startAsyncWorkflowHandler$1({
       throw new HTTPException(404, { message: "Workflow not found" });
     }
     if (!runId) {
-      const { start } = workflow.createRun();
-      const result2 = await start({
+      const newRun = workflow.createRun();
+      const result2 = await newRun.start({
         triggerData,
         runtimeContext
       });
       return result2;
     }
-    const run = workflow.getRun(runId);
+    const run = workflow.getMemoryRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -9349,7 +6399,7 @@ async function getWorkflowRunHandler({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
-    const run = workflow.getRun(runId);
+    const run = await workflow.getRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -9371,8 +6421,8 @@ async function createRunHandler$1({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
-    const { runId } = workflow.createRun({ runId: prevRunId });
-    return { runId };
+    const newRun = workflow.createRun({ runId: prevRunId });
+    return { runId: newRun.runId };
   } catch (error) {
     throw new HTTPException(500, { message: error?.message || "Error creating workflow run" });
   }
@@ -9392,11 +6442,11 @@ async function startWorkflowRunHandler$1({
       throw new HTTPException(400, { message: "runId required to start run" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getRun(runId);
+    const run = workflow.getMemoryRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
-    await run.start({
+    void run.start({
       triggerData,
       runtimeContext
     });
@@ -9418,7 +6468,7 @@ async function watchWorkflowHandler$1({
       throw new HTTPException(400, { message: "runId required to watch workflow" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getRun(runId);
+    const run = workflow.getMemoryRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -9434,8 +6484,10 @@ async function watchWorkflowHandler$1({
             asyncRef = null;
           }
           asyncRef = setImmediate(() => {
-            if (!workflow.getRun(runId2)) {
+            const runDone = Object.values(activePathsObj).every((value) => value.status !== "executing");
+            if (runDone) {
               controller.close();
+              unwatch?.();
             }
           });
         });
@@ -9464,7 +6516,7 @@ async function resumeAsyncWorkflowHandler$1({
       throw new HTTPException(400, { message: "runId required to resume workflow" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getRun(runId);
+    const run = workflow.getMemoryRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -9493,11 +6545,11 @@ async function resumeWorkflowHandler$1({
       throw new HTTPException(400, { message: "runId required to resume workflow" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getRun(runId);
+    const run = workflow.getMemoryRun(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
-    await run.resume({
+    void run.resume({
       stepId: body.stepId,
       context: body.context,
       runtimeContext
@@ -9507,13 +6559,21 @@ async function resumeWorkflowHandler$1({
     return handleError$1(error, "Error resuming workflow");
   }
 }
-async function getWorkflowRunsHandler$1({ mastra, workflowId }) {
+async function getWorkflowRunsHandler$1({
+  mastra,
+  workflowId,
+  fromDate,
+  toDate,
+  limit,
+  offset,
+  resourceId
+}) {
   try {
     if (!workflowId) {
       throw new HTTPException(400, { message: "Workflow ID is required" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const workflowRuns = await workflow.getWorkflowRuns() || {
+    const workflowRuns = await workflow.getWorkflowRuns({ fromDate, toDate, limit, offset, resourceId }) || {
       runs: [],
       total: 0
     };
@@ -9646,27 +6706,48 @@ Object.setPrototypeOf(requestPrototype, Request$1.prototype);
 var newRequest = (incoming, defaultHostname) => {
   const req = Object.create(requestPrototype);
   req[incomingKey] = incoming;
+  const incomingUrl = incoming.url || "";
+  if (incomingUrl[0] !== "/" && // short-circuit for performance. most requests are relative URL.
+  (incomingUrl.startsWith("http://") || incomingUrl.startsWith("https://"))) {
+    if (incoming instanceof Http2ServerRequest) {
+      throw new RequestError("Absolute URL for :path is not allowed in HTTP/2");
+    }
+    try {
+      const url2 = new URL(incomingUrl);
+      req[urlKey] = url2.href;
+    } catch (e2) {
+      throw new RequestError("Invalid absolute URL", { cause: e2 });
+    }
+    return req;
+  }
   const host = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
   if (!host) {
     throw new RequestError("Missing host header");
   }
-  const url = new URL(
-    `${incoming instanceof Http2ServerRequest || incoming.socket && incoming.socket.encrypted ? "https" : "http"}://${host}${incoming.url}`
-  );
+  let scheme;
+  if (incoming instanceof Http2ServerRequest) {
+    scheme = incoming.scheme;
+    if (!(scheme === "http" || scheme === "https")) {
+      throw new RequestError("Unsupported scheme");
+    }
+  } else {
+    scheme = incoming.socket && incoming.socket.encrypted ? "https" : "http";
+  }
+  const url = new URL(`${scheme}://${host}${incomingUrl}`);
   if (url.hostname.length !== host.length && url.hostname !== host.replace(/:\d+$/, "")) {
     throw new RequestError("Invalid host header");
   }
   req[urlKey] = url.href;
   return req;
 };
-function writeFromReadableStream(stream3, writable) {
-  if (stream3.locked) {
+function writeFromReadableStream(stream4, writable) {
+  if (stream4.locked) {
     throw new TypeError("ReadableStream is locked.");
   } else if (writable.destroyed) {
-    stream3.cancel();
+    stream4.cancel();
     return;
   }
-  const reader = stream3.getReader();
+  const reader = stream4.getReader();
   writable.on("close", cancel);
   writable.on("error", cancel);
   reader.read().then(flow, cancel);
@@ -9864,7 +6945,7 @@ var responseViaResponseObject = async (res, outgoing, options = {}) => {
   const resHeaderRecord = buildOutgoingHttpHeaders(res.headers);
   const internalBody = getInternalBody(res);
   if (internalBody) {
-    const { length, source, stream: stream3 } = internalBody;
+    const { length, source, stream: stream4 } = internalBody;
     if (source instanceof Uint8Array && source.byteLength !== length) ; else {
       if (length) {
         resHeaderRecord["content-length"] = length;
@@ -9875,7 +6956,7 @@ var responseViaResponseObject = async (res, outgoing, options = {}) => {
       } else if (source instanceof Blob) {
         outgoing.end(new Uint8Array(await source.arrayBuffer()));
       } else {
-        await writeFromReadableStream(stream3, outgoing);
+        await writeFromReadableStream(stream4, outgoing);
       }
       return;
     }
@@ -9948,7 +7029,7 @@ var getRequestListener = (fetchCallback, options = {}) => {
       }
     }
     try {
-      return responseViaResponseObject(res, outgoing, options);
+      return await responseViaResponseObject(res, outgoing, options);
     } catch (e2) {
       return handleResponseError(e2, outgoing);
     }
@@ -9979,18 +7060,18 @@ var ENCODINGS = {
   gzip: ".gz"
 };
 var ENCODINGS_ORDERED_KEYS = Object.keys(ENCODINGS);
-var createStreamBody = (stream3) => {
+var createStreamBody = (stream4) => {
   const body = new ReadableStream({
     start(controller) {
-      stream3.on("data", (chunk) => {
+      stream4.on("data", (chunk) => {
         controller.enqueue(chunk);
       });
-      stream3.on("end", () => {
+      stream4.on("end", () => {
         controller.close();
       });
     },
     cancel() {
-      stream3.destroy();
+      stream4.destroy();
     }
   });
   return body;
@@ -10086,10 +7167,10 @@ var serveStatic = (options = { root: "" }) => {
       end = size - 1;
     }
     const chunksize = end - start + 1;
-    const stream3 = createReadStream(path, { start, end });
+    const stream4 = createReadStream(path, { start, end });
     c2.header("Content-Length", chunksize.toString());
     c2.header("Content-Range", `bytes ${start}-${end}/${stats.size}`);
-    return c2.body(createStreamBody(stream3), 206);
+    return c2.body(createStreamBody(stream4), 206);
   };
 };
 var RENDER_TYPE = {
@@ -10210,7 +7291,7 @@ var middleware = (options) => async (c2) => {
   );
 };
 
-// ../../node_modules/.pnpm/hono-openapi@0.4.6_hono@4.7.4_openapi-types@12.1.3_zod@3.24.3/node_modules/hono-openapi/utils.js
+// ../../node_modules/.pnpm/hono-openapi@0.4.6_hono@4.7.7_openapi-types@12.1.3_zod@3.24.4/node_modules/hono-openapi/utils.js
 var e = Symbol("openapi");
 var s2 = ["GET", "PUT", "POST", "DELETE", "OPTIONS", "HEAD", "PATCH", "TRACE"];
 var n = (e2) => e2.charAt(0).toUpperCase() + e2.slice(1);
@@ -10336,6 +7417,59 @@ async function x(e2, t2, s3 = {}) {
   }
   return { docs: o2, components: n2 };
 }
+async function getAgentCardByIdHandler(c2) {
+  const mastra = c2.get("mastra");
+  const agentId = c2.req.param("agentId");
+  const runtimeContext = c2.get("runtimeContext");
+  const result = await getAgentCardByIdHandler$1({
+    mastra,
+    agentId,
+    runtimeContext
+  });
+  return c2.json(result);
+}
+async function getAgentExecutionHandler(c2) {
+  const mastra = c2.get("mastra");
+  const agentId = c2.req.param("agentId");
+  const runtimeContext = c2.get("runtimeContext");
+  const logger2 = mastra.getLogger();
+  const body = await c2.req.json();
+  if (!["tasks/send", "tasks/sendSubscribe", "tasks/get", "tasks/cancel"].includes(body.method)) {
+    return c2.json({ error: { message: `Unsupported method: ${body.method}`, code: "invalid_method" } }, 400);
+  }
+  const result = await getAgentExecutionHandler$1({
+    mastra,
+    agentId,
+    runtimeContext,
+    requestId: randomUUID(),
+    method: body.method,
+    params: body.params,
+    logger: logger2
+  });
+  if (body.method === "tasks/sendSubscribe") {
+    return stream(
+      c2,
+      async (stream4) => {
+        try {
+          stream4.onAbort(() => {
+            if (!result.locked) {
+              return result.cancel();
+            }
+          });
+          for await (const chunk of result) {
+            await stream4.write(JSON.stringify(chunk) + "");
+          }
+        } catch (err) {
+          logger2.error("Error in tasks/sendSubscribe stream: " + err?.message);
+        }
+      },
+      async (err) => {
+        logger2.error("Error in tasks/sendSubscribe stream: " + err?.message);
+      }
+    );
+  }
+  return c2.json(result);
+}
 function handleError(error, defaultMessage) {
   const apiError = error;
   throw new HTTPException$1(apiError.status || 500, {
@@ -10456,7 +7590,7 @@ async function setAgentInstructionsHandler(c2) {
 // src/server/handlers/client.ts
 var clients = /* @__PURE__ */ new Set();
 function handleClientsRefresh(c2) {
-  const stream3 = new ReadableStream({
+  const stream4 = new ReadableStream({
     start(controller) {
       clients.add(controller);
       controller.enqueue("data: connected\n\n");
@@ -10465,7 +7599,7 @@ function handleClientsRefresh(c2) {
       });
     }
   });
-  return new Response(stream3, {
+  return new Response(stream4, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -10523,6 +7657,1911 @@ async function getLogTransports(c2) {
     return handleError(error, "Error getting log Transports");
   }
 }
+var classRegExp = /^([A-Z][a-z0-9]*)+$/;
+var kTypes = [
+  "string",
+  "function",
+  "number",
+  "object",
+  // Accept 'Function' and 'Object' as alternative to the lower cased version.
+  "Function",
+  "Object",
+  "boolean",
+  "bigint",
+  "symbol"
+];
+function determineSpecificType(value) {
+  if (value == null) {
+    return "" + value;
+  }
+  if (typeof value === "function" && value.name) {
+    return `function ${value.name}`;
+  }
+  if (typeof value === "object") {
+    if (value.constructor?.name) {
+      return `an instance of ${value.constructor.name}`;
+    }
+    return `${util.inspect(value, { depth: -1 })}`;
+  }
+  let inspected = util.inspect(value, { colors: false });
+  if (inspected.length > 28) {
+    inspected = `${inspected.slice(0, 25)}...`;
+  }
+  return `type ${typeof value} (${inspected})`;
+}
+var ERR_HTTP_BODY_NOT_ALLOWED = class extends Error {
+  constructor() {
+    super("Adding content for this request method or response status is not allowed.");
+  }
+};
+var ERR_HTTP_CONTENT_LENGTH_MISMATCH = class extends Error {
+  constructor(actual, expected) {
+    super(`Response body's content-length of ${actual} byte(s) does not match the content-length of ${expected} byte(s) set in header`);
+  }
+};
+var ERR_HTTP_HEADERS_SENT = class extends Error {
+  constructor(arg) {
+    super(`Cannot ${arg} headers after they are sent to the client`);
+  }
+};
+var ERR_INVALID_ARG_VALUE = class extends TypeError {
+  constructor(name, value, reason = "is invalid") {
+    let inspected = util.inspect(value);
+    if (inspected.length > 128) {
+      inspected = `${inspected.slice(0, 128)}...`;
+    }
+    const type = name.includes(".") ? "property" : "argument";
+    super(`The ${type} '${name}' ${reason}. Received ${inspected}`);
+  }
+};
+var ERR_INVALID_CHAR = class extends TypeError {
+  constructor(name, field) {
+    let msg = `Invalid character in ${name}`;
+    if (field !== void 0) {
+      msg += ` ["${field}"]`;
+    }
+    super(msg);
+  }
+};
+var ERR_HTTP_INVALID_HEADER_VALUE = class extends TypeError {
+  constructor(value, name) {
+    super(`Invalid value "${value}" for header "${name}"`);
+  }
+};
+var ERR_HTTP_INVALID_STATUS_CODE = class extends RangeError {
+  originalStatusCode;
+  constructor(originalStatusCode) {
+    super(`Invalid status code: ${originalStatusCode}`);
+    this.originalStatusCode = originalStatusCode;
+  }
+};
+var ERR_HTTP_TRAILER_INVALID = class extends Error {
+  constructor() {
+    super(`Trailers are invalid with this transfer encoding`);
+  }
+};
+var ERR_INVALID_ARG_TYPE = class extends TypeError {
+  constructor(name, expected, actual) {
+    if (!Array.isArray(expected)) {
+      expected = [expected];
+    }
+    let msg = "The ";
+    if (name.endsWith(" argument")) {
+      msg += `${name} `;
+    } else {
+      const type = name.includes(".") ? "property" : "argument";
+      msg += `"${name}" ${type} `;
+    }
+    msg += "must be ";
+    const types = [];
+    const instances = [];
+    const other = [];
+    for (const value of expected) {
+      if (kTypes.includes(value)) {
+        types.push(value.toLowerCase());
+      } else if (classRegExp.exec(value) !== null) {
+        instances.push(value);
+      } else {
+        other.push(value);
+      }
+    }
+    if (instances.length > 0) {
+      const pos = types.indexOf("object");
+      if (pos !== -1) {
+        types.splice(pos, 1);
+        instances.push("Object");
+      }
+    }
+    if (types.length > 0) {
+      if (types.length > 2) {
+        const last = types.pop();
+        msg += `one of type ${types.join(", ")}, or ${last}`;
+      } else if (types.length === 2) {
+        msg += `one of type ${types[0]} or ${types[1]}`;
+      } else {
+        msg += `of type ${types[0]}`;
+      }
+      if (instances.length > 0 || other.length > 0)
+        msg += " or ";
+    }
+    if (instances.length > 0) {
+      if (instances.length > 2) {
+        const last = instances.pop();
+        msg += `an instance of ${instances.join(", ")}, or ${last}`;
+      } else {
+        msg += `an instance of ${instances[0]}`;
+        if (instances.length === 2) {
+          msg += ` or ${instances[1]}`;
+        }
+      }
+      if (other.length > 0)
+        msg += " or ";
+    }
+    if (other.length > 0) {
+      if (other.length > 2) {
+        const last = other.pop();
+        msg += `one of ${other.join(", ")}, or ${last}`;
+      } else if (other.length === 2) {
+        msg += `one of ${other[0]} or ${other[1]}`;
+      } else {
+        if (other[0].toLowerCase() !== other[0])
+          msg += "an ";
+        msg += `${other[0]}`;
+      }
+    }
+    msg += `. Received ${determineSpecificType(actual)}`;
+    super(msg);
+  }
+};
+var ERR_INVALID_HTTP_TOKEN = class extends TypeError {
+  constructor(name, field) {
+    super(`${name} must be a valid HTTP token ["${field}"]`);
+  }
+};
+var ERR_METHOD_NOT_IMPLEMENTED = class extends Error {
+  constructor(methodName) {
+    super(`The ${methodName} method is not implemented`);
+  }
+};
+var ERR_STREAM_ALREADY_FINISHED = class extends Error {
+  constructor(methodName) {
+    super(`Cannot call ${methodName} after a stream was finished`);
+  }
+};
+var ERR_STREAM_CANNOT_PIPE = class extends Error {
+  constructor() {
+    super(`Cannot pipe, not readable`);
+  }
+};
+var ERR_STREAM_DESTROYED = class extends Error {
+  constructor(methodName) {
+    super(`Cannot call ${methodName} after a stream was destroyed`);
+  }
+};
+var ERR_STREAM_NULL_VALUES = class extends TypeError {
+  constructor() {
+    super(`May not write null values to stream`);
+  }
+};
+var ERR_STREAM_WRITE_AFTER_END = class extends Error {
+  constructor() {
+    super(`write after end`);
+  }
+};
+
+// ../../node_modules/.pnpm/fetch-to-node@2.1.0/node_modules/fetch-to-node/dist/fetch-to-node/http-incoming.js
+var kHeaders = Symbol("kHeaders");
+var kHeadersDistinct = Symbol("kHeadersDistinct");
+var kHeadersCount = Symbol("kHeadersCount");
+var kTrailers = Symbol("kTrailers");
+var kTrailersDistinct = Symbol("kTrailersDistinct");
+var kTrailersCount = Symbol("kTrailersCount");
+var FetchIncomingMessage = class extends Readable$1 {
+  get socket() {
+    return null;
+  }
+  set socket(_val) {
+    throw new ERR_METHOD_NOT_IMPLEMENTED("socket");
+  }
+  httpVersionMajor;
+  httpVersionMinor;
+  httpVersion;
+  complete = false;
+  [kHeaders] = null;
+  [kHeadersDistinct] = null;
+  [kHeadersCount] = 0;
+  rawHeaders = [];
+  [kTrailers] = null;
+  [kTrailersDistinct] = null;
+  [kTrailersCount] = 0;
+  rawTrailers = [];
+  joinDuplicateHeaders = false;
+  aborted = false;
+  upgrade = false;
+  // request (server) only
+  url = "";
+  method;
+  // TODO: Support ClientRequest
+  // statusCode = null;
+  // statusMessage = null;
+  // client = socket;
+  _consuming;
+  _dumped;
+  // The underlying ReadableStream
+  _stream = null;
+  constructor() {
+    const streamOptions = {};
+    super(streamOptions);
+    this._readableState.readingMore = true;
+    this._consuming = false;
+    this._dumped = false;
+  }
+  get connection() {
+    return null;
+  }
+  set connection(_socket) {
+    console.error("No support for IncomingMessage.connection");
+  }
+  get headers() {
+    if (!this[kHeaders]) {
+      this[kHeaders] = {};
+      const src = this.rawHeaders;
+      const dst = this[kHeaders];
+      for (let n2 = 0; n2 < this[kHeadersCount]; n2 += 2) {
+        this._addHeaderLine(src[n2], src[n2 + 1], dst);
+      }
+    }
+    return this[kHeaders];
+  }
+  set headers(val) {
+    this[kHeaders] = val;
+  }
+  get headersDistinct() {
+    if (!this[kHeadersDistinct]) {
+      this[kHeadersDistinct] = {};
+      const src = this.rawHeaders;
+      const dst = this[kHeadersDistinct];
+      for (let n2 = 0; n2 < this[kHeadersCount]; n2 += 2) {
+        this._addHeaderLineDistinct(src[n2], src[n2 + 1], dst);
+      }
+    }
+    return this[kHeadersDistinct];
+  }
+  set headersDistinct(val) {
+    this[kHeadersDistinct] = val;
+  }
+  get trailers() {
+    if (!this[kTrailers]) {
+      this[kTrailers] = {};
+      const src = this.rawTrailers;
+      const dst = this[kTrailers];
+      for (let n2 = 0; n2 < this[kTrailersCount]; n2 += 2) {
+        this._addHeaderLine(src[n2], src[n2 + 1], dst);
+      }
+    }
+    return this[kTrailers];
+  }
+  set trailers(val) {
+    this[kTrailers] = val;
+  }
+  get trailersDistinct() {
+    if (!this[kTrailersDistinct]) {
+      this[kTrailersDistinct] = {};
+      const src = this.rawTrailers;
+      const dst = this[kTrailersDistinct];
+      for (let n2 = 0; n2 < this[kTrailersCount]; n2 += 2) {
+        this._addHeaderLineDistinct(src[n2], src[n2 + 1], dst);
+      }
+    }
+    return this[kTrailersDistinct];
+  }
+  set trailersDistinct(val) {
+    this[kTrailersDistinct] = val;
+  }
+  setTimeout(msecs, callback) {
+    return this;
+  }
+  async _read(n2) {
+    if (!this._consuming) {
+      this._readableState.readingMore = false;
+      this._consuming = true;
+    }
+    if (this._stream == null) {
+      this.complete = true;
+      this.push(null);
+      return;
+    }
+    const reader = this._stream.getReader();
+    try {
+      const data = await reader.read();
+      if (data.done) {
+        this.complete = true;
+        this.push(null);
+      } else {
+        this.push(data.value);
+      }
+    } catch (e2) {
+      this.destroy(e2);
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  _destroy(err, cb) {
+    if (!this.readableEnded || !this.complete) {
+      this.aborted = true;
+      this.emit("aborted");
+    }
+    setTimeout(onError, 0, this, err, cb);
+  }
+  _addHeaderLines(headers, n2) {
+    if (headers?.length) {
+      let dest;
+      if (this.complete) {
+        this.rawTrailers = headers;
+        this[kTrailersCount] = n2;
+        dest = this[kTrailers];
+      } else {
+        this.rawHeaders = headers;
+        this[kHeadersCount] = n2;
+        dest = this[kHeaders];
+      }
+      if (dest) {
+        for (let i2 = 0; i2 < n2; i2 += 2) {
+          this._addHeaderLine(headers[i2], headers[i2 + 1], dest);
+        }
+      }
+    }
+  }
+  // Add the given (field, value) pair to the message
+  //
+  // Per RFC2616, section 4.2 it is acceptable to join multiple instances of the
+  // same header with a ', ' if the header in question supports specification of
+  // multiple values this way. The one exception to this is the Cookie header,
+  // which has multiple values joined with a '; ' instead. If a header's values
+  // cannot be joined in either of these ways, we declare the first instance the
+  // winner and drop the second. Extended header fields (those beginning with
+  // 'x-') are always joined.
+  _addHeaderLine(field, value, dest) {
+    field = matchKnownFields(field);
+    const flag = field.charCodeAt(0);
+    if (flag === 0 || flag === 2) {
+      field = field.slice(1);
+      if (typeof dest[field] === "string") {
+        dest[field] += (flag === 0 ? ", " : "; ") + value;
+      } else {
+        dest[field] = value;
+      }
+    } else if (flag === 1) {
+      if (dest["set-cookie"] !== void 0) {
+        dest["set-cookie"].push(value);
+      } else {
+        dest["set-cookie"] = [value];
+      }
+    } else if (this.joinDuplicateHeaders) {
+      if (dest[field] === void 0) {
+        dest[field] = value;
+      } else {
+        dest[field] += ", " + value;
+      }
+    } else if (dest[field] === void 0) {
+      dest[field] = value;
+    }
+  }
+  _addHeaderLineDistinct(field, value, dest) {
+    field = field.toLowerCase();
+    if (!dest[field]) {
+      dest[field] = [value];
+    } else {
+      dest[field].push(value);
+    }
+  }
+  // Call this instead of resume() if we want to just
+  // dump all the data to /dev/null
+  _dump() {
+    if (!this._dumped) {
+      this._dumped = true;
+      this.removeAllListeners("data");
+      this.resume();
+    }
+  }
+};
+function matchKnownFields(field, lowercased = false) {
+  switch (field.length) {
+    case 3:
+      if (field === "Age" || field === "age")
+        return "age";
+      break;
+    case 4:
+      if (field === "Host" || field === "host")
+        return "host";
+      if (field === "From" || field === "from")
+        return "from";
+      if (field === "ETag" || field === "etag")
+        return "etag";
+      if (field === "Date" || field === "date")
+        return "\0date";
+      if (field === "Vary" || field === "vary")
+        return "\0vary";
+      break;
+    case 6:
+      if (field === "Server" || field === "server")
+        return "server";
+      if (field === "Cookie" || field === "cookie")
+        return "cookie";
+      if (field === "Origin" || field === "origin")
+        return "\0origin";
+      if (field === "Expect" || field === "expect")
+        return "\0expect";
+      if (field === "Accept" || field === "accept")
+        return "\0accept";
+      break;
+    case 7:
+      if (field === "Referer" || field === "referer")
+        return "referer";
+      if (field === "Expires" || field === "expires")
+        return "expires";
+      if (field === "Upgrade" || field === "upgrade")
+        return "\0upgrade";
+      break;
+    case 8:
+      if (field === "Location" || field === "location")
+        return "location";
+      if (field === "If-Match" || field === "if-match")
+        return "\0if-match";
+      break;
+    case 10:
+      if (field === "User-Agent" || field === "user-agent")
+        return "user-agent";
+      if (field === "Set-Cookie" || field === "set-cookie")
+        return "";
+      if (field === "Connection" || field === "connection")
+        return "\0connection";
+      break;
+    case 11:
+      if (field === "Retry-After" || field === "retry-after")
+        return "retry-after";
+      break;
+    case 12:
+      if (field === "Content-Type" || field === "content-type")
+        return "content-type";
+      if (field === "Max-Forwards" || field === "max-forwards")
+        return "max-forwards";
+      break;
+    case 13:
+      if (field === "Authorization" || field === "authorization")
+        return "authorization";
+      if (field === "Last-Modified" || field === "last-modified")
+        return "last-modified";
+      if (field === "Cache-Control" || field === "cache-control")
+        return "\0cache-control";
+      if (field === "If-None-Match" || field === "if-none-match")
+        return "\0if-none-match";
+      break;
+    case 14:
+      if (field === "Content-Length" || field === "content-length")
+        return "content-length";
+      break;
+    case 15:
+      if (field === "Accept-Encoding" || field === "accept-encoding")
+        return "\0accept-encoding";
+      if (field === "Accept-Language" || field === "accept-language")
+        return "\0accept-language";
+      if (field === "X-Forwarded-For" || field === "x-forwarded-for")
+        return "\0x-forwarded-for";
+      break;
+    case 16:
+      if (field === "Content-Encoding" || field === "content-encoding")
+        return "\0content-encoding";
+      if (field === "X-Forwarded-Host" || field === "x-forwarded-host")
+        return "\0x-forwarded-host";
+      break;
+    case 17:
+      if (field === "If-Modified-Since" || field === "if-modified-since")
+        return "if-modified-since";
+      if (field === "Transfer-Encoding" || field === "transfer-encoding")
+        return "\0transfer-encoding";
+      if (field === "X-Forwarded-Proto" || field === "x-forwarded-proto")
+        return "\0x-forwarded-proto";
+      break;
+    case 19:
+      if (field === "Proxy-Authorization" || field === "proxy-authorization")
+        return "proxy-authorization";
+      if (field === "If-Unmodified-Since" || field === "if-unmodified-since")
+        return "if-unmodified-since";
+      break;
+  }
+  if (lowercased) {
+    return "\0" + field;
+  }
+  return matchKnownFields(field.toLowerCase(), true);
+}
+function onError(self, error, cb) {
+  if (self.listenerCount("error") === 0) {
+    cb();
+  } else {
+    cb(error);
+  }
+}
+
+// ../../node_modules/.pnpm/fetch-to-node@2.1.0/node_modules/fetch-to-node/dist/utils/types.js
+function validateString(value, name) {
+  if (typeof value !== "string")
+    throw new ERR_INVALID_ARG_TYPE(name, "string", value);
+}
+var linkValueRegExp = /^(?:<[^>]*>)(?:\s*;\s*[^;"\s]+(?:=(")?[^;"\s]*\1)?)*$/;
+function validateLinkHeaderFormat(value, name) {
+  if (typeof value === "undefined" || !linkValueRegExp.exec(value)) {
+    throw new ERR_INVALID_ARG_VALUE(name, value, 'must be an array or string of format "</styles.css>; rel=preload; as=style"');
+  }
+}
+function validateLinkHeaderValue(hints) {
+  if (typeof hints === "string") {
+    validateLinkHeaderFormat(hints, "hints");
+    return hints;
+  } else if (Array.isArray(hints)) {
+    const hintsLength = hints.length;
+    let result = "";
+    if (hintsLength === 0) {
+      return result;
+    }
+    for (let i2 = 0; i2 < hintsLength; i2++) {
+      const link = hints[i2];
+      validateLinkHeaderFormat(link, "hints");
+      result += link;
+      if (i2 !== hintsLength - 1) {
+        result += ", ";
+      }
+    }
+    return result;
+  }
+  throw new ERR_INVALID_ARG_VALUE("hints", hints, 'must be an array or string of format "</styles.css>; rel=preload; as=style"');
+}
+function isUint8Array(value) {
+  return value != null && value[Symbol.toStringTag] === "Uint8Array";
+}
+
+// ../../node_modules/.pnpm/fetch-to-node@2.1.0/node_modules/fetch-to-node/dist/fetch-to-node/internal-http.js
+var kNeedDrain = Symbol("kNeedDrain");
+var kOutHeaders = Symbol("kOutHeaders");
+function utcDate() {
+  return (/* @__PURE__ */ new Date()).toUTCString();
+}
+
+// ../../node_modules/.pnpm/fetch-to-node@2.1.0/node_modules/fetch-to-node/dist/fetch-to-node/internal-streams-state.js
+function getDefaultHighWaterMark(objectMode) {
+  return objectMode ? 16 : 64 * 1024;
+}
+
+// ../../node_modules/.pnpm/fetch-to-node@2.1.0/node_modules/fetch-to-node/dist/fetch-to-node/http-common.js
+var tokenRegExp = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
+function checkIsHttpToken(val) {
+  return tokenRegExp.test(val);
+}
+var headerCharRegex = /[^\t\x20-\x7e\x80-\xff]/;
+function checkInvalidHeaderChar(val) {
+  return headerCharRegex.test(val);
+}
+var chunkExpression = /(?:^|\W)chunked(?:$|\W)/i;
+var kCorked = Symbol("corked");
+var kChunkedBuffer = Symbol("kChunkedBuffer");
+var kChunkedLength = Symbol("kChunkedLength");
+var kUniqueHeaders = Symbol("kUniqueHeaders");
+var kBytesWritten = Symbol("kBytesWritten");
+var kErrored = Symbol("errored");
+var kHighWaterMark = Symbol("kHighWaterMark");
+var kRejectNonStandardBodyWrites = Symbol("kRejectNonStandardBodyWrites");
+var nop = () => {
+};
+var RE_CONN_CLOSE = /(?:^|\W)close(?:$|\W)/i;
+function isCookieField(s3) {
+  return s3.length === 6 && s3.toLowerCase() === "cookie";
+}
+function isContentDispositionField(s3) {
+  return s3.length === 19 && s3.toLowerCase() === "content-disposition";
+}
+var WrittenDataBuffer = class {
+  [kCorked] = 0;
+  [kHighWaterMark] = getDefaultHighWaterMark();
+  entries = [];
+  onWrite;
+  constructor(params = {}) {
+    this.onWrite = params.onWrite;
+  }
+  write(data, encoding, callback) {
+    this.entries.push({
+      data,
+      length: data.length,
+      encoding,
+      callback,
+      written: false
+    });
+    this._flush();
+    return true;
+  }
+  cork() {
+    this[kCorked]++;
+  }
+  uncork() {
+    this[kCorked]--;
+    this._flush();
+  }
+  _flush() {
+    if (this[kCorked] <= 0) {
+      for (const [index, entry] of this.entries.entries()) {
+        if (!entry.written) {
+          entry.written = true;
+          if (this.onWrite != null) {
+            this.onWrite(index, entry);
+          }
+          if (entry.callback != null) {
+            entry.callback.call(void 0);
+          }
+        }
+      }
+    }
+  }
+  get writableLength() {
+    return this.entries.reduce((acc, entry) => {
+      return acc + (entry.written && entry.length ? entry.length : 0);
+    }, 0);
+  }
+  get writableHighWaterMark() {
+    return this[kHighWaterMark];
+  }
+  get writableCorked() {
+    return this[kCorked];
+  }
+};
+var FetchOutgoingMessage = class extends Writable {
+  req;
+  outputData;
+  outputSize;
+  // Difference from Node.js -
+  // `writtenHeaderBytes` is the number of bytes the header has taken.
+  // Since Node.js writes both the headers and body into the same outgoing
+  // stream, it helps to keep track of this so that we can skip that many bytes
+  // from the beginning of the stream when providing the outgoing stream.
+  writtenHeaderBytes = 0;
+  _last;
+  chunkedEncoding;
+  shouldKeepAlive;
+  maxRequestsOnConnectionReached;
+  _defaultKeepAlive;
+  useChunkedEncodingByDefault;
+  sendDate;
+  _removedConnection;
+  _removedContLen;
+  _removedTE;
+  strictContentLength;
+  [kBytesWritten];
+  _contentLength;
+  _hasBody;
+  _trailer;
+  [kNeedDrain];
+  finished;
+  _headerSent;
+  [kCorked];
+  [kChunkedBuffer];
+  [kChunkedLength];
+  _closed;
+  // Difference from Node.js -
+  // In Node.js, this is a socket object.
+  // [kSocket]: null;
+  _header;
+  [kOutHeaders];
+  _keepAliveTimeout;
+  _maxRequestsPerSocket;
+  _onPendingData;
+  [kUniqueHeaders];
+  [kErrored];
+  [kHighWaterMark];
+  [kRejectNonStandardBodyWrites];
+  _writtenDataBuffer = new WrittenDataBuffer({
+    onWrite: this._onDataWritten.bind(this)
+  });
+  constructor(req, options) {
+    super();
+    this.req = req;
+    this.outputData = [];
+    this.outputSize = 0;
+    this.destroyed = false;
+    this._last = false;
+    this.chunkedEncoding = false;
+    this.shouldKeepAlive = true;
+    this.maxRequestsOnConnectionReached = false;
+    this._defaultKeepAlive = true;
+    this.useChunkedEncodingByDefault = true;
+    this.sendDate = false;
+    this._removedConnection = false;
+    this._removedContLen = false;
+    this._removedTE = false;
+    this.strictContentLength = false;
+    this[kBytesWritten] = 0;
+    this._contentLength = null;
+    this._hasBody = true;
+    this._trailer = "";
+    this[kNeedDrain] = false;
+    this.finished = false;
+    this._headerSent = false;
+    this[kCorked] = 0;
+    this[kChunkedBuffer] = [];
+    this[kChunkedLength] = 0;
+    this._closed = false;
+    this._header = null;
+    this[kOutHeaders] = null;
+    this._keepAliveTimeout = 0;
+    this._onPendingData = nop;
+    this[kErrored] = null;
+    this[kHighWaterMark] = options?.highWaterMark ?? getDefaultHighWaterMark();
+    this[kRejectNonStandardBodyWrites] = options?.rejectNonStandardBodyWrites ?? false;
+    this[kUniqueHeaders] = null;
+  }
+  _renderHeaders() {
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("render");
+    }
+    const headersMap = this[kOutHeaders];
+    const headers = {};
+    if (headersMap !== null) {
+      const keys = Object.keys(headersMap);
+      for (let i2 = 0, l2 = keys.length; i2 < l2; i2++) {
+        const key = keys[i2];
+        headers[headersMap[key][0]] = headersMap[key][1];
+      }
+    }
+    return headers;
+  }
+  cork() {
+    this[kCorked]++;
+    if (this._writtenDataBuffer != null) {
+      this._writtenDataBuffer.cork();
+    }
+  }
+  uncork() {
+    this[kCorked]--;
+    if (this._writtenDataBuffer != null) {
+      this._writtenDataBuffer.uncork();
+    }
+    if (this[kCorked] || this[kChunkedBuffer].length === 0) {
+      return;
+    }
+    const buf = this[kChunkedBuffer];
+    for (const { data, encoding, callback } of buf) {
+      this._send(data ?? "", encoding, callback);
+    }
+    this[kChunkedBuffer].length = 0;
+    this[kChunkedLength] = 0;
+  }
+  setTimeout(msecs, callback) {
+    return this;
+  }
+  destroy(error) {
+    if (this.destroyed) {
+      return this;
+    }
+    this.destroyed = true;
+    this[kErrored] = error;
+    return this;
+  }
+  _send(data, encoding, callback, byteLength) {
+    if (!this._headerSent) {
+      const header = this._header;
+      if (typeof data === "string" && (encoding === "utf8" || encoding === "latin1" || !encoding)) {
+        data = header + data;
+      } else {
+        this.outputData.unshift({
+          data: header,
+          encoding: "latin1",
+          callback: void 0
+        });
+        this.outputSize += header.length;
+        this._onPendingData(header.length);
+      }
+      this._headerSent = true;
+      this.writtenHeaderBytes = header.length;
+      const [statusLine, ...headerLines] = this._header.split("\r\n");
+      const STATUS_LINE_REGEXP = /^HTTP\/1\.1 (?<statusCode>\d+) (?<statusMessage>.*)$/;
+      const statusLineResult = STATUS_LINE_REGEXP.exec(statusLine);
+      if (statusLineResult == null) {
+        throw new Error("Unexpected! Status line was " + statusLine);
+      }
+      const { statusCode: statusCodeText, statusMessage } = statusLineResult.groups ?? {};
+      const statusCode = parseInt(statusCodeText, 10);
+      const headers = [];
+      for (const headerLine of headerLines) {
+        if (headerLine !== "") {
+          const pos = headerLine.indexOf(": ");
+          const k = headerLine.slice(0, pos);
+          const v = headerLine.slice(pos + 2);
+          headers.push([k, v]);
+        }
+      }
+      const event = {
+        statusCode,
+        statusMessage,
+        headers
+      };
+      this.emit("_headersSent", event);
+    }
+    return this._writeRaw(data, encoding, callback, byteLength);
+  }
+  _writeRaw(data, encoding, callback, size) {
+    if (typeof encoding === "function") {
+      callback = encoding;
+      encoding = null;
+    }
+    if (this._writtenDataBuffer != null) {
+      if (this.outputData.length) {
+        this._flushOutput(this._writtenDataBuffer);
+      }
+      return this._writtenDataBuffer.write(data, encoding, callback);
+    }
+    this.outputData.push({ data, encoding, callback });
+    this.outputSize += data.length;
+    this._onPendingData(data.length);
+    return this.outputSize < this[kHighWaterMark];
+  }
+  _onDataWritten(index, entry) {
+    const event = { index, entry };
+    this.emit("_dataWritten", event);
+  }
+  _storeHeader(firstLine, headers) {
+    const state = {
+      connection: false,
+      contLen: false,
+      te: false,
+      date: false,
+      expect: false,
+      trailer: false,
+      header: firstLine
+    };
+    if (headers) {
+      if (headers === this[kOutHeaders]) {
+        for (const key in headers) {
+          const entry = headers[key];
+          processHeader(this, state, entry[0], entry[1], false);
+        }
+      } else if (Array.isArray(headers)) {
+        if (headers.length && Array.isArray(headers[0])) {
+          for (let i2 = 0; i2 < headers.length; i2++) {
+            const entry = headers[i2];
+            processHeader(this, state, entry[0], entry[1], true);
+          }
+        } else {
+          if (headers.length % 2 !== 0) {
+            throw new ERR_INVALID_ARG_VALUE("headers", headers);
+          }
+          for (let n2 = 0; n2 < headers.length; n2 += 2) {
+            processHeader(this, state, headers[n2], headers[n2 + 1], true);
+          }
+        }
+      } else {
+        for (const key in headers) {
+          if (headers.hasOwnProperty(key)) {
+            const _headers = headers;
+            processHeader(this, state, key, _headers[key], true);
+          }
+        }
+      }
+    }
+    let { header } = state;
+    if (this.sendDate && !state.date) {
+      header += "Date: " + utcDate() + "\r\n";
+    }
+    if (this.chunkedEncoding && (this.statusCode === 204 || this.statusCode === 304)) {
+      this.chunkedEncoding = false;
+      this.shouldKeepAlive = false;
+    }
+    if (this._removedConnection) {
+      this._last = !this.shouldKeepAlive;
+    } else if (!state.connection) {
+      const shouldSendKeepAlive = this.shouldKeepAlive && (state.contLen || this.useChunkedEncodingByDefault);
+      if (shouldSendKeepAlive && this.maxRequestsOnConnectionReached) {
+        header += "Connection: close\r\n";
+      } else if (shouldSendKeepAlive) {
+        header += "Connection: keep-alive\r\n";
+        if (this._keepAliveTimeout && this._defaultKeepAlive) {
+          const timeoutSeconds = Math.floor(this._keepAliveTimeout / 1e3);
+          let max = "";
+          if (this._maxRequestsPerSocket && ~~this._maxRequestsPerSocket > 0) {
+            max = `, max=${this._maxRequestsPerSocket}`;
+          }
+          header += `Keep-Alive: timeout=${timeoutSeconds}${max}\r
+`;
+        }
+      } else {
+        this._last = true;
+        header += "Connection: close\r\n";
+      }
+    }
+    if (!state.contLen && !state.te) {
+      if (!this._hasBody) {
+        this.chunkedEncoding = false;
+      } else if (!this.useChunkedEncodingByDefault) {
+        this._last = true;
+      } else if (!state.trailer && !this._removedContLen && typeof this._contentLength === "number") {
+        header += "Content-Length: " + this._contentLength + "\r\n";
+      } else if (!this._removedTE) {
+        header += "Transfer-Encoding: chunked\r\n";
+        this.chunkedEncoding = true;
+      } else {
+        this._last = true;
+      }
+    }
+    if (this.chunkedEncoding !== true && state.trailer) {
+      throw new ERR_HTTP_TRAILER_INVALID();
+    }
+    this._header = header + "\r\n";
+    this._headerSent = false;
+    if (state.expect) {
+      this._send("");
+    }
+  }
+  get _headers() {
+    console.warn("DEP0066: OutgoingMessage.prototype._headers is deprecated");
+    return this.getHeaders();
+  }
+  set _headers(val) {
+    console.warn("DEP0066: OutgoingMessage.prototype._headers is deprecated");
+    if (val == null) {
+      this[kOutHeaders] = null;
+    } else if (typeof val === "object") {
+      const headers = this[kOutHeaders] = /* @__PURE__ */ Object.create(null);
+      const keys = Object.keys(val);
+      for (let i2 = 0; i2 < keys.length; ++i2) {
+        const name = keys[i2];
+        headers[name.toLowerCase()] = [name, val[name]];
+      }
+    }
+  }
+  get connection() {
+    return null;
+  }
+  set connection(_socket) {
+    console.error("No support for OutgoingMessage.connection");
+  }
+  get socket() {
+    return null;
+  }
+  set socket(_socket) {
+    console.error("No support for OutgoingMessage.socket");
+  }
+  get _headerNames() {
+    console.warn("DEP0066: OutgoingMessage.prototype._headerNames is deprecated");
+    const headers = this[kOutHeaders];
+    if (headers !== null) {
+      const out = /* @__PURE__ */ Object.create(null);
+      const keys = Object.keys(headers);
+      for (let i2 = 0; i2 < keys.length; ++i2) {
+        const key = keys[i2];
+        const val = headers[key][0];
+        out[key] = val;
+      }
+      return out;
+    }
+    return null;
+  }
+  set _headerNames(val) {
+    console.warn("DEP0066: OutgoingMessage.prototype._headerNames is deprecated");
+    if (typeof val === "object" && val !== null) {
+      const headers = this[kOutHeaders];
+      if (!headers)
+        return;
+      const keys = Object.keys(val);
+      for (let i2 = 0; i2 < keys.length; ++i2) {
+        const header = headers[keys[i2]];
+        if (header)
+          header[0] = val[keys[i2]];
+      }
+    }
+  }
+  setHeader(name, value) {
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("set");
+    }
+    validateHeaderName(name);
+    validateHeaderValue(name, value);
+    let headers = this[kOutHeaders];
+    if (headers === null) {
+      this[kOutHeaders] = headers = { __proto__: null };
+    }
+    headers[name.toLowerCase()] = [name, value];
+    return this;
+  }
+  setHeaders(headers) {
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("set");
+    }
+    if (!headers || Array.isArray(headers) || typeof headers.keys !== "function" || typeof headers.get !== "function") {
+      throw new ERR_INVALID_ARG_TYPE("headers", ["Headers", "Map"], headers);
+    }
+    const cookies = [];
+    for (const { 0: key, 1: value } of headers) {
+      if (key === "set-cookie") {
+        if (Array.isArray(value)) {
+          cookies.push(...value);
+        } else {
+          cookies.push(value);
+        }
+        continue;
+      }
+      this.setHeader(key, value);
+    }
+    if (cookies.length) {
+      this.setHeader("set-cookie", cookies);
+    }
+    return this;
+  }
+  appendHeader(name, value) {
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("append");
+    }
+    validateHeaderName(name);
+    validateHeaderValue(name, value);
+    const field = name.toLowerCase();
+    const headers = this[kOutHeaders];
+    if (headers === null || !headers[field]) {
+      return this.setHeader(name, value);
+    }
+    if (!Array.isArray(headers[field][1])) {
+      headers[field][1] = [headers[field][1]];
+    }
+    const existingValues = headers[field][1];
+    if (Array.isArray(value)) {
+      for (let i2 = 0, length = value.length; i2 < length; i2++) {
+        existingValues.push(value[i2]);
+      }
+    } else {
+      existingValues.push(value);
+    }
+    return this;
+  }
+  getHeader(name) {
+    validateString(name, "name");
+    const headers = this[kOutHeaders];
+    if (headers === null) {
+      return;
+    }
+    const entry = headers[name.toLowerCase()];
+    return entry?.[1];
+  }
+  getHeaderNames() {
+    return this[kOutHeaders] !== null ? Object.keys(this[kOutHeaders]) : [];
+  }
+  getRawHeaderNames() {
+    const headersMap = this[kOutHeaders];
+    if (headersMap === null)
+      return [];
+    const values = Object.values(headersMap);
+    const headers = Array(values.length);
+    for (let i2 = 0, l2 = values.length; i2 < l2; i2++) {
+      headers[i2] = values[i2][0];
+    }
+    return headers;
+  }
+  getHeaders() {
+    const headers = this[kOutHeaders];
+    const ret = { __proto__: null };
+    if (headers) {
+      const keys = Object.keys(headers);
+      for (let i2 = 0; i2 < keys.length; ++i2) {
+        const key = keys[i2];
+        const val = headers[key][1];
+        ret[key] = val;
+      }
+    }
+    return ret;
+  }
+  hasHeader(name) {
+    validateString(name, "name");
+    return this[kOutHeaders] !== null && !!this[kOutHeaders][name.toLowerCase()];
+  }
+  removeHeader(name) {
+    validateString(name, "name");
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("remove");
+    }
+    const key = name.toLowerCase();
+    switch (key) {
+      case "connection":
+        this._removedConnection = true;
+        break;
+      case "content-length":
+        this._removedContLen = true;
+        break;
+      case "transfer-encoding":
+        this._removedTE = true;
+        break;
+      case "date":
+        this.sendDate = false;
+        break;
+    }
+    if (this[kOutHeaders] !== null) {
+      delete this[kOutHeaders][key];
+    }
+  }
+  _implicitHeader() {
+    throw new ERR_METHOD_NOT_IMPLEMENTED("_implicitHeader()");
+  }
+  get headersSent() {
+    return !!this._header;
+  }
+  write(chunk, encoding, callback) {
+    if (typeof encoding === "function") {
+      callback = encoding;
+      encoding = null;
+    }
+    const ret = write_(this, chunk, encoding, callback, false);
+    if (!ret) {
+      this[kNeedDrain] = true;
+    }
+    return ret;
+  }
+  addTrailers(headers) {
+    this._trailer = "";
+    const isArray = Array.isArray(headers);
+    const keys = isArray ? [...headers.keys()] : Object.keys(headers);
+    for (let i2 = 0, l2 = keys.length; i2 < l2; i2++) {
+      let field, value;
+      if (isArray) {
+        const _headers = headers;
+        const key = keys[i2];
+        field = _headers[key][0];
+        value = _headers[key][1];
+      } else {
+        const _headers = headers;
+        const key = keys[i2];
+        field = key;
+        value = _headers[key];
+      }
+      validateHeaderName(field, "Trailer name");
+      if (Array.isArray(value) && value.length > 1 && (!this[kUniqueHeaders] || !this[kUniqueHeaders].has(field.toLowerCase()))) {
+        for (let j = 0, l3 = value.length; j < l3; j++) {
+          if (checkInvalidHeaderChar(value[j])) {
+            throw new ERR_INVALID_CHAR("trailer content", field);
+          }
+          this._trailer += field + ": " + value[j] + "\r\n";
+        }
+      } else {
+        if (Array.isArray(value)) {
+          value = value.join("; ");
+        }
+        if (checkInvalidHeaderChar(String(value))) {
+          throw new ERR_INVALID_CHAR("trailer content", field);
+        }
+        this._trailer += field + ": " + value + "\r\n";
+      }
+    }
+  }
+  end(chunk, encoding, callback) {
+    if (typeof chunk === "function") {
+      callback = chunk;
+      chunk = null;
+      encoding = null;
+    } else if (typeof encoding === "function") {
+      callback = encoding;
+      encoding = null;
+    }
+    if (chunk) {
+      if (this.finished) {
+        onError2(this, new ERR_STREAM_WRITE_AFTER_END(), typeof callback !== "function" ? nop : callback);
+        return this;
+      }
+      if (this._writtenDataBuffer != null) {
+        this._writtenDataBuffer.cork();
+      }
+      write_(this, chunk, encoding, null, true);
+    } else if (this.finished) {
+      if (typeof callback === "function") {
+        if (!this.writableFinished) {
+          this.on("finish", callback);
+        } else {
+          callback(new ERR_STREAM_ALREADY_FINISHED("end"));
+        }
+      }
+      return this;
+    } else if (!this._header) {
+      if (this._writtenDataBuffer != null) {
+        this._writtenDataBuffer.cork();
+      }
+      this._contentLength = 0;
+      this._implicitHeader();
+    }
+    if (typeof callback === "function")
+      this.once("finish", callback);
+    if (strictContentLength(this) && this[kBytesWritten] !== this._contentLength) {
+      throw new ERR_HTTP_CONTENT_LENGTH_MISMATCH(this[kBytesWritten], this._contentLength);
+    }
+    const finish = onFinish.bind(void 0, this);
+    if (this._hasBody && this.chunkedEncoding) {
+      this._send("", "latin1", finish);
+    } else if (!this._headerSent || this.writableLength || chunk) {
+      this._send("", "latin1", finish);
+    } else {
+      setTimeout(finish, 0);
+    }
+    if (this._writtenDataBuffer != null) {
+      this._writtenDataBuffer.uncork();
+    }
+    this[kCorked] = 1;
+    this.uncork();
+    this.finished = true;
+    if (this.outputData.length === 0 && this._writtenDataBuffer != null) {
+      this._finish();
+    }
+    return this;
+  }
+  _finish() {
+    this.emit("prefinish");
+  }
+  // No _flush() implementation?
+  _flush() {
+    if (this._writtenDataBuffer != null) {
+      const ret = this._flushOutput(this._writtenDataBuffer);
+      if (this.finished) {
+        this._finish();
+      } else if (ret && this[kNeedDrain]) {
+        this[kNeedDrain] = false;
+        this.emit("drain");
+      }
+    }
+  }
+  _flushOutput(dataBuffer) {
+    while (this[kCorked]) {
+      this[kCorked]--;
+      dataBuffer.cork();
+    }
+    const outputLength = this.outputData.length;
+    if (outputLength <= 0) {
+      return void 0;
+    }
+    const outputData = this.outputData;
+    dataBuffer.cork();
+    let ret;
+    for (let i2 = 0; i2 < outputLength; i2++) {
+      const { data, encoding, callback } = outputData[i2];
+      outputData[i2].data = null;
+      ret = dataBuffer.write(data ?? "", encoding, callback);
+    }
+    dataBuffer.uncork();
+    this.outputData = [];
+    this._onPendingData(-this.outputSize);
+    this.outputSize = 0;
+    return ret;
+  }
+  flushHeaders() {
+    if (!this._header) {
+      this._implicitHeader();
+    }
+    this._send("");
+  }
+  pipe(destination) {
+    this.emit("error", new ERR_STREAM_CANNOT_PIPE());
+    return destination;
+  }
+};
+function processHeader(self, state, key, value, validate) {
+  if (validate) {
+    validateHeaderName(key);
+  }
+  if (isContentDispositionField(key) && self._contentLength) {
+    if (Array.isArray(value)) {
+      for (let i2 = 0; i2 < value.length; i2++) {
+        value[i2] = String(Buffer$1.from(String(value[i2]), "latin1"));
+      }
+    } else {
+      value = String(Buffer$1.from(String(value), "latin1"));
+    }
+  }
+  if (Array.isArray(value)) {
+    if ((value.length < 2 || !isCookieField(key)) && (!self[kUniqueHeaders] || !self[kUniqueHeaders].has(key.toLowerCase()))) {
+      for (let i2 = 0; i2 < value.length; i2++) {
+        storeHeader(self, state, key, value[i2], validate);
+      }
+      return;
+    }
+    value = value.join("; ");
+  }
+  storeHeader(self, state, key, String(value), validate);
+}
+function storeHeader(self, state, key, value, validate) {
+  if (validate) {
+    validateHeaderValue(key, value);
+  }
+  state.header += key + ": " + value + "\r\n";
+  matchHeader(self, state, key, value);
+}
+function validateHeaderName(name, label) {
+  if (typeof name !== "string" || !name || !checkIsHttpToken(name)) {
+    throw new ERR_INVALID_HTTP_TOKEN(label || "Header name", name);
+  }
+}
+function validateHeaderValue(name, value) {
+  if (value === void 0) {
+    throw new ERR_HTTP_INVALID_HEADER_VALUE(String(value), name);
+  }
+  if (checkInvalidHeaderChar(String(value))) {
+    throw new ERR_INVALID_CHAR("header content", name);
+  }
+}
+function matchHeader(self, state, field, value) {
+  if (field.length < 4 || field.length > 17)
+    return;
+  field = field.toLowerCase();
+  switch (field) {
+    case "connection":
+      state.connection = true;
+      self._removedConnection = false;
+      if (RE_CONN_CLOSE.exec(value) !== null)
+        self._last = true;
+      else
+        self.shouldKeepAlive = true;
+      break;
+    case "transfer-encoding":
+      state.te = true;
+      self._removedTE = false;
+      if (chunkExpression.exec(value) !== null)
+        self.chunkedEncoding = true;
+      break;
+    case "content-length":
+      state.contLen = true;
+      self._contentLength = +value;
+      self._removedContLen = false;
+      break;
+    case "date":
+    case "expect":
+    case "trailer":
+      state[field] = true;
+      break;
+    case "keep-alive":
+      self._defaultKeepAlive = false;
+      break;
+  }
+}
+function onError2(msg, err, callback) {
+  if (msg.destroyed) {
+    return;
+  }
+  setTimeout(emitErrorNt, 0, msg, err, callback);
+}
+function emitErrorNt(msg, err, callback) {
+  callback(err);
+  if (typeof msg.emit === "function" && !msg.destroyed) {
+    msg.emit("error", err);
+  }
+}
+function strictContentLength(msg) {
+  return msg.strictContentLength && msg._contentLength != null && msg._hasBody && !msg._removedContLen && !msg.chunkedEncoding && !msg.hasHeader("transfer-encoding");
+}
+function write_(msg, chunk, encoding, callback, fromEnd) {
+  if (typeof callback !== "function") {
+    callback = nop;
+  }
+  if (chunk === null) {
+    throw new ERR_STREAM_NULL_VALUES();
+  } else if (typeof chunk !== "string" && !isUint8Array(chunk)) {
+    throw new ERR_INVALID_ARG_TYPE("chunk", ["string", "Buffer", "Uint8Array"], chunk);
+  }
+  let err = void 0;
+  if (msg.finished) {
+    err = new ERR_STREAM_WRITE_AFTER_END();
+  } else if (msg.destroyed) {
+    err = new ERR_STREAM_DESTROYED("write");
+  }
+  if (err) {
+    if (!msg.destroyed) {
+      onError2(msg, err, callback);
+    } else {
+      setTimeout(callback, 0, err);
+    }
+    return false;
+  }
+  let len = void 0;
+  if (msg.strictContentLength) {
+    len ??= typeof chunk === "string" ? Buffer$1.byteLength(chunk, encoding ?? void 0) : chunk.byteLength;
+    if (strictContentLength(msg) && (fromEnd ? msg[kBytesWritten] + len !== msg._contentLength : msg[kBytesWritten] + len > (msg._contentLength ?? 0))) {
+      throw new ERR_HTTP_CONTENT_LENGTH_MISMATCH(len + msg[kBytesWritten], msg._contentLength);
+    }
+    msg[kBytesWritten] += len;
+  }
+  if (!msg._header) {
+    if (fromEnd) {
+      len ??= typeof chunk === "string" ? Buffer$1.byteLength(chunk, encoding ?? void 0) : chunk.byteLength;
+      msg._contentLength = len;
+    }
+    msg._implicitHeader();
+  }
+  if (!msg._hasBody) {
+    if (msg[kRejectNonStandardBodyWrites]) {
+      throw new ERR_HTTP_BODY_NOT_ALLOWED();
+    } else {
+      setTimeout(callback, 0);
+      return true;
+    }
+  }
+  if (!fromEnd && msg._writtenDataBuffer != null && !msg._writtenDataBuffer.writableCorked) {
+    msg._writtenDataBuffer.cork();
+    setTimeout(connectionCorkNT, 0, msg._writtenDataBuffer);
+  }
+  let ret;
+  if (msg.chunkedEncoding && chunk.length !== 0) {
+    len ??= typeof chunk === "string" ? Buffer$1.byteLength(chunk, encoding ?? void 0) : chunk.byteLength;
+    if (msg[kCorked] && msg._headerSent) {
+      msg[kChunkedBuffer].push({ data: chunk, encoding, callback });
+      msg[kChunkedLength] += len;
+      ret = msg[kChunkedLength] < msg[kHighWaterMark];
+    } else {
+      ret = msg._send(chunk, encoding, callback, len);
+    }
+  } else {
+    ret = msg._send(chunk, encoding, callback, len);
+  }
+  return ret;
+}
+function connectionCorkNT(dataBuffer) {
+  dataBuffer.uncork();
+}
+function onFinish(outmsg) {
+  outmsg.emit("finish");
+}
+Object.defineProperties(FetchOutgoingMessage.prototype, {
+  errored: {
+    get() {
+      return this[kErrored];
+    }
+  },
+  closed: {
+    get() {
+      return this._closed;
+    }
+  },
+  writableFinished: {
+    get() {
+      return this.finished && this.outputSize === 0 && (this._writtenDataBuffer == null || this._writtenDataBuffer.writableLength === 0);
+    }
+  },
+  writableObjectMode: {
+    get() {
+      return false;
+    }
+  },
+  writableLength: {
+    get() {
+      return this.outputSize + this[kChunkedLength] + (this._writtenDataBuffer != null ? this._writtenDataBuffer.writableLength : 0);
+    }
+  },
+  writableHighWaterMark: {
+    get() {
+      return this._writtenDataBuffer != null ? this._writtenDataBuffer.writableHighWaterMark : this[kHighWaterMark];
+    }
+  },
+  writableCorked: {
+    get() {
+      return this[kCorked];
+    }
+  },
+  writableEnded: {
+    get() {
+      return this.finished;
+    }
+  },
+  writableNeedDrain: {
+    get() {
+      return !this.destroyed && !this.finished && this[kNeedDrain];
+    }
+  }
+});
+var headerCharRegex2 = /[^\t\x20-\x7e\x80-\xff]/;
+function checkInvalidHeaderChar2(val) {
+  return headerCharRegex2.test(val);
+}
+var STATUS_CODES = {
+  100: "Continue",
+  // RFC 7231 6.2.1
+  101: "Switching Protocols",
+  // RFC 7231 6.2.2
+  102: "Processing",
+  // RFC 2518 10.1 (obsoleted by RFC 4918)
+  103: "Early Hints",
+  // RFC 8297 2
+  200: "OK",
+  // RFC 7231 6.3.1
+  201: "Created",
+  // RFC 7231 6.3.2
+  202: "Accepted",
+  // RFC 7231 6.3.3
+  203: "Non-Authoritative Information",
+  // RFC 7231 6.3.4
+  204: "No Content",
+  // RFC 7231 6.3.5
+  205: "Reset Content",
+  // RFC 7231 6.3.6
+  206: "Partial Content",
+  // RFC 7233 4.1
+  207: "Multi-Status",
+  // RFC 4918 11.1
+  208: "Already Reported",
+  // RFC 5842 7.1
+  226: "IM Used",
+  // RFC 3229 10.4.1
+  300: "Multiple Choices",
+  // RFC 7231 6.4.1
+  301: "Moved Permanently",
+  // RFC 7231 6.4.2
+  302: "Found",
+  // RFC 7231 6.4.3
+  303: "See Other",
+  // RFC 7231 6.4.4
+  304: "Not Modified",
+  // RFC 7232 4.1
+  305: "Use Proxy",
+  // RFC 7231 6.4.5
+  307: "Temporary Redirect",
+  // RFC 7231 6.4.7
+  308: "Permanent Redirect",
+  // RFC 7238 3
+  400: "Bad Request",
+  // RFC 7231 6.5.1
+  401: "Unauthorized",
+  // RFC 7235 3.1
+  402: "Payment Required",
+  // RFC 7231 6.5.2
+  403: "Forbidden",
+  // RFC 7231 6.5.3
+  404: "Not Found",
+  // RFC 7231 6.5.4
+  405: "Method Not Allowed",
+  // RFC 7231 6.5.5
+  406: "Not Acceptable",
+  // RFC 7231 6.5.6
+  407: "Proxy Authentication Required",
+  // RFC 7235 3.2
+  408: "Request Timeout",
+  // RFC 7231 6.5.7
+  409: "Conflict",
+  // RFC 7231 6.5.8
+  410: "Gone",
+  // RFC 7231 6.5.9
+  411: "Length Required",
+  // RFC 7231 6.5.10
+  412: "Precondition Failed",
+  // RFC 7232 4.2
+  413: "Payload Too Large",
+  // RFC 7231 6.5.11
+  414: "URI Too Long",
+  // RFC 7231 6.5.12
+  415: "Unsupported Media Type",
+  // RFC 7231 6.5.13
+  416: "Range Not Satisfiable",
+  // RFC 7233 4.4
+  417: "Expectation Failed",
+  // RFC 7231 6.5.14
+  418: "I'm a Teapot",
+  // RFC 7168 2.3.3
+  421: "Misdirected Request",
+  // RFC 7540 9.1.2
+  422: "Unprocessable Entity",
+  // RFC 4918 11.2
+  423: "Locked",
+  // RFC 4918 11.3
+  424: "Failed Dependency",
+  // RFC 4918 11.4
+  425: "Too Early",
+  // RFC 8470 5.2
+  426: "Upgrade Required",
+  // RFC 2817 and RFC 7231 6.5.15
+  428: "Precondition Required",
+  // RFC 6585 3
+  429: "Too Many Requests",
+  // RFC 6585 4
+  431: "Request Header Fields Too Large",
+  // RFC 6585 5
+  451: "Unavailable For Legal Reasons",
+  // RFC 7725 3
+  500: "Internal Server Error",
+  // RFC 7231 6.6.1
+  501: "Not Implemented",
+  // RFC 7231 6.6.2
+  502: "Bad Gateway",
+  // RFC 7231 6.6.3
+  503: "Service Unavailable",
+  // RFC 7231 6.6.4
+  504: "Gateway Timeout",
+  // RFC 7231 6.6.5
+  505: "HTTP Version Not Supported",
+  // RFC 7231 6.6.6
+  506: "Variant Also Negotiates",
+  // RFC 2295 8.1
+  507: "Insufficient Storage",
+  // RFC 4918 11.5
+  508: "Loop Detected",
+  // RFC 5842 7.2
+  509: "Bandwidth Limit Exceeded",
+  510: "Not Extended",
+  // RFC 2774 7
+  511: "Network Authentication Required"
+  // RFC 6585 6
+};
+var FetchServerResponse = class _FetchServerResponse extends FetchOutgoingMessage {
+  static encoder = new TextEncoder();
+  statusCode = 200;
+  statusMessage;
+  _sent100;
+  _expect_continue;
+  [kOutHeaders] = null;
+  constructor(req, options) {
+    super(req, options);
+    if (req.method === "HEAD") {
+      this._hasBody = false;
+    }
+    this.sendDate = true;
+    this._sent100 = false;
+    this._expect_continue = false;
+    if (req.httpVersionMajor < 1 || req.httpVersionMinor < 1) {
+      this.useChunkedEncodingByDefault = chunkExpression.exec(String(req.headers.te)) !== null;
+      this.shouldKeepAlive = false;
+    }
+    this.fetchResponse = new Promise((resolve) => {
+      let finished = false;
+      this.on("finish", () => {
+        finished = true;
+      });
+      const initialDataChunks = [];
+      const initialDataWrittenHandler = (e2) => {
+        if (finished) {
+          return;
+        }
+        initialDataChunks[e2.index] = this.dataFromDataWrittenEvent(e2);
+      };
+      this.on("_dataWritten", initialDataWrittenHandler);
+      this.on("_headersSent", (e2) => {
+        this.off("_dataWritten", initialDataWrittenHandler);
+        const { statusCode, statusMessage, headers } = e2;
+        resolve(this._toFetchResponse(statusCode, statusMessage, headers, initialDataChunks, finished));
+      });
+    });
+  }
+  dataFromDataWrittenEvent(e2) {
+    const { index, entry } = e2;
+    let { data, encoding } = entry;
+    if (index === 0) {
+      if (typeof data !== "string") {
+        console.error("First chunk should be string, not sure what happened.");
+        throw new ERR_INVALID_ARG_TYPE("packet.data", ["string", "Buffer", "Uint8Array"], data);
+      }
+      data = data.slice(this.writtenHeaderBytes);
+    }
+    if (typeof data === "string") {
+      if (encoding === void 0 || encoding === "utf8" || encoding === "utf-8") {
+        data = _FetchServerResponse.encoder.encode(data);
+      } else {
+        data = Buffer$1.from(data, encoding ?? void 0);
+      }
+    }
+    return data ?? Buffer$1.from([]);
+  }
+  _finish() {
+    super._finish();
+  }
+  assignSocket(socket) {
+    throw new ERR_METHOD_NOT_IMPLEMENTED("assignSocket");
+  }
+  detachSocket(socket) {
+    throw new ERR_METHOD_NOT_IMPLEMENTED("detachSocket");
+  }
+  writeContinue(callback) {
+    this._writeRaw("HTTP/1.1 100 Continue\r\n\r\n", "ascii", callback);
+    this._sent100 = true;
+  }
+  writeProcessing(callback) {
+    this._writeRaw("HTTP/1.1 102 Processing\r\n\r\n", "ascii", callback);
+  }
+  writeEarlyHints(hints, callback) {
+    let head = "HTTP/1.1 103 Early Hints\r\n";
+    if (hints.link === null || hints.link === void 0) {
+      return;
+    }
+    const link = validateLinkHeaderValue(hints.link);
+    if (link.length === 0) {
+      return;
+    }
+    head += "Link: " + link + "\r\n";
+    for (const key of Object.keys(hints)) {
+      if (key !== "link") {
+        head += key + ": " + hints[key] + "\r\n";
+      }
+    }
+    head += "\r\n";
+    this._writeRaw(head, "ascii", callback);
+  }
+  _implicitHeader() {
+    this.writeHead(this.statusCode);
+  }
+  writeHead(statusCode, reason, obj) {
+    if (this._header) {
+      throw new ERR_HTTP_HEADERS_SENT("write");
+    }
+    const originalStatusCode = statusCode;
+    statusCode |= 0;
+    if (statusCode < 100 || statusCode > 999) {
+      throw new ERR_HTTP_INVALID_STATUS_CODE(originalStatusCode);
+    }
+    if (typeof reason === "string") {
+      this.statusMessage = reason;
+    } else {
+      this.statusMessage ||= STATUS_CODES[statusCode] || "unknown";
+      obj ??= reason;
+    }
+    this.statusCode = statusCode;
+    let headers;
+    if (this[kOutHeaders]) {
+      let k;
+      if (Array.isArray(obj)) {
+        if (obj.length % 2 !== 0) {
+          throw new ERR_INVALID_ARG_VALUE("headers", obj);
+        }
+        for (let n2 = 0; n2 < obj.length; n2 += 2) {
+          k = obj[n2 + 0];
+          this.removeHeader(String(k));
+        }
+        for (let n2 = 0; n2 < obj.length; n2 += 2) {
+          k = obj[n2];
+          if (k) {
+            this.appendHeader(String(k), obj[n2 + 1]);
+          }
+        }
+      } else if (obj) {
+        const keys = Object.keys(obj);
+        for (let i2 = 0; i2 < keys.length; i2++) {
+          k = keys[i2];
+          if (k) {
+            this.setHeader(k, obj[k]);
+          }
+        }
+      }
+      headers = this[kOutHeaders];
+    } else {
+      headers = obj;
+    }
+    if (checkInvalidHeaderChar2(this.statusMessage)) {
+      throw new ERR_INVALID_CHAR("statusMessage");
+    }
+    const statusLine = `HTTP/1.1 ${statusCode} ${this.statusMessage}\r
+`;
+    if (statusCode === 204 || statusCode === 304 || statusCode >= 100 && statusCode <= 199) {
+      this._hasBody = false;
+    }
+    if (this._expect_continue && !this._sent100) {
+      this.shouldKeepAlive = false;
+    }
+    const convertedHeaders = headers && !Array.isArray(headers) ? headers : headers;
+    this._storeHeader(statusLine, convertedHeaders ?? null);
+    return this;
+  }
+  // Docs-only deprecated: DEP0063
+  writeHeader = this.writeHead;
+  fetchResponse;
+  _toFetchResponse(status, statusText, sentHeaders, initialDataChunks, finished) {
+    const headers = new Headers();
+    for (const [header, value] of sentHeaders) {
+      headers.append(header, value);
+    }
+    const _this = this;
+    let body = this._hasBody ? new ReadableStream({
+      start(controller) {
+        for (const dataChunk of initialDataChunks) {
+          controller.enqueue(dataChunk);
+        }
+        if (finished) {
+          controller.close();
+        } else {
+          _this.on("finish", () => {
+            finished = true;
+            controller.close();
+          });
+          _this.on("_dataWritten", (e2) => {
+            if (finished) {
+              return;
+            }
+            const data = _this.dataFromDataWrittenEvent(e2);
+            controller.enqueue(data);
+          });
+        }
+      }
+    }) : null;
+    if (body != null && typeof FixedLengthStream !== "undefined") {
+      const contentLength = parseInt(headers.get("content-length") ?? "", 10);
+      if (contentLength >= 0) {
+        body = body.pipeThrough(new FixedLengthStream(contentLength));
+      }
+    }
+    return new Response(body, {
+      status,
+      statusText,
+      headers
+    });
+  }
+};
+function toReqRes(req, options) {
+  const { createIncomingMessage = () => new FetchIncomingMessage(), createServerResponse = (incoming2) => new FetchServerResponse(incoming2), ctx } = {};
+  const incoming = createIncomingMessage(ctx);
+  const serverResponse = createServerResponse(incoming, ctx);
+  const reqUrl = new URL(req.url);
+  const versionMajor = 1;
+  const versionMinor = 1;
+  incoming.httpVersionMajor = versionMajor;
+  incoming.httpVersionMinor = versionMinor;
+  incoming.httpVersion = `${versionMajor}.${versionMinor}`;
+  incoming.url = reqUrl.pathname + reqUrl.search;
+  incoming.upgrade = false;
+  const headers = [];
+  for (const [headerName, headerValue] of req.headers) {
+    headers.push(headerName);
+    headers.push(headerValue);
+  }
+  incoming._addHeaderLines(headers, headers.length);
+  incoming.method = req.method;
+  incoming._stream = req.body;
+  return {
+    req: incoming,
+    res: serverResponse
+  };
+}
+function toFetchResponse(res) {
+  if (!(res instanceof FetchServerResponse)) {
+    throw new Error("toFetchResponse must be called on a ServerResponse generated by toReqRes");
+  }
+  return res.fetchResponse;
+}
+
+// src/server/handlers/mcp.ts
+var getMastra = (c2) => c2.get("mastra");
+var getMcpServerMessageHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("serverId");
+  const { req, res } = toReqRes(c2.req.raw);
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server '${serverId}' not found` }, 404);
+  }
+  try {
+    await server.startHTTP({
+      url: new URL(c2.req.url),
+      httpPath: `/api/servers/${serverId}/mcp`,
+      req,
+      res,
+      options: {
+        sessionIdGenerator: void 0
+      }
+    });
+    const toFetchRes = await toFetchResponse(res);
+    return toFetchRes;
+  } catch (error) {
+    return handleError(error, "Error sending MCP message");
+  }
+};
+var getMcpServerSseHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("serverId");
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server '${serverId}' not found` }, 404);
+  }
+  const requestUrl = new URL(c2.req.url);
+  const sseConnectionPath = `/api/servers/${serverId}/sse`;
+  const sseMessagePath = `/api/servers/${serverId}/messages`;
+  try {
+    return await server.startHonoSSE({
+      url: requestUrl,
+      ssePath: sseConnectionPath,
+      messagePath: sseMessagePath,
+      context: c2
+    });
+  } catch (error) {
+    c2.get("logger")?.error({ err: error, serverId, path: requestUrl.pathname }, "Error in MCP SSE route handler");
+    return handleError(error, "Error handling MCP SSE request");
+  }
+};
 async function getMemoryStatusHandler(c2) {
   try {
     const mastra = c2.get("mastra");
@@ -10633,10 +9672,19 @@ async function getMessagesHandler(c2) {
     const mastra = c2.get("mastra");
     const agentId = c2.req.query("agentId");
     const threadId = c2.req.param("threadId");
+    const rawLimit = c2.req.query("limit");
+    let limit = void 0;
+    if (rawLimit !== void 0) {
+      const n2 = Number(rawLimit);
+      if (Number.isFinite(n2) && Number.isInteger(n2) && n2 > 0) {
+        limit = n2;
+      }
+    }
     const result = await getMessagesHandler$1({
       mastra,
       agentId,
-      threadId
+      threadId,
+      limit
     });
     return c2.json(result);
   } catch (error) {
@@ -10822,11 +9870,19 @@ async function rootHandler(c2) {
 async function getTelemetryHandler(c2) {
   try {
     const mastra = c2.get("mastra");
-    const { name, scope, page, perPage } = c2.req.query();
+    const { name, scope, page, perPage, fromDate, toDate } = c2.req.query();
     const attribute = c2.req.queries("attribute");
     const traces = await getTelemetryHandler$1({
       mastra,
-      body: { name, scope, page: Number(page ?? 0), perPage: Number(perPage ?? 100), attribute }
+      body: {
+        name,
+        scope,
+        page: Number(page ?? 0),
+        perPage: Number(perPage ?? 100),
+        attribute,
+        fromDate: fromDate ? new Date(fromDate) : void 0,
+        toDate: toDate ? new Date(toDate) : void 0
+      }
     });
     return c2.json({ traces });
   } catch (error) {
@@ -10852,7 +9908,7 @@ async function getToolsHandler(c2) {
     const result = await getToolsHandler$1({
       tools
     });
-    return c2.json(result);
+    return c2.json(result || {});
   } catch (error) {
     return handleError(error, "Error getting tools");
   }
@@ -10876,12 +9932,15 @@ function executeToolHandler(tools) {
       const mastra = c2.get("mastra");
       const runtimeContext = c2.get("runtimeContext");
       const toolId = decodeURIComponent(c2.req.param("toolId"));
-      const { data } = await c2.req.json();
+      const runId = c2.req.query("runId");
+      const { data, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
       const result = await executeToolHandler$1(tools)({
         mastra,
         toolId,
         data,
-        runtimeContext
+        runtimeContext,
+        runId,
+        runtimeContextFromRequest
       });
       return c2.json(result);
     } catch (error) {
@@ -10895,13 +9954,14 @@ async function executeAgentToolHandler(c2) {
     const runtimeContext = c2.get("runtimeContext");
     const agentId = c2.req.param("agentId");
     const toolId = c2.req.param("toolId");
-    const { data } = await c2.req.json();
+    const { data, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     const result = await executeAgentToolHandler$1({
       mastra,
       agentId,
       toolId,
       data,
-      runtimeContext
+      runtimeContext,
+      runtimeContextFromRequest
     });
     return c2.json(result);
   } catch (error) {
@@ -11049,11 +10109,13 @@ async function startAsyncVNextWorkflowHandler(c2) {
   try {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
-    const { inputData, runtimeContext } = await c2.req.json();
+    const runtimeContext = c2.get("runtimeContext");
+    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     const runId = c2.req.query("runId");
     const result = await startAsyncVNextWorkflowHandler$1({
       mastra,
       runtimeContext,
+      runtimeContextFromRequest,
       workflowId,
       runId,
       inputData
@@ -11067,11 +10129,13 @@ async function startVNextWorkflowRunHandler(c2) {
   try {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
-    const { inputData, runtimeContext } = await c2.req.json();
+    const runtimeContext = c2.get("runtimeContext");
+    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     const runId = c2.req.query("runId");
     await startVNextWorkflowRunHandler$1({
       mastra,
       runtimeContext,
+      runtimeContextFromRequest,
       workflowId,
       runId,
       inputData
@@ -11092,20 +10156,20 @@ function watchVNextWorkflowHandler(c2) {
     }
     return stream(
       c2,
-      async (stream3) => {
+      async (stream4) => {
         try {
           const result = await watchVNextWorkflowHandler$1({
             mastra,
             workflowId,
             runId
           });
-          stream3.onAbort(() => {
+          stream4.onAbort(() => {
             if (!result.locked) {
               return result.cancel();
             }
           });
           for await (const chunk of result) {
-            await stream3.write(chunk.toString() + "");
+            await stream4.write(chunk.toString() + "");
           }
         } catch (err) {
           console.log(err);
@@ -11124,13 +10188,15 @@ async function resumeAsyncVNextWorkflowHandler(c2) {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
     const runId = c2.req.query("runId");
-    const { step, resumeData, runtimeContext } = await c2.req.json();
+    const runtimeContext = c2.get("runtimeContext");
+    const { step, resumeData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     if (!runId) {
       throw new HTTPException$1(400, { message: "runId required to resume workflow" });
     }
     const result = await resumeAsyncVNextWorkflowHandler$1({
       mastra,
       runtimeContext,
+      runtimeContextFromRequest,
       workflowId,
       runId,
       body: { step, resumeData }
@@ -11165,9 +10231,15 @@ async function getVNextWorkflowRunsHandler(c2) {
   try {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
+    const { fromDate, toDate, limit, offset, resourceId } = c2.req.query();
     const workflowRuns = await getVNextWorkflowRunsHandler$1({
       mastra,
-      workflowId
+      workflowId,
+      fromDate: fromDate ? new Date(fromDate) : void 0,
+      toDate: toDate ? new Date(toDate) : void 0,
+      limit: limit ? Number(limit) : void 0,
+      offset: offset ? Number(offset) : void 0,
+      resourceId
     });
     return c2.json(workflowRuns);
   } catch (error) {
@@ -11228,7 +10300,7 @@ async function listenHandler(c2) {
         options: parsedOptions
       }
     });
-    return c2.json({ text: transcription });
+    return c2.json({ text: transcription?.text });
   } catch (error) {
     return handleError(error, "Error transcribing speech");
   }
@@ -11321,20 +10393,20 @@ function watchWorkflowHandler(c2) {
     }
     return stream(
       c2,
-      async (stream3) => {
+      async (stream4) => {
         try {
           const result = await watchWorkflowHandler$1({
             mastra,
             workflowId,
             runId
           });
-          stream3.onAbort(() => {
+          stream4.onAbort(() => {
             if (!result.locked) {
               return result.cancel();
             }
           });
           for await (const chunk of result) {
-            await stream3.write(chunk.toString() + "");
+            await stream4.write(chunk.toString() + "");
           }
         } catch (err) {
           console.log(err);
@@ -11396,9 +10468,15 @@ async function getWorkflowRunsHandler(c2) {
   try {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
+    const { fromDate, toDate, limit, offset, resourceId } = c2.req.query();
     const workflowRuns = await getWorkflowRunsHandler$1({
       mastra,
-      workflowId
+      workflowId,
+      fromDate: fromDate ? new Date(fromDate) : void 0,
+      toDate: toDate ? new Date(toDate) : void 0,
+      limit: limit ? Number(limit) : void 0,
+      offset: offset ? Number(offset) : void 0,
+      resourceId
     });
     return c2.json(workflowRuns);
   } catch (error) {
@@ -11517,20 +10595,25 @@ var html2 = `
 async function createHonoServer(mastra, options = {}) {
   const app = new Hono();
   const server = mastra.getServer();
-  const toolsPath = "./tools.mjs";
-  const mastraToolsPaths = (await import(toolsPath)).tools;
-  const toolImports = mastraToolsPaths ? await Promise.all(
-    // @ts-ignore
-    mastraToolsPaths.map(async (toolPath) => {
-      return import(toolPath);
-    })
-  ) : [];
-  const tools = toolImports.reduce((acc, toolModule) => {
-    Object.entries(toolModule).forEach(([key, tool]) => {
-      acc[key] = tool;
-    });
-    return acc;
-  }, {});
+  let tools = {};
+  try {
+    const toolsPath = "./tools.mjs";
+    const mastraToolsPaths = (await import(toolsPath)).tools;
+    const toolImports = mastraToolsPaths ? await Promise.all(
+      // @ts-ignore
+      mastraToolsPaths.map(async (toolPath) => {
+        return import(toolPath);
+      })
+    ) : [];
+    tools = toolImports.reduce((acc, toolModule) => {
+      Object.entries(toolModule).forEach(([key, tool]) => {
+        acc[key] = tool;
+      });
+      return acc;
+    }, {});
+  } catch {
+    console.error("Failed to import tools");
+  }
   app.use("*", async function setTelemetryInfo(c2, next) {
     const requestId = c2.req.header("x-request-id") ?? randomUUID();
     const span = Telemetry.getActiveSpan();
@@ -11538,7 +10621,7 @@ async function createHonoServer(mastra, options = {}) {
       span.setAttribute("http.request_id", requestId);
       span.updateName(`${c2.req.method} ${c2.req.path}`);
       const newCtx = Telemetry.setBaggage({
-        "http.request_id": requestId
+        "http.request_id": { value: requestId }
       });
       await new Promise((resolve) => {
         Telemetry.withContext(newCtx, async () => {
@@ -11553,7 +10636,18 @@ async function createHonoServer(mastra, options = {}) {
   app.onError(errorHandler);
   app.use("*", function setContext(c2, next) {
     const runtimeContext = new RuntimeContext();
-    c2.set("runtimeContext", runtimeContext);
+    const proxyRuntimeContext = new Proxy(runtimeContext, {
+      get(target, prop) {
+        if (prop === "get") {
+          return function(key) {
+            const value = target.get(key);
+            return value ?? `<${key}>`;
+          };
+        }
+        return Reflect.get(target, prop);
+      }
+    });
+    c2.set("runtimeContext", proxyRuntimeContext);
     c2.set("mastra", mastra);
     c2.set("tools", tools);
     c2.set("playground", options.playground === true);
@@ -11581,7 +10675,7 @@ async function createHonoServer(mastra, options = {}) {
     app.use("*", timeout(server?.timeout ?? 3 * 60 * 1e3), cors(corsConfig));
   }
   const bodyLimitOptions = {
-    maxSize: 4.5 * 1024 * 1024,
+    maxSize: server?.bodySizeLimit ?? 4.5 * 1024 * 1024,
     // 4.5 MB,
     onError: (c2) => c2.json({ error: "Request body too large" }, 413)
   };
@@ -11610,20 +10704,159 @@ async function createHonoServer(mastra, options = {}) {
       if (route.openapi) {
         middlewares.push(h(route.openapi));
       }
+      const handler = "handler" in route ? route.handler : await route.createHandler({ mastra });
       if (route.method === "GET") {
-        app.get(route.path, ...middlewares, route.handler);
+        app.get(route.path, ...middlewares, handler);
       } else if (route.method === "POST") {
-        app.post(route.path, ...middlewares, route.handler);
+        app.post(route.path, ...middlewares, handler);
       } else if (route.method === "PUT") {
-        app.put(route.path, ...middlewares, route.handler);
+        app.put(route.path, ...middlewares, handler);
       } else if (route.method === "DELETE") {
-        app.delete(route.path, ...middlewares, route.handler);
+        app.delete(route.path, ...middlewares, handler);
+      } else if (route.method === "ALL") {
+        app.all(route.path, ...middlewares, handler);
       }
     }
   }
   if (server?.build?.apiReqLogs) {
     app.use(logger());
   }
+  app.get(
+    "/.well-known/:agentId/agent.json",
+    h({
+      description: "Get agent configuration",
+      tags: ["agents"],
+      parameters: [
+        {
+          name: "agentId",
+          in: "path",
+          required: true,
+          schema: { type: "string" }
+        }
+      ],
+      responses: {
+        200: {
+          description: "Agent configuration"
+        }
+      }
+    }),
+    getAgentCardByIdHandler
+  );
+  app.post(
+    "/a2a/:agentId",
+    h({
+      description: "Execute agent via A2A protocol",
+      tags: ["agents"],
+      parameters: [
+        {
+          name: "agentId",
+          in: "path",
+          required: true,
+          schema: { type: "string" }
+        }
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                method: {
+                  type: "string",
+                  enum: ["tasks/send", "tasks/sendSubscribe", "tasks/get", "tasks/cancel"],
+                  description: "The A2A protocol method to execute"
+                },
+                params: {
+                  type: "object",
+                  oneOf: [
+                    {
+                      // TaskSendParams
+                      type: "object",
+                      properties: {
+                        id: {
+                          type: "string",
+                          description: "Unique identifier for the task being initiated or continued"
+                        },
+                        sessionId: {
+                          type: "string",
+                          description: "Optional identifier for the session this task belongs to"
+                        },
+                        message: {
+                          type: "object",
+                          description: "The message content to send to the agent for processing"
+                        },
+                        pushNotification: {
+                          type: "object",
+                          nullable: true,
+                          description: "Optional pushNotification information for receiving notifications about this task"
+                        },
+                        historyLength: {
+                          type: "integer",
+                          nullable: true,
+                          description: "Optional parameter to specify how much message history to include in the response"
+                        },
+                        metadata: {
+                          type: "object",
+                          nullable: true,
+                          description: "Optional metadata associated with sending this message"
+                        }
+                      },
+                      required: ["id", "message"]
+                    },
+                    {
+                      // TaskQueryParams
+                      type: "object",
+                      properties: {
+                        id: { type: "string", description: "The unique identifier of the task" },
+                        historyLength: {
+                          type: "integer",
+                          nullable: true,
+                          description: "Optional history length to retrieve for the task"
+                        },
+                        metadata: {
+                          type: "object",
+                          nullable: true,
+                          description: "Optional metadata to include with the operation"
+                        }
+                      },
+                      required: ["id"]
+                    },
+                    {
+                      // TaskIdParams
+                      type: "object",
+                      properties: {
+                        id: { type: "string", description: "The unique identifier of the task" },
+                        metadata: {
+                          type: "object",
+                          nullable: true,
+                          description: "Optional metadata to include with the operation"
+                        }
+                      },
+                      required: ["id"]
+                    }
+                  ]
+                }
+              },
+              required: ["method", "params"]
+            }
+          }
+        }
+      },
+      responses: {
+        200: {
+          description: "A2A response"
+        },
+        400: {
+          description: "Missing or invalid request parameters"
+        },
+        404: {
+          description: "Agent not found"
+        }
+      }
+    }),
+    getAgentExecutionHandler
+  );
   app.get(
     "/api",
     h({
@@ -11951,121 +11184,123 @@ async function createHonoServer(mastra, options = {}) {
     }),
     streamGenerateHandler
   );
-  app.post(
-    "/api/agents/:agentId/instructions",
-    bodyLimit(bodyLimitOptions),
-    h({
-      description: "Update an agent's instructions",
-      tags: ["agents"],
-      parameters: [
-        {
-          name: "agentId",
-          in: "path",
-          required: true,
-          schema: { type: "string" }
-        }
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                instructions: {
-                  type: "string",
-                  description: "New instructions for the agent"
-                }
-              },
-              required: ["instructions"]
-            }
+  if (options.isDev) {
+    app.post(
+      "/api/agents/:agentId/instructions",
+      bodyLimit(bodyLimitOptions),
+      h({
+        description: "Update an agent's instructions",
+        tags: ["agents"],
+        parameters: [
+          {
+            name: "agentId",
+            in: "path",
+            required: true,
+            schema: { type: "string" }
           }
-        }
-      },
-      responses: {
-        200: {
-          description: "Instructions updated successfully"
-        },
-        403: {
-          description: "Not allowed in non-playground environment"
-        },
-        404: {
-          description: "Agent not found"
-        }
-      }
-    }),
-    setAgentInstructionsHandler
-  );
-  app.post(
-    "/api/agents/:agentId/instructions/enhance",
-    bodyLimit(bodyLimitOptions),
-    h({
-      description: "Generate an improved system prompt from instructions",
-      tags: ["agents"],
-      parameters: [
-        {
-          name: "agentId",
-          in: "path",
+        ],
+        requestBody: {
           required: true,
-          schema: { type: "string" },
-          description: "ID of the agent whose model will be used for prompt generation"
-        }
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                instructions: {
-                  type: "string",
-                  description: "Instructions to generate a system prompt from"
-                },
-                comment: {
-                  type: "string",
-                  description: "Optional comment for the enhanced prompt"
-                }
-              },
-              required: ["instructions"]
-            }
-          }
-        }
-      },
-      responses: {
-        200: {
-          description: "Generated system prompt and analysis",
           content: {
             "application/json": {
               schema: {
                 type: "object",
                 properties: {
-                  explanation: {
+                  instructions: {
                     type: "string",
-                    description: "Detailed analysis of the instructions"
-                  },
-                  new_prompt: {
-                    type: "string",
-                    description: "The enhanced system prompt"
+                    description: "New instructions for the agent"
                   }
-                }
+                },
+                required: ["instructions"]
               }
             }
           }
         },
-        400: {
-          description: "Missing or invalid request parameters"
-        },
-        404: {
-          description: "Agent not found"
-        },
-        500: {
-          description: "Internal server error or model response parsing error"
+        responses: {
+          200: {
+            description: "Instructions updated successfully"
+          },
+          403: {
+            description: "Not allowed in non-playground environment"
+          },
+          404: {
+            description: "Agent not found"
+          }
         }
-      }
-    }),
-    generateSystemPromptHandler
-  );
+      }),
+      setAgentInstructionsHandler
+    );
+    app.post(
+      "/api/agents/:agentId/instructions/enhance",
+      bodyLimit(bodyLimitOptions),
+      h({
+        description: "Generate an improved system prompt from instructions",
+        tags: ["agents"],
+        parameters: [
+          {
+            name: "agentId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "ID of the agent whose model will be used for prompt generation"
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  instructions: {
+                    type: "string",
+                    description: "Instructions to generate a system prompt from"
+                  },
+                  comment: {
+                    type: "string",
+                    description: "Optional comment for the enhanced prompt"
+                  }
+                },
+                required: ["instructions"]
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: "Generated system prompt and analysis",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    explanation: {
+                      type: "string",
+                      description: "Detailed analysis of the instructions"
+                    },
+                    new_prompt: {
+                      type: "string",
+                      description: "The enhanced system prompt"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          400: {
+            description: "Missing or invalid request parameters"
+          },
+          404: {
+            description: "Agent not found"
+          },
+          500: {
+            description: "Internal server error or model response parsing error"
+          }
+        }
+      }),
+      generateSystemPromptHandler
+    );
+  }
   app.get(
     "/api/agents/:agentId/speakers",
     async (c2, next) => {
@@ -12464,7 +11699,8 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                data: { type: "object" }
+                data: { type: "object" },
+                runtimeContext: { type: "object" }
               },
               required: ["data"]
             }
@@ -12481,6 +11717,93 @@ async function createHonoServer(mastra, options = {}) {
       }
     }),
     executeAgentToolHandler
+  );
+  app.post(
+    "/api/servers/:serverId/mcp",
+    bodyLimit(bodyLimitOptions),
+    h({
+      description: "Send a message to an MCP server using Streamable HTTP",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "serverId",
+          in: "path",
+          required: true,
+          schema: { type: "string" }
+        }
+      ],
+      requestBody: {
+        content: { "application/json": { schema: { type: "object" } } }
+      },
+      responses: {
+        200: {
+          description: "Streamable HTTP connection processed"
+        },
+        404: {
+          description: "MCP server not found"
+        }
+      }
+    }),
+    getMcpServerMessageHandler
+  );
+  const mcpSseBasePath = "/api/servers/:serverId/sse";
+  const mcpSseMessagePath = "/api/servers/:serverId/messages";
+  app.get(
+    mcpSseBasePath,
+    h({
+      description: "Establish an MCP Server-Sent Events (SSE) connection with a server instance.",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "serverId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+          description: "The ID of the MCP server instance."
+        }
+      ],
+      responses: {
+        200: {
+          description: "SSE connection established. The client will receive events over this connection. (Content-Type: text/event-stream)"
+        },
+        404: { description: "MCP server instance not found." },
+        500: { description: "Internal server error establishing SSE connection." }
+      }
+    }),
+    getMcpServerSseHandler
+  );
+  app.post(
+    mcpSseMessagePath,
+    bodyLimit(bodyLimitOptions),
+    // Apply body limit for messages
+    h({
+      description: "Send a message to an MCP server over an established SSE connection.",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "serverId",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+          description: "The ID of the MCP server instance."
+        }
+      ],
+      requestBody: {
+        description: "JSON-RPC message to send to the MCP server.",
+        required: true,
+        content: { "application/json": { schema: { type: "object" } } }
+        // MCP messages are typically JSON
+      },
+      responses: {
+        200: {
+          description: "Message received and is being processed by the MCP server. The actual result or error will be sent as an SSE event over the established connection."
+        },
+        400: { description: "Bad request (e.g., invalid JSON payload or missing body)." },
+        404: { description: "MCP server instance not found or SSE connection path incorrect." },
+        503: { description: "SSE connection not established with this server, or server unable to process message." }
+      }
+    }),
+    getMcpServerSseHandler
   );
   app.get(
     "/api/memory/status",
@@ -12577,6 +11900,13 @@ async function createHonoServer(mastra, options = {}) {
           in: "query",
           required: true,
           schema: { type: "string" }
+        },
+        {
+          name: "limit",
+          in: "query",
+          required: false,
+          schema: { type: "number" },
+          description: "Limit the number of messages to retrieve (default: 40)"
         }
       ],
       responses: {
@@ -12806,7 +12136,12 @@ async function createHonoServer(mastra, options = {}) {
           in: "path",
           required: true,
           schema: { type: "string" }
-        }
+        },
+        { name: "fromDate", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+        { name: "toDate", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+        { name: "limit", in: "query", required: false, schema: { type: "number" } },
+        { name: "offset", in: "query", required: false, schema: { type: "number" } },
+        { name: "resourceId", in: "query", required: false, schema: { type: "string" } }
       ],
       responses: {
         200: {
@@ -12846,7 +12181,10 @@ async function createHonoServer(mastra, options = {}) {
                   oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
                 },
                 resumeData: { type: "object" },
-                runtimeContext: { type: "object" }
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               },
               required: ["step"]
             }
@@ -12887,7 +12225,10 @@ async function createHonoServer(mastra, options = {}) {
                   oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
                 },
                 resumeData: { type: "object" },
-                runtimeContext: { type: "object" }
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               },
               required: ["step"]
             }
@@ -12953,7 +12294,10 @@ async function createHonoServer(mastra, options = {}) {
               type: "object",
               properties: {
                 inputData: { type: "object" },
-                runtimeContext: { type: "object" }
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               }
             }
           }
@@ -12997,7 +12341,10 @@ async function createHonoServer(mastra, options = {}) {
               type: "object",
               properties: {
                 inputData: { type: "object" },
-                runtimeContext: { type: "object" }
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               }
             }
           }
@@ -13089,7 +12436,12 @@ async function createHonoServer(mastra, options = {}) {
           in: "path",
           required: true,
           schema: { type: "string" }
-        }
+        },
+        { name: "fromDate", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+        { name: "toDate", in: "query", required: false, schema: { type: "string", format: "date-time" } },
+        { name: "limit", in: "query", required: false, schema: { type: "number" } },
+        { name: "offset", in: "query", required: false, schema: { type: "number" } },
+        { name: "resourceId", in: "query", required: false, schema: { type: "string" } }
       ],
       responses: {
         200: {
@@ -13504,6 +12856,12 @@ async function createHonoServer(mastra, options = {}) {
           in: "path",
           required: true,
           schema: { type: "string" }
+        },
+        {
+          name: "runId",
+          in: "query",
+          required: false,
+          schema: { type: "string" }
         }
       ],
       requestBody: {
@@ -13513,7 +12871,8 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                data: { type: "object" }
+                data: { type: "object" },
+                runtimeContext: { type: "object" }
               },
               required: ["data"]
             }
@@ -13806,7 +13165,7 @@ async function createNodeServer(mastra, options = {}) {
       const host = serverOptions?.host ?? "localhost";
       logger2.info(` Mastra API running on port http://${host}:${port}/api`);
       if (options?.isDev) {
-        logger2.info(`\uFFFD Open API documentation available at http://${host}:${port}/openapi.json`);
+        logger2.info(`\u{1F517} Open API documentation available at http://${host}:${port}/openapi.json`);
       }
       if (options?.isDev) {
         logger2.info(`\u{1F9EA} Swagger UI available at http://${host}:${port}/swagger-ui`);

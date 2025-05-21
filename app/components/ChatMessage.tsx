@@ -534,6 +534,35 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     : JSON.stringify(toolState.result, null, 2)}
                 </pre>
                 
+                {/* Gemini画像生成ツールの結果表示 */}
+                {toolState.toolName === 'gemini-image-generation' && toolState.result?.images && toolState.result.images.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-xs font-medium text-gray-500 mb-2">生成された画像</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {toolState.result.images.map((image: { url: string, b64Json: string }, index: number) => (
+                        <div key={`img-${index}`} className="border border-gray-200 rounded-md overflow-hidden bg-white">
+                          <img 
+                            src={image.url} 
+                            alt={`Generated image ${index + 1}`}
+                            className="w-full h-auto object-contain"
+                            loading="lazy"
+                          />
+                          <div className="p-2 text-center">
+                            <a 
+                              href={image.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-blue-600 hover:underline text-xs"
+                            >
+                              画像を開く
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 {/* プレゼンテーションプレビューボタン（結果の下にも表示） */}
                 {isPresentationTool && toolState.result?.htmlContent && (
                   <div className="mt-3">
@@ -575,6 +604,39 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     }
                     return null; 
                   })}
+            </div>
+          )}
+          
+          {/* Gemini画像生成ツールの結果を直接表示 */}
+          {Object.values(toolCallStates).some(
+            tool => tool.toolName === 'gemini-image-generation' && 
+                   tool.status === 'success' && 
+                   tool.result?.images?.length > 0
+          ) && (
+            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-200 shadow-sm mb-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                {Object.values(toolCallStates)
+                  .filter(tool => 
+                    tool.toolName === 'gemini-image-generation' && 
+                    tool.status === 'success' && 
+                    tool.result?.images?.length > 0
+                  )
+                  .flatMap(tool => 
+                    tool.result.images.map((image: { url: string; b64Json: string }, index: number) => (
+                      <div key={`direct-img-${tool.id}-${index}`} className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all">
+                        <a href={image.url} target="_blank" rel="noopener noreferrer">
+                          <img 
+                            src={image.url} 
+                            alt={`Generated image ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </a>
+                      </div>
+                    ))
+                  )
+                }
+              </div>
             </div>
           )}
           
