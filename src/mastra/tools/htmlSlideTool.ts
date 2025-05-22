@@ -69,12 +69,18 @@ export const htmlSlideTool = tool({
 2. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
 3. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
 4. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
+5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
 
 【出力要件】
 1. **<style>** ブロックと **<section class="slide ...">...</section>** のみ返す。
 2. CSS はクラス \`.${promptArgs.uniqueClass}\` にスコープし、他要素へ影響させない。
 3. 未指定パラメータはデフォルト値を採用。
-4. 生成する HTML 構造は **layoutType** に応じて以下を参考に柔軟に変形すること。
+4. **スライドの寸法を16:9のアスペクト比に固定する**
+   - width: 100%
+   - height: 0
+   - padding-bottom: 56.25% (16:9のアスペクト比)
+   - または適切なvw/vhユニットを使用
+5. 生成する HTML 構造は **layoutType** に応じて以下を参考に柔軟に変形すること。
    - 'default'           : 大きな見出し + 簡潔な本文 + 視覚的図解 + 箇条書き（3項目程度）
    - 'image-left'        : 左側に図解・イラスト / 右側に簡潔な本文とポイント
    - 'image-right'       : 右側に図解・イラスト / 左側に簡潔な本文とポイント
@@ -88,7 +94,7 @@ export const htmlSlideTool = tool({
    - 'data-visualization': データビジュアライゼーションを中心としたスライド
    - 'photo-with-caption' : 印象的な写真またはイラストと簡潔なキャプション
 
-5. **図解とビジュアル要素（必須）**
+6. **図解とビジュアル要素（必須）**
    **diagramType** ('${promptArgs.diagramType}') に基づいて適切な図解を SVG で生成：
    - 'auto'        : 内容に最適な図解を自動選択
    - 'bar'         : 棒グラフ（項目比較に最適）
@@ -103,7 +109,7 @@ export const htmlSlideTool = tool({
    - 'icons'       : テーマに関連するアイコンセット
    - 'none'        : 図解なし（テキストのみ重視する場合）
 
-6. **モダンデザイン要素（必須）**
+7. **モダンデザイン要素（必須）**
    以下のデザイン要素を必ず1つ以上含める：
    - 洗練されたグラデーション背景
    - 半透明の図形やオーバーレイ
@@ -113,7 +119,7 @@ export const htmlSlideTool = tool({
    - スタイリッシュなボーダーやセパレーター
    - 適切なホワイトスペース（余白）の活用
 
-7. **テキスト設計ガイドライン**
+8. **テキスト設計ガイドライン**
    - 見出し: 32-40px、太字、高コントラスト
    - 本文: 18-24px、読みやすいフォント
    - 箇条書き: 簡潔で1行以内、前後に十分な余白
@@ -121,22 +127,22 @@ export const htmlSlideTool = tool({
    - テキスト量: 1スライドあたり30-50単語程度に抑える
    - フォント: スタイリッシュで読みやすい日本語Webフォントを使用（デフォルト ${promptArgs.fontFamily}）
 
-8. **アクセシビリティとレスポンシブデザイン**
+9. **アクセシビリティとレスポンシブデザイン**
    - コントラスト比 AA 準拠
    - SVG要素には適切なalt/aria属性
    - レスポンシブな要素配置（vw/vh単位の活用）
 
-9. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
+10. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
 
-10. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
+11. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
    - バリアント1: 標準的でクリーンなデザイン
    - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
    - バリアント3: よりミニマリストでエレガントなデザイン
 
-11. **必須含有要素の組み込み**
+12. **必須含有要素の組み込み**
    「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-12. **禁止事項**
+13. **禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更
@@ -210,7 +216,7 @@ ${baseDesignPrompt}`;
     try {
       // console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}"`);
       const { text: generatedHtml } = await generateText({
-        model: anthropic('claude-3-7-sonnet-20250219'), // Use Anthropic model
+        model: anthropic('claude-opus-4-20250514'), // Use Anthropic model
         prompt: systemPrompt, // The detailed instructions form the system prompt
       });
 
