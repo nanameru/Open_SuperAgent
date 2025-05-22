@@ -113,3 +113,91 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## プレゼンテーション作成機能の拡張
+
+### htmlSlideTool（拡張版）
+
+プロフェッショナルなプレゼンテーションスライドをHTML/CSSで生成するためのツール。
+企業の経営陣やカンファレンスでも使用できる高品質なスライドを作成します。
+
+#### 主な拡張機能：
+
+1. **追加パラメータ**
+   - `slideIndex`/`totalSlides`: スライドのページネーション情報
+   - `layoutType`: 12種類のレイアウトテンプレートをサポート
+   - `diagramType`: 11種類の図解タイプをサポート
+   - `colorScheme`: カラーパレット（テーマ、アクセント、背景色）
+   - `designElements`: 特定のデザイン要素（グラデーション、影など）
+   - `fontFamily`: カスタムフォント
+   - `forceInclude`: スライドに必ず含めるべき内容
+   - `variant`: 同じ内容の異なるデザインバージョン（1〜3）
+
+2. **拡張されたレイアウトタイプ**
+   - default: 標準的なタイトル・本文・図解のレイアウト
+   - image-left/right: 左右レイアウト
+   - full-graphic: 全面グラフィック
+   - quote: 引用スタイル
+   - comparison: 比較レイアウト
+   - timeline: タイムライン表示
+   - list: リスト表示
+   - title: メインタイトル用
+   - section-break: セクション区切り用
+   - data-visualization: データ可視化中心
+   - photo-with-caption: 写真とキャプション
+
+3. **バリアントサポート**
+   - 同じ内容で異なるデザインの複数バージョンを生成可能
+   - バリアント1: 標準的でクリーンなデザイン
+   - バリアント2: より大胆で視覚的なインパクトを重視
+   - バリアント3: よりミニマリストでエレガントなデザイン
+
+### presentationPreviewTool（拡張版）
+
+複数スライドの表示をサポートするプレビュー機能。
+
+#### 主な拡張機能：
+
+1. **複数スライドのサポート**
+   - 単一スライド（`htmlContent`）または複数スライド（`slidesArray`）をサポート
+   - スライドショー表示機能
+
+2. **プレビュー制御**
+   - `showSlideControls`: ナビゲーションコントロールの表示/非表示
+   - `startSlide`: 開始スライド番号の指定
+   - `theme`: ライト/ダークモード切り替え
+
+3. **拡張されたレスポンス**
+   - スライド総数のレポート
+   - 複数スライドのケースを処理
+   - スライドコントロールのカスタマイズオプション
+
+### 使用例
+
+```typescript
+// 単一スライドの生成
+const slide1 = await htmlSlideTool.invoke({
+  topic: "AIの未来",
+  outline: "機械学習の基礎概念",
+  layoutType: "image-left",
+  diagramType: "flow",
+  variant: 1
+});
+
+// 別バリアントの生成
+const slide1variant2 = await htmlSlideTool.invoke({
+  topic: "AIの未来",
+  outline: "機械学習の基礎概念",
+  layoutType: "image-left",
+  diagramType: "flow",
+  variant: 2
+});
+
+// 複数スライドのプレビュー表示
+await presentationPreviewTool.invoke({
+  slidesArray: [slide1.htmlContent, slide1variant2.htmlContent],
+  title: "AIの未来 - コンセプト比較",
+  showSlideControls: true,
+  theme: "dark"
+});
+```
