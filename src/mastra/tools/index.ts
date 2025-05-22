@@ -107,3 +107,4 @@ export { advancedCalculatorTool } from './advancedCalculatorTool';
 export { geminiImageGenerationTool } from './geminiImageGenerationTool';
 export { presentationPreviewTool } from './presentationPreviewTool';
 export { geminiVideoGenerationTool } from './geminiVideoGenerationTool';
+export { grokXSearchTool } from './grokXSearchTool';
