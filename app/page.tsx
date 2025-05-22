@@ -8,6 +8,7 @@ import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
 import { Message } from 'ai';
+import { ImagePreviewPanel } from './components/ImagePreviewPanel';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -27,6 +28,16 @@ interface SlideToolState {
   forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
+// 画像プレビュー関連の状態
+interface ImagePreviewState {
+  isActive: boolean;
+  images: Array<{
+    url: string;
+    b64Json: string;
+  }>;
+  title: string;
+}
+
 // メッセージの型（Message型とToolMessage型の両方を含む）
 type UIMessage = Message | ToolMessage;
 
@@ -41,6 +52,12 @@ export default function AppPage() {
     htmlContent: '',
     title: '生成AIプレゼンテーション',
     forcePanelOpen: false
+  });
+  // 画像プレビュー関連の状態
+  const [imagePreviewState, setImagePreviewState] = useState<ImagePreviewState>({
+    isActive: false,
+    images: [],
+    title: '生成された画像'
   });
   // プレビューパネルの表示状態
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -106,6 +123,12 @@ export default function AppPage() {
         htmlContent: '',
         title: '生成AIプレゼンテーション',
         forcePanelOpen: false
+      });
+      // 画像プレビュー状態もリセット
+      setImagePreviewState({
+        isActive: false,
+        images: [],
+        title: '生成された画像'
       });
     }
   }, [messages.length]);
@@ -218,6 +241,17 @@ export default function AppPage() {
                   }));
                 }
                 
+                // 画像生成ツールの結果を検出した場合
+                if (parsed.toolName === 'gemini-image-generation' && parsed.result?.images && parsed.result.images.length > 0) {
+                  console.log("[Page] gemini-image-generation result received with images");
+                  setImagePreviewState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    images: parsed.result.images,
+                    title: `生成された画像 (${parsed.result.images.length}枚)`
+                  }));
+                }
+                
                 // ツール結果をツールメッセージに反映
                 setToolMessages(prev => prev.map(m => 
                   m.toolName === parsed.toolName 
@@ -315,6 +349,17 @@ export default function AppPage() {
                   }));
                 }
                 
+                // 画像生成ツールの結果を検出した場合
+                if (annotation.toolName === 'gemini-image-generation' && annotation.result?.images && annotation.result.images.length > 0) {
+                  console.log("[Page] gemini-image-generation annotation result received with images");
+                  setImagePreviewState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    images: annotation.result.images,
+                    title: `生成された画像 (${annotation.result.images.length}枚)`
+                  }));
+                }
+                
                 // ツール結果をツールメッセージに反映
                 setToolMessages(prev => prev.map(m => 
                   m.toolName === annotation.toolName 
@@ -368,6 +413,18 @@ export default function AppPage() {
   const handlePreviewPanelWidthChange = useCallback((width: number) => {
     setPreviewPanelWidth(width);
   }, []);
+  
+  // 画像プレビューパネルを開く
+  const handleOpenImagePreview = useCallback(() => {
+    if (imagePreviewState.images.length > 0) {
+      setIsPreviewOpen(true);
+    }
+  }, [imagePreviewState.images]);
+  
+  // 画像プレビューパネルを閉じる
+  const handleCloseImagePreview = useCallback(() => {
+    setIsPreviewOpen(false);
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 antialiased">
@@ -395,6 +452,21 @@ export default function AppPage() {
                   console.log("Edit in AI Slides clicked");
                 }}
               />
+            )}
+            
+            {/* 画像生成ツールの結果がある場合に表示するボタン */}
+            {imagePreviewState.isActive && imagePreviewState.images.length > 0 && (
+              <div className="flex justify-center my-4">
+                <button 
+                  onClick={handleOpenImagePreview}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-md shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                  </svg>
+                  {imagePreviewState.images.length === 1 ? '生成された画像を表示' : `生成された画像を表示 (${imagePreviewState.images.length}枚)`}
+                </button>
+              </div>
             )}
             
             {combinedMessages.length === 0 && !isLoading && !error && (
@@ -427,11 +499,17 @@ export default function AppPage() {
                     title: '生成AIプレゼンテーション',
                     forcePanelOpen: false
                   });
-                  console.log("スライド状態をリセットしました");
+                  // 画像プレビュー状態もリセット
+                  setImagePreviewState({
+                    isActive: false,
+                    images: [],
+                    title: '生成された画像'
+                  });
+                  console.log("状態をリセットしました");
                 }}
                 className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
               >
-                スライド状態をリセット
+                状態をリセット
               </button>
             </div>
           )}
@@ -443,6 +521,17 @@ export default function AppPage() {
           isLoading={isLoading}
         />
       </div>
+      
+      {/* 画像プレビューパネル */}
+      {imagePreviewState.isActive && (
+        <ImagePreviewPanel
+          images={imagePreviewState.images}
+          title={imagePreviewState.title}
+          isOpen={isPreviewOpen}
+          onClose={handleCloseImagePreview}
+          onWidthChange={handlePreviewPanelWidthChange}
+        />
+      )}
     </div>
   );
 }
