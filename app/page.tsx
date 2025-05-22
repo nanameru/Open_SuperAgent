@@ -6,9 +6,9 @@ import { MainHeader } from '@/app/components/MainHeader';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
+import { ImageTool } from './components/ImageTool';
 import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
 import { Message } from 'ai';
-import { ImagePreviewPanel } from './components/ImagePreviewPanel';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -28,14 +28,15 @@ interface SlideToolState {
   forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
-// 画像プレビュー関連の状態
-interface ImagePreviewState {
+// 画像ツール関連の状態
+interface ImageToolState {
   isActive: boolean;
   images: Array<{
     url: string;
     b64Json: string;
   }>;
-  title: string;
+  prompt: string;
+  forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
 // メッセージの型（Message型とToolMessage型の両方を含む）
@@ -53,11 +54,12 @@ export default function AppPage() {
     title: '生成AIプレゼンテーション',
     forcePanelOpen: false
   });
-  // 画像プレビュー関連の状態
-  const [imagePreviewState, setImagePreviewState] = useState<ImagePreviewState>({
+  // 画像ツール関連の状態
+  const [imageToolState, setImageToolState] = useState<ImageToolState>({
     isActive: false,
     images: [],
-    title: '生成された画像'
+    prompt: '生成された画像',
+    forcePanelOpen: false
   });
   // プレビューパネルの表示状態
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -124,11 +126,12 @@ export default function AppPage() {
         title: '生成AIプレゼンテーション',
         forcePanelOpen: false
       });
-      // 画像プレビュー状態もリセット
-      setImagePreviewState({
+      // 画像ツール状態もリセット
+      setImageToolState({
         isActive: false,
         images: [],
-        title: '生成された画像'
+        prompt: '生成された画像',
+        forcePanelOpen: false
       });
     }
   }, [messages.length]);
@@ -202,6 +205,16 @@ export default function AppPage() {
                   }));
                 }
                 
+                // 画像生成ツールの呼び出しを検出
+                if (toolName === 'gemini-image-generation' || toolName === 'geminiImageGenerationTool' || toolName === 'imagen4-generation') {
+                  console.log("[Page] Image generation tool call detected");
+                  setImageToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    prompt: parsed.args?.prompt || '生成された画像'
+                  }));
+                }
+                
                 // 既に同じツール名のメッセージがなければ追加
                 setToolMessages(prev => {
                   if (!prev.some(m => m.toolName === toolName)) {
@@ -242,14 +255,23 @@ export default function AppPage() {
                 }
                 
                 // 画像生成ツールの結果を検出した場合
-                if (parsed.toolName === 'gemini-image-generation' && parsed.result?.images && parsed.result.images.length > 0) {
-                  console.log("[Page] gemini-image-generation result received with images");
-                  setImagePreviewState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    images: parsed.result.images,
-                    title: `生成された画像 (${parsed.result.images.length}枚)`
-                  }));
+                if ((parsed.toolName === 'gemini-image-generation' || parsed.toolName === 'geminiImageGenerationTool' || parsed.toolName === 'imagen4-generation') && parsed.result?.images) {
+                  console.log("[Page] Image generation tool result received");
+                  const images = parsed.result.images || [];
+                  const success = parsed.result.success || false;
+                  const prompt = parsed.result.prompt || '生成された画像';
+                  const title = parsed.result.title || prompt;
+                  const autoOpenPreview = parsed.result.autoOpenPreview ?? true;
+                  
+                  if (success && images.length > 0) {
+                    setImageToolState(prev => ({
+                      ...prev,
+                      isActive: true,
+                      images: images,
+                      prompt: title,
+                      forcePanelOpen: autoOpenPreview // 自動オープンフラグに基づいてパネルを開く
+                    }));
+                  }
                 }
                 
                 // ツール結果をツールメッセージに反映
@@ -311,6 +333,16 @@ export default function AppPage() {
                   }));
                 }
                 
+                // 画像生成ツールの呼び出しを検出
+                if (toolName === 'gemini-image-generation' || toolName === 'geminiImageGenerationTool' || toolName === 'imagen4-generation') {
+                  console.log("[Page] Image generation tool annotation detected");
+                  setImageToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    prompt: annotation.args?.prompt || '生成された画像'
+                  }));
+                }
+                
                 // ツールメッセージを追加
                 setToolMessages(prev => {
                   if (!prev.some(m => m.toolName === toolName)) {
@@ -350,14 +382,23 @@ export default function AppPage() {
                 }
                 
                 // 画像生成ツールの結果を検出した場合
-                if (annotation.toolName === 'gemini-image-generation' && annotation.result?.images && annotation.result.images.length > 0) {
-                  console.log("[Page] gemini-image-generation annotation result received with images");
-                  setImagePreviewState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    images: annotation.result.images,
-                    title: `生成された画像 (${annotation.result.images.length}枚)`
-                  }));
+                if ((annotation.toolName === 'gemini-image-generation' || annotation.toolName === 'geminiImageGenerationTool' || annotation.toolName === 'imagen4-generation') && annotation.result?.images) {
+                  console.log("[Page] Image generation tool annotation result received");
+                  const images = annotation.result.images || [];
+                  const success = annotation.result.success || false;
+                  const prompt = annotation.result.prompt || '生成された画像';
+                  const title = annotation.result.title || prompt;
+                  const autoOpenPreview = annotation.result.autoOpenPreview ?? true;
+                  
+                  if (success && images.length > 0) {
+                    setImageToolState(prev => ({
+                      ...prev,
+                      isActive: true,
+                      images: images,
+                      prompt: title,
+                      forcePanelOpen: autoOpenPreview // 自動オープンフラグに基づいてパネルを開く
+                    }));
+                  }
                 }
                 
                 // ツール結果をツールメッセージに反映
@@ -413,18 +454,6 @@ export default function AppPage() {
   const handlePreviewPanelWidthChange = useCallback((width: number) => {
     setPreviewPanelWidth(width);
   }, []);
-  
-  // 画像プレビューパネルを開く
-  const handleOpenImagePreview = useCallback(() => {
-    if (imagePreviewState.images.length > 0) {
-      setIsPreviewOpen(true);
-    }
-  }, [imagePreviewState.images]);
-  
-  // 画像プレビューパネルを閉じる
-  const handleCloseImagePreview = useCallback(() => {
-    setIsPreviewOpen(false);
-  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 antialiased">
@@ -454,19 +483,17 @@ export default function AppPage() {
               />
             )}
             
-            {/* 画像生成ツールの結果がある場合に表示するボタン */}
-            {imagePreviewState.isActive && imagePreviewState.images.length > 0 && (
-              <div className="flex justify-center my-4">
-                <button 
-                  onClick={handleOpenImagePreview}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-md shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                  </svg>
-                  {imagePreviewState.images.length === 1 ? '生成された画像を表示' : `生成された画像を表示 (${imagePreviewState.images.length}枚)`}
-                </button>
-              </div>
+            {/* 画像ツールがアクティブな場合に表示 */}
+            {imageToolState.isActive && imageToolState.images.length > 0 && (
+              <ImageTool 
+                images={imageToolState.images}
+                prompt={imageToolState.prompt}
+                autoOpenPreview={true} // 画像があれば自動的に開く
+                forcePanelOpen={imageToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                onPreviewOpen={() => setIsPreviewOpen(true)}
+                onPreviewClose={() => setIsPreviewOpen(false)}
+                onPreviewWidthChange={handlePreviewPanelWidthChange}
+              />
             )}
             
             {combinedMessages.length === 0 && !isLoading && !error && (
@@ -492,20 +519,20 @@ export default function AppPage() {
               <p>Please check your API key and network connection.</p>
               <button 
                 onClick={() => {
-                  // スライド状態をリセット
+                  // ツール状態をリセット
                   setSlideToolState({
                     isActive: false,
                     htmlContent: '',
                     title: '生成AIプレゼンテーション',
                     forcePanelOpen: false
                   });
-                  // 画像プレビュー状態もリセット
-                  setImagePreviewState({
+                  setImageToolState({
                     isActive: false,
                     images: [],
-                    title: '生成された画像'
+                    prompt: '生成された画像',
+                    forcePanelOpen: false
                   });
-                  console.log("状態をリセットしました");
+                  console.log("ツール状態をリセットしました");
                 }}
                 className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
               >
@@ -521,17 +548,6 @@ export default function AppPage() {
           isLoading={isLoading}
         />
       </div>
-      
-      {/* 画像プレビューパネル */}
-      {imagePreviewState.isActive && (
-        <ImagePreviewPanel
-          images={imagePreviewState.images}
-          title={imagePreviewState.title}
-          isOpen={isPreviewOpen}
-          onClose={handleCloseImagePreview}
-          onWidthChange={handlePreviewPanelWidthChange}
-        />
-      )}
     </div>
   );
 }

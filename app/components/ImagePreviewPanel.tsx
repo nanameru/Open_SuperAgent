@@ -6,7 +6,7 @@ import { XMarkIcon, ArrowsPointingOutIcon, DocumentArrowDownIcon } from '@heroic
 interface ImagePreviewPanelProps {
   images: Array<{
     url: string;
-    b64Json: string;
+    b64Json?: string;
   }>;
   title: string;
   isOpen: boolean;

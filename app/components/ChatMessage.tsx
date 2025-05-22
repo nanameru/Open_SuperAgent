@@ -174,7 +174,11 @@ const CollapsibleToolSection = ({
             {getStateIcon()}
           </div>
           <span className="font-medium text-sm flex items-center">
-            {toolName}
+            {toolName === 'geminiImageGenerationTool' ? 'Gemini画像生成' : 
+             toolName === 'gemini-image-generation' ? 'Gemini画像生成' : 
+             toolName === 'imagen4-generation' ? 'Imagen 4画像生成' :
+             toolName === 'htmlSlideTool' ? 'HTMLスライド生成' : 
+             toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
               <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
             )}
@@ -214,7 +218,7 @@ const CollapsibleToolSection = ({
               title="生成された画像をプレビュー表示"
             >
               <PhotoIcon className="h-3 w-3 mr-1" />
-              <span>画像を表示</span>
+              <span>プレビュー</span>
             </button>
           )}
           
@@ -301,16 +305,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           const newStates = { ...prevStates };
           message.tool_calls?.forEach(tc => {
             const existingState = prevStates[tc.toolCallId];
-            newStates[tc.toolCallId] = {
-              id: tc.toolCallId,
-              toolName: tc.toolName,
-              args: tc.args,
-              result: existingState?.result, // Keep existing result if any
-              status: existingState?.result 
-                ? (existingState.status === 'error' ? 'error' : 'success') 
-                : 'running', // If result exists, it's success/error, else running
-              isExpanded: existingState?.isExpanded || false,
-            };
+                          // 特定のツールタイプの場合は、デフォルトで展開表示
+              const shouldExpandByDefault = 
+                tc.toolName === 'gemini-image-generation' || 
+                tc.toolName === 'geminiImageGenerationTool' || 
+                tc.toolName === 'imagen4-generation';
+                
+              newStates[tc.toolCallId] = {
+                id: tc.toolCallId,
+                toolName: tc.toolName,
+                args: tc.args,
+                result: existingState?.result, // Keep existing result if any
+                status: existingState?.result 
+                  ? (existingState.status === 'error' ? 'error' : 'success') 
+                  : 'running', // If result exists, it's success/error, else running
+                isExpanded: existingState?.isExpanded !== undefined ? existingState.isExpanded : shouldExpandByDefault,
+              };
             
             // presentationPreviewToolのデータを保存（ただし自動表示はしない）
             if (tc.toolName === 'presentationPreviewTool' && tc.args.htmlContent) {
@@ -333,10 +343,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           const updatedStates = { ...prevStates };
           message.tool_results?.forEach(tr => {
             if (updatedStates[tr.toolCallId]) {
+              // 特定のツールタイプの場合は、デフォルトで展開表示
+              const shouldExpandByDefault = 
+                updatedStates[tr.toolCallId].toolName === 'gemini-image-generation' || 
+                updatedStates[tr.toolCallId].toolName === 'geminiImageGenerationTool' || 
+                updatedStates[tr.toolCallId].toolName === 'imagen4-generation';
+              
               updatedStates[tr.toolCallId] = {
                 ...updatedStates[tr.toolCallId],
                 result: tr.result,
                 status: tr.isError ? 'error' : 'success',
+                isExpanded: shouldExpandByDefault || updatedStates[tr.toolCallId].isExpanded,
               };
               // presentationPreviewToolの結果データを保存（ただし自動表示はしない）
               const toolState = updatedStates[tr.toolCallId];
@@ -359,14 +376,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               }
               
               // 画像生成ツールの結果データを保存
-              if (toolState.toolName === 'gemini-image-generation' && tr.result?.images && tr.result.images.length > 0) {
+              if ((toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation') && tr.result?.images && tr.result.images.length > 0) {
                 setImageTool(prev => ({
                   ...prev,
                   [tr.toolCallId]: {
                     images: tr.result.images,
-                    title: `生成された画像（${tr.result.images.length}枚）`
+                    title: tr.result.title || `生成された画像（${tr.result.images.length}枚）`
                   }
                 }));
+                
+                // autoOpenPreviewが設定されていれば自動的に画像プレビューを開く
+                if (tr.result.autoOpenPreview) {
+                  setImagePreview({
+                    isOpen: true,
+                    images: tr.result.images,
+                    title: tr.result.title || `生成された画像（${tr.result.images.length}枚）`
+                  });
+                }
               }
             }
           });
@@ -565,6 +591,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         // ... existing code ...
         
       case 'gemini-image-generation':
+      case 'geminiImageGenerationTool':
+      case 'imagen4-generation':
         if (result?.images && result.images.length > 0) {
           // 画像生成結果をグリッド表示
           return (
@@ -577,7 +605,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   <div 
                     key={index} 
                     className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => openImagePreviewPanel(result.images, `生成された画像（${result.images.length}枚）`)}
+                    onClick={() => openImagePreviewPanel(result.images, result.title || `生成された画像（${result.images.length}枚）`)}
                   >
                     <img 
                       src={img.url} 
@@ -589,11 +617,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 {result.images.length > 4 && (
                   <div 
                     className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-800 flex items-center justify-center text-white text-lg font-medium cursor-pointer hover:bg-gray-700 transition-colors"
-                    onClick={() => openImagePreviewPanel(result.images, `生成された画像（${result.images.length}枚）`)}
+                    onClick={() => openImagePreviewPanel(result.images, result.title || `生成された画像（${result.images.length}枚）`)}
                   >
                     +{result.images.length - 4}
                   </div>
                 )}
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => openImagePreviewPanel(result.images, result.title || `生成された画像（${result.images.length}枚）`)}
+                  className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                >
+                  <PhotoIcon className="h-4 w-4 mr-2" />
+                  画像をプレビュー表示
+                </button>
               </div>
             </div>
           );
@@ -653,7 +690,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           toolState={toolState.status} 
           isLoading={isLoading}
           isPreviewTool={isPresentationTool}
-          isImageTool={toolState.toolName === 'gemini-image-generation'}
+          isImageTool={toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation'}
           onPreviewClick={() => {
             if (previewData) {
               openPreviewPanel(previewData.htmlContent, previewData.title);
@@ -695,35 +732,43 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     : JSON.stringify(toolState.result, null, 2)}
                 </pre>
                 
-                {/* Gemini画像生成ツールの結果表示 */}
-                {toolState.toolName === 'gemini-image-generation' && toolState.result?.images && toolState.result.images.length > 0 && (
+                {/* 画像生成ツールの結果表示 */}
+                {(toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation') && toolState.result?.images && toolState.result.images.length > 0 && (
                   <div className="mt-3">
                     <h4 className="text-xs font-medium text-gray-500 mb-2">生成された画像</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {toolState.result.images.map((image: { url: string, b64Json: string }, index: number) => (
-                        <div key={`img-${index}`} className="border border-gray-200 rounded-md overflow-hidden bg-white">
+                    <div className="grid grid-cols-2 gap-3">
+                      {toolState.result.images.slice(0, 4).map((image: { url: string, b64Json: string }, index: number) => (
+                        <div 
+                          key={`img-${index}`} 
+                          className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => openImagePreviewPanel(
+                            toolState.result.images,
+                            `生成された画像（${toolState.result.images.length}枚）`
+                          )}
+                        >
                           <img 
                             src={image.url} 
-                            alt={`Generated image ${index + 1}`}
-                            className="w-full h-auto object-contain"
+                            alt={`生成画像 ${index + 1}`}
+                            className="w-full h-full object-cover"
                             loading="lazy"
                           />
-                          <div className="p-2 text-center">
-                            <a 
-                              href={image.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="text-blue-600 hover:underline text-xs"
-                            >
-                              画像を開く
-                            </a>
-                          </div>
                         </div>
                       ))}
+                      {toolState.result.images.length > 4 && (
+                        <div 
+                          className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-800 flex items-center justify-center text-white text-lg font-medium cursor-pointer hover:bg-gray-700 transition-colors"
+                          onClick={() => openImagePreviewPanel(
+                            toolState.result.images,
+                            `生成された画像（${toolState.result.images.length}枚）`
+                          )}
+                        >
+                          +{toolState.result.images.length - 4}
+                        </div>
+                      )}
                     </div>
                     
                     {/* 画像プレビューボタン */}
-                    <div className="mt-3">
+                    <div className="mt-4">
                       <button
                         onClick={() => openImagePreviewPanel(
                           toolState.result.images,
@@ -782,35 +827,65 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             </div>
           )}
           
-          {/* Gemini画像生成ツールの結果を直接表示 */}
+          {/* 画像生成ツールの結果を直接表示 */}
           {Object.values(toolCallStates).some(
-            tool => tool.toolName === 'gemini-image-generation' && 
+            tool => (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
                    tool.status === 'success' && 
                    tool.result?.images?.length > 0
           ) && (
             <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-200 shadow-sm mb-2">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+              <h3 className="font-medium text-base mb-2">生成された画像</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {Object.values(toolCallStates)
                   .filter(tool => 
-                    tool.toolName === 'gemini-image-generation' && 
+                    (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
                     tool.status === 'success' && 
                     tool.result?.images?.length > 0
                   )
                   .flatMap(tool => 
                     tool.result.images.map((image: { url: string; b64Json: string }, index: number) => (
-                      <div key={`direct-img-${tool.id}-${index}`} className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all">
-                        <a href={image.url} target="_blank" rel="noopener noreferrer">
-                          <img 
-                            src={image.url} 
-                            alt={`Generated image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </a>
+                      <div 
+                        key={`direct-img-${tool.id}-${index}`} 
+                        className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => openImagePreviewPanel(
+                          tool.result.images, 
+                          tool.result.title || `生成された画像（${tool.result.images.length}枚）`
+                        )}
+                      >
+                        <img 
+                          src={image.url} 
+                          alt={`Generated image ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       </div>
                     ))
                   )
                 }
+              </div>
+              
+              {/* 画像プレビューボタン */}
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    const tool = Object.values(toolCallStates).find(t => 
+                      (t.toolName === 'gemini-image-generation' || t.toolName === 'geminiImageGenerationTool' || t.toolName === 'imagen4-generation') && 
+                      t.status === 'success' && 
+                      t.result?.images?.length > 0
+                    );
+                    
+                    if (tool) {
+                      openImagePreviewPanel(
+                        tool.result.images,
+                        tool.result.title || `生成された画像（${tool.result.images.length}枚）`
+                      );
+                    }
+                  }}
+                  className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                >
+                  <PhotoIcon className="h-4 w-4 mr-2" />
+                  画像をプレビュー表示
+                </button>
               </div>
             </div>
           )}
