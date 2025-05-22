@@ -6,7 +6,8 @@ import { MainHeader } from '@/app/components/MainHeader';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
+import { Message } from 'ai';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -26,17 +27,14 @@ interface SlideToolState {
   forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
+// メッセージの型（Message型とToolMessage型の両方を含む）
+type UIMessage = Message | ToolMessage;
+
 export default function AppPage() {
   // ツール実行メッセージを格納する状態
   const [toolMessages, setToolMessages] = useState<ToolMessage[]>([]);
   // 現在の会話ID（ストリームの再接続用）
   const [conversationId, setConversationId] = useState<string>(`conv-${Date.now()}`);
-  // 直前のユーザーメッセージのタイムスタンプ
-  const [lastUserMessageTimestamp, setLastUserMessageTimestamp] = useState<number>(0);
-  // EventSourceへの参照を保持
-  const eventSourceRef = useRef<EventSource | null>(null);
-  // ツールイベントを検出したかどうか（デバッグ用）
-  const [toolEventDetected, setToolEventDetected] = useState<boolean>(false);
   // スライドツール関連の状態
   const [slideToolState, setSlideToolState] = useState<SlideToolState>({
     isActive: false,
@@ -49,21 +47,53 @@ export default function AppPage() {
   // プレビューパネルの幅（％）
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number>(50);
   
+  // チャットの状態を保持するための参照
+  const chatStateRef = useRef<{
+    messages: Message[];
+    input: string;
+  }>({
+    messages: [],
+    input: '',
+  });
+
   // 標準のuseChatフック
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
-    api: '/api/slide-creator/chat', // Default API endpoint
-    onFinish: () => {
-      // チャット完了時にはしばらく待ってからSSE接続を再確立（ツール実行の検出のため）
-      setTimeout(() => {
-        // 古い接続を閉じて新しい接続を確立
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
-        }
-        connectToStream();
-      }, 1000);
+  const { 
+    messages, 
+    input, 
+    handleInputChange, 
+    handleSubmit: originalHandleSubmit, 
+    isLoading, 
+    error, 
+    data,
+    setMessages: originalSetMessages,
+    append: originalAppend,
+    reload
+  } = useChat({
+    api: '/api/slide-creator/chat', // Mastra slideCreatorAgent を使用するエンドポイント
+    id: conversationId,
+    onFinish: (message) => {
+      console.log('[Page] チャット完了:', message);
+    },
+    onResponse: (response) => {
+      console.log('[Page] レスポンスステータス:', response.status);
+    },
+    onError: (error) => {
+      console.error('[Page] チャットエラー:', error);
     }
   });
+
+  // チャットの状態が変わったときに参照を更新する関数
+  const updateChatStateRef = useCallback((messages: Message[], input: string) => {
+    chatStateRef.current = {
+      messages,
+      input,
+    };
+  }, []);
+
+  // チャットの状態が変わったときに参照を更新
+  useEffect(() => {
+    updateChatStateRef(messages, input);
+  }, [messages, input, updateChatStateRef]);
 
   // 会話がリセットされたらツールメッセージもクリア
   useEffect(() => {
@@ -80,14 +110,23 @@ export default function AppPage() {
     }
   }, [messages.length]);
 
-  // ユーザーメッセージ送信時のタイムスタンプを記録
-  useEffect(() => {
-    const userMessages = messages.filter(m => m.role === 'user');
-    if (userMessages.length > 0) {
-      const lastUserMsg = userMessages[userMessages.length - 1];
-      setLastUserMessageTimestamp(new Date(lastUserMsg.createdAt || Date.now()).getTime());
+  // ★ useOptimistic フックで一時的なメッセージリストを作成
+  const [optimisticMessages, addOptimisticMessage] = useOptimistic<UIMessage[], UIMessage>(
+    messages as UIMessage[], // useChat の messages をベースにする
+    (currentState, optimisticValue) => {
+      // currentState に既に同じIDのメッセージが存在するかチェック
+      if (currentState.some(msg => msg.id === optimisticValue.id)) {
+        // 存在する場合は、現在の状態をそのまま返す
+        return currentState;
+      } else {
+        // 存在しない場合は、メッセージを追加
+        return [
+          ...currentState,
+          optimisticValue 
+        ];
+      }
     }
-  }, [messages]);
+  );
 
   // ユーザーメッセージの送信を処理するカスタムsubmitハンドラ
   const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -100,207 +139,45 @@ export default function AppPage() {
     }
     
     // 標準のhandleSubmitを実行
-    handleSubmit(e);
-    
-    // 現在時刻をタイムスタンプとして記録（SSEリスナー用）
-    setLastUserMessageTimestamp(Date.now());
-    
-    // ツールイベント検出フラグをリセット
-    setToolEventDetected(false);
+    originalHandleSubmit(e);
   };
 
-  // SSEストリームに接続する関数
-  const connectToStream = () => {
-    try {
-      console.log("[Page] SSE接続を開始します (ドキュメント準拠リスナー). Conversation ID:", conversationId);
-      
-      if (eventSourceRef.current) {
-        console.log("[Page] 既存のEventSource接続を閉じます。");
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      
-      const eventSource = new EventSource('/api/slide-creator/chat/events'); // APIルートは変更なし
-      eventSourceRef.current = eventSource;
-      
-      eventSource.onopen = () => {
-        console.log("[Page] SSE接続が開きました (onopen).");
-      };
-
-      eventSource.addEventListener('text', (event: Event) => {
-        const messageEvent = event as MessageEvent;
-        console.log("[Page] SSE event 'text':", messageEvent.data);
-        try {
-          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
-            const parsed = JSON.parse(messageEvent.data);
-            if (parsed.type === 'text' && parsed.text) {
-              console.log("[Page] Text chunk received:", parsed.text);
-            }
-          } else {
-            console.warn("[Page] Received 'text' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
-          }
-        } catch (e) {
-          console.error("[Page] Error parsing 'text' event data:", e, "Raw data:", messageEvent.data);
-        }
-      });
-
-      eventSource.addEventListener('tool_call', (event: Event) => { 
-        const messageEvent = event as MessageEvent;
-        console.log("[Page] SSE event 'tool_call':", messageEvent.data);
-        try {
-          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
-            const parsed = JSON.parse(messageEvent.data);
-            if (parsed.type === 'tool-call' && parsed.toolName && parsed.toolCallId) {
-              setToolEventDetected(true);
-              const toolMessage: ToolMessage = {
-                id: parsed.toolCallId,
-                role: 'tool' as const,
-                content: `ツール実行中: ${parsed.toolName} (詳細: ${JSON.stringify(parsed.args || {})})`,
-                toolName: parsed.toolName,
-                createdAt: new Date(),
-              };
-              
-              // htmlSlideToolの呼び出しを検出
-              if (parsed.toolName === 'htmlSlideTool') {
-                setSlideToolState(prev => ({
-                  ...prev,
-                  isActive: true,
-                  title: parsed.args?.topic || prev.title
-                }));
-              }
-              
-              // presentationPreviewToolの呼び出しを検出
-              if (parsed.toolName === 'presentationPreviewTool' && parsed.args?.htmlContent) {
-                console.log("[Page] presentationPreviewTool call detected with HTML content");
-                setSlideToolState(prev => ({
-                  ...prev,
-                  isActive: true,
-                  htmlContent: parsed.args.htmlContent,
-                  title: parsed.args.title || prev.title,
-                  forcePanelOpen: true // 強制的にパネルを開くフラグをセット
-                }));
-              }
-              
-              setToolMessages(prev => {
-                if (!prev.some(m => m.id === toolMessage.id)) {
-                  console.log("[Page] ツール呼び出しメッセージを追加:", toolMessage);
-                  return [...prev, toolMessage];
-                }
-                return prev;
-              });
-            }
-          } else {
-            console.warn("[Page] Received 'tool_call' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
-          }
-        } catch (e) {
-          console.error("[Page] Error parsing 'tool_call' event data:", e, "Raw data:", messageEvent.data);
-        }
-      });
-
-      eventSource.addEventListener('tool_result', (event: Event) => { 
-        const messageEvent = event as MessageEvent;
-        console.log("[Page] SSE event 'tool_result':", messageEvent.data);
-        try {
-          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
-            const parsed = JSON.parse(messageEvent.data);
-            if (parsed.type === 'tool-result' && parsed.toolCallId) {
-              console.log("[Page] ツール結果受信:", parsed);
-              
-              // HTMLスライドツールの結果を検出した場合
-              if (parsed.toolName === 'htmlSlideTool' && parsed.result?.htmlContent) {
-                setSlideToolState(prev => ({
-                  ...prev,
-                  htmlContent: parsed.result.htmlContent
-                }));
-              }
-              
-              // プレゼンテーションプレビューツールの結果を検出した場合
-              if (parsed.toolName === 'presentationPreviewTool' && parsed.result?.htmlContent) {
-                console.log("[Page] presentationPreviewTool result received with HTML content:", parsed.result.htmlContent.substring(0, 50) + "...");
-                setSlideToolState(prev => ({
-                  ...prev,
-                  isActive: true,
-                  htmlContent: parsed.result.htmlContent,
-                  title: parsed.result.title || prev.title,
-                  forcePanelOpen: true // 強制的にパネルを開くフラグをセット
-                }));
-              }
-              
-              setToolMessages(prev => prev.map(m => 
-                m.id === parsed.toolCallId 
-                  ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(parsed.result)}`, result: parsed.result } 
-                  : m
-              ));
-            }
-          } else {
-            console.warn("[Page] Received 'tool_result' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
-          }
-        } catch (e) {
-          console.error("[Page] Error parsing 'tool_result' event data:", e, "Raw data:", messageEvent.data);
-        }
-      });
-
-      eventSource.addEventListener('error', (event: Event) => {
-        const messageEvent = event as MessageEvent;
-        console.warn("[Page] SSE 'error' event (from server logic):", messageEvent.data);
-        try {
-          if (typeof messageEvent.data === 'string' && messageEvent.data.trim() !== '') {
-            const parsed = JSON.parse(messageEvent.data);
-            if (parsed.type === 'error' && parsed.message) {
-              console.error("[Page] Server-sent error message:", parsed.message);
-            }
-          } else {
-            console.warn("[Page] Received server-sent 'error' event with undefined, null, or empty data. Skipping parse. Raw data:", messageEvent.data);
-          }
-        } catch (e) {
-          console.error("[Page] Error parsing server-sent 'error' event data:", e, "Raw data:", messageEvent.data);
-        }
-      });
-      
-      eventSource.onerror = (errorEvent: Event) => { // 接続全体のエラー (ネットワーク等)
-        console.error("[Page] SSE接続エラー (onerror):", errorEvent);
-        if (eventSourceRef.current) {
-          if (eventSourceRef.current.readyState === EventSource.CLOSED) {
-            console.log("[Page] SSE接続は正常に閉じられました (onerror, readyState: CLOSED).");
-          } else {
-            console.warn("[Page] SSE接続で問題が発生しました。readyState:", eventSourceRef.current.readyState);
-          }
-        }
-      };
-      
-    } catch (e) {
-      console.error("[Page] EventSourceのセットアップ中にエラーが発生しました:", e);
-    }
-  };
-
-  // useEffectフックでconnectToStreamを呼び出す部分は変更なしで良いが、
-  // 依存配列 (lastUserMessageTimestamp, conversationId) が適切か確認。
+  // メッセージからツール情報を抽出して処理
   useEffect(() => {
-    connectToStream();
-    return () => {
-      if (eventSourceRef.current) {
-        console.log("[Page] SSEリスナーをクリーンアップします。");
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]); // 依存配列を conversationId のみに変更 (lastUserMessageTimestamp は乱発の可能性)
-
-  // メッセージからツール情報を抽出
-  useEffect(() => {
-    // assistantメッセージからツール情報を抽出
+    // アシスタントメッセージからツール呼び出し情報を抽出
     const assistantMessages = messages.filter(m => m.role === 'assistant');
+    
     for (const msg of assistantMessages) {
-      // まだ解析していないアシスタントメッセージを処理
-      if (typeof msg.content === 'string') {
+      // ツール呼び出しを含むメッセージを処理
+      if (msg.content && typeof msg.content === 'string') {
         try {
-          // JSONとして解析を試みる
+          // ツール呼び出しの検出（JSONパース）
           if (msg.content.includes('toolName') || msg.content.includes('toolCallId')) {
             try {
               const parsed = JSON.parse(msg.content);
               if (parsed.toolName || parsed.tool) {
                 const toolName = parsed.toolName || parsed.tool;
+                
+                // htmlSlideToolの呼び出しを検出
+                if (toolName === 'htmlSlideTool') {
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    title: parsed.args?.topic || prev.title
+                  }));
+                }
+                
+                // presentationPreviewToolの呼び出しを検出
+                if (toolName === 'presentationPreviewTool' && parsed.args?.htmlContent) {
+                  console.log("[Page] presentationPreviewTool call detected with HTML content");
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    htmlContent: parsed.args.htmlContent,
+                    title: parsed.args.title || prev.title,
+                    forcePanelOpen: true // 強制的にパネルを開くフラグをセット
+                  }));
+                }
                 
                 // 既に同じツール名のメッセージがなければ追加
                 setToolMessages(prev => {
@@ -312,11 +189,41 @@ export default function AppPage() {
                       toolName: toolName,
                       createdAt: new Date(),
                     };
-                    console.log("メッセージからツール情報を抽出:", toolMessage);
+                    console.log("[Page] メッセージからツール情報を抽出:", toolMessage);
                     return [...prev, toolMessage];
                   }
                   return prev;
                 });
+              }
+              
+              // ツール結果の処理
+              if (parsed.type === 'tool-result' && parsed.toolName) {
+                // HTMLスライドツールの結果を検出した場合
+                if (parsed.toolName === 'htmlSlideTool' && parsed.result?.htmlContent) {
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    htmlContent: parsed.result.htmlContent
+                  }));
+                }
+                
+                // プレゼンテーションプレビューツールの結果を検出した場合
+                if (parsed.toolName === 'presentationPreviewTool' && parsed.result?.htmlContent) {
+                  console.log("[Page] presentationPreviewTool result received with HTML content");
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    htmlContent: parsed.result.htmlContent,
+                    title: parsed.result.title || prev.title,
+                    forcePanelOpen: true // 強制的にパネルを開くフラグをセット
+                  }));
+                }
+                
+                // ツール結果をツールメッセージに反映
+                setToolMessages(prev => prev.map(m => 
+                  m.toolName === parsed.toolName 
+                    ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(parsed.result)}`, result: parsed.result } 
+                    : m
+                ));
               }
             } catch (e) {
               // JSON解析に失敗した場合、正規表現でツール名を抽出
@@ -334,7 +241,7 @@ export default function AppPage() {
                       toolName: toolName,
                       createdAt: new Date(),
                     };
-                    console.log("正規表現でツール情報を抽出:", toolMessage);
+                    console.log("[Page] 正規表現でツール情報を抽出:", toolMessage);
                     return [...prev, toolMessage];
                   }
                   return prev;
@@ -342,8 +249,84 @@ export default function AppPage() {
               }
             }
           }
+          
+          // アノテーションからツール情報を抽出
+          if (msg.annotations && Array.isArray(msg.annotations)) {
+            msg.annotations.forEach((annotation: any) => {
+              if (annotation.type === 'tool-call' && annotation.toolName) {
+                const toolName = annotation.toolName;
+                
+                // htmlSlideToolの呼び出しを検出
+                if (toolName === 'htmlSlideTool') {
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    title: annotation.args?.topic || prev.title
+                  }));
+                }
+                
+                // presentationPreviewToolの呼び出しを検出
+                if (toolName === 'presentationPreviewTool' && annotation.args?.htmlContent) {
+                  console.log("[Page] presentationPreviewTool annotation detected with HTML content");
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    htmlContent: annotation.args.htmlContent,
+                    title: annotation.args.title || prev.title,
+                    forcePanelOpen: true
+                  }));
+                }
+                
+                // ツールメッセージを追加
+                setToolMessages(prev => {
+                  if (!prev.some(m => m.toolName === toolName)) {
+                    const toolMessage: ToolMessage = {
+                      id: annotation.toolCallId || `tool-anno-${Date.now()}`,
+                      role: 'tool',
+                      content: `Using Tool: ${toolName}`,
+                      toolName: toolName,
+                      createdAt: new Date(),
+                    };
+                    console.log("[Page] アノテーションからツール情報を抽出:", toolMessage);
+                    return [...prev, toolMessage];
+                  }
+                  return prev;
+                });
+              }
+              
+              // ツール結果のアノテーション処理
+              if (annotation.type === 'tool-result' && annotation.toolName) {
+                // HTMLスライドツールの結果を検出した場合
+                if (annotation.toolName === 'htmlSlideTool' && annotation.result?.htmlContent) {
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    htmlContent: annotation.result.htmlContent
+                  }));
+                }
+                
+                // プレゼンテーションプレビューツールの結果を検出した場合
+                if (annotation.toolName === 'presentationPreviewTool' && annotation.result?.htmlContent) {
+                  setSlideToolState(prev => ({
+                    ...prev,
+                    isActive: true,
+                    htmlContent: annotation.result.htmlContent,
+                    title: annotation.result.title || prev.title,
+                    forcePanelOpen: true
+                  }));
+                }
+                
+                // ツール結果をツールメッセージに反映
+                setToolMessages(prev => prev.map(m => 
+                  m.toolName === annotation.toolName 
+                    ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(annotation.result)}`, result: annotation.result } 
+                    : m
+                ));
+              }
+            });
+          }
         } catch (e) {
           // 解析エラーは無視
+          console.error("[Page] ツール情報抽出エラー:", e);
         }
       }
     }
@@ -351,7 +334,7 @@ export default function AppPage() {
 
   // デバッグ情報（開発モードのみ）
   useEffect(() => {
-    console.log("現在のツールメッセージ:", toolMessages);
+    console.log("[Page] 現在のツールメッセージ:", toolMessages);
   }, [toolMessages]);
 
   // useChatのメッセージとツールメッセージを結合して時系列順に表示
@@ -397,12 +380,6 @@ export default function AppPage() {
       >
         <MainHeader />
         <main className="flex-1 flex flex-col p-6 overflow-y-auto">
-          {toolEventDetected && (
-            <div className="fixed top-4 right-4 bg-gray-100 text-gray-800 px-3 py-1 rounded shadow text-sm animate-fadeIn">
-              ツール実行を検出しました
-            </div>
-          )}
-          
           <div className="w-full max-w-4xl mx-auto space-y-4 flex-grow mb-4 flex flex-col justify-end">
             {/* スライドツールがアクティブな場合に表示 */}
             {slideToolState.isActive && (

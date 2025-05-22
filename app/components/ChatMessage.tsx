@@ -5,7 +5,8 @@ import type { Message } from 'ai';
 import { ChevronDownIcon, ChevronUpIcon, CogIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { PuzzlePieceIcon } from '@heroicons/react/24/outline';
 import { PresentationPreviewPanel } from './PresentationPreviewPanel';
-import { EyeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { ImagePreviewPanel } from './ImagePreviewPanel';
+import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 // 拡張メッセージパートの型
 type MessageContentPart = {
@@ -69,6 +70,16 @@ interface PresentationPreviewState {
   title: string;
 }
 
+// 画像プレビュー状態
+interface ImagePreviewState {
+  isOpen: boolean;
+  images: Array<{
+    url: string;
+    b64Json: string;
+  }>;
+  title: string;
+}
+
 // 折りたたみ可能なツールセクションコンポーネント
 const CollapsibleToolSection = ({
   toolName,
@@ -76,16 +87,22 @@ const CollapsibleToolSection = ({
   children,
   isLoading,
   isPreviewTool = false,
+  isImageTool = false,
   onPreviewClick = () => {},
+  onImageClick = () => {},
   previewHtml = '',
+  imageUrls = [],
 }: {
   toolName: string;
   toolState: 'call' | 'partial-call' | 'result' | string;
   children: React.ReactNode;
   isLoading: boolean;
   isPreviewTool?: boolean;
+  isImageTool?: boolean;
   onPreviewClick?: () => void;
+  onImageClick?: () => void;
   previewHtml?: string;
+  imageUrls?: string[];
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -186,6 +203,21 @@ const CollapsibleToolSection = ({
             </button>
           )}
           
+          {/* 画像ツールの場合は画像プレビューボタンを表示 */}
+          {isImageTool && (toolState === 'success' || toolState === 'result') && imageUrls && imageUrls.length > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onImageClick();
+              }}
+              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+              title="生成された画像をプレビュー表示"
+            >
+              <PhotoIcon className="h-3 w-3 mr-1" />
+              <span>画像を表示</span>
+            </button>
+          )}
+          
           <button 
             className="text-gray-500 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-200/50"
             aria-label={isExpanded ? "折りたたむ" : "展開する"}
@@ -220,6 +252,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     htmlContent: '',
     title: 'プレゼンテーションプレビュー'
   });
+  
+  // 画像プレビュー状態
+  const [imagePreview, setImagePreview] = useState<ImagePreviewState>({
+    isOpen: false,
+    images: [],
+    title: '生成された画像'
+  });
+  
+  // 画像ツールの情報を保持
+  const [imageTool, setImageTool] = useState<{
+    [key: string]: {
+      images: Array<{
+        url: string;
+        b64Json: string;
+      }>;
+      title: string;
+    }
+  }>({});
   
   // プレゼンテーションツールの情報を保持
   const [presentationTools, setPresentationTools] = useState<{
@@ -306,6 +356,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     title: tr.result.title || 'プレゼンテーションプレビュー'
                   });
                 }
+              }
+              
+              // 画像生成ツールの結果データを保存
+              if (toolState.toolName === 'gemini-image-generation' && tr.result?.images && tr.result.images.length > 0) {
+                setImageTool(prev => ({
+                  ...prev,
+                  [tr.toolCallId]: {
+                    images: tr.result.images,
+                    title: `生成された画像（${tr.result.images.length}枚）`
+                  }
+                }));
               }
             }
           });
@@ -460,9 +521,93 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     onPreviewClose?.(); // 親コンポーネントに通知
   };
 
+  // 画像プレビューパネルを開く
+  const openImagePreviewPanel = (images: Array<{url: string; b64Json: string}>, title: string) => {
+    setImagePreview({
+      isOpen: true,
+      images,
+      title
+    });
+    
+    // 親コンポーネントに通知（必要な場合）
+    onPreviewOpen?.();
+  };
+  
+  // 画像プレビューパネルを閉じる
+  const closeImagePreviewPanel = () => {
+    setImagePreview(prev => ({
+      ...prev,
+      isOpen: false
+    }));
+    
+    // 親コンポーネントに通知（必要な場合）
+    onPreviewClose?.();
+  };
+
   // プレゼンテーションプレビューパネルの幅が変更されたときの処理
   const handlePreviewPanelWidthChange = (width: number) => {
     onPreviewWidthChange?.(width); // 親コンポーネントに通知
+  };
+
+  // HTML文字列から純粋なテキストのみを抽出する関数
+  const stripHtmlTags = (html: string) => {
+    // ... existing code ...
+  };
+
+  // ツール実行結果のレンダリング
+  const renderToolResult = (toolState: ToolCallState) => {
+    const { toolName, args, result } = toolState;
+    
+    // ツール名に基づいて結果を表示
+    switch (toolName) {
+      case 'presentationPreviewTool':
+      case 'htmlSlideTool':
+        // ... existing code ...
+        
+      case 'gemini-image-generation':
+        if (result?.images && result.images.length > 0) {
+          // 画像生成結果をグリッド表示
+          return (
+            <div className="mt-2">
+              <div className="text-sm text-gray-700 mb-2">
+                {result.images.length}枚の画像が生成されました
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {result.images.slice(0, 4).map((img: any, index: number) => (
+                  <div 
+                    key={index} 
+                    className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => openImagePreviewPanel(result.images, `生成された画像（${result.images.length}枚）`)}
+                  >
+                    <img 
+                      src={img.url} 
+                      alt={`生成画像 ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+                {result.images.length > 4 && (
+                  <div 
+                    className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-800 flex items-center justify-center text-white text-lg font-medium cursor-pointer hover:bg-gray-700 transition-colors"
+                    onClick={() => openImagePreviewPanel(result.images, `生成された画像（${result.images.length}枚）`)}
+                  >
+                    +{result.images.length - 4}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        } else if (result?.error) {
+          return <div className="mt-2 text-red-500 text-sm">{result.error}</div>;
+        }
+        return null;
+        
+      case 'braveSearchTool':
+        // ... existing code ...
+      
+      default:
+        // ... existing code ...
+    }
   };
 
   // ユーザーメッセージ
@@ -498,6 +643,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       // このツールのHTMLコンテンツを取得
       const previewData = presentationTools[toolState.id];
       
+      // このツールの画像データを取得
+      const imageData = imageTool[toolState.id];
+      
       return (
         <CollapsibleToolSection 
           key={toolState.id} 
@@ -505,6 +653,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           toolState={toolState.status} 
           isLoading={isLoading}
           isPreviewTool={isPresentationTool}
+          isImageTool={toolState.toolName === 'gemini-image-generation'}
           onPreviewClick={() => {
             if (previewData) {
               openPreviewPanel(previewData.htmlContent, previewData.title);
@@ -515,7 +664,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               );
             }
           }}
+          onImageClick={() => {
+            if (imageData) {
+              openImagePreviewPanel(imageData.images, imageData.title);
+            } else if (toolState.result?.images && toolState.result.images.length > 0) {
+              openImagePreviewPanel(
+                toolState.result.images,
+                `生成された画像（${toolState.result.images.length}枚）`
+              );
+            }
+          }}
           previewHtml={previewData?.htmlContent || toolState.result?.htmlContent}
+          imageUrls={imageData?.images?.map(img => img.url) || 
+                    (toolState.result?.images ? toolState.result.images.map((img: {url: string}) => img.url) : [])}
         >
           <div className="space-y-3">
             <div>
@@ -559,6 +720,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                           </div>
                         </div>
                       ))}
+                    </div>
+                    
+                    {/* 画像プレビューボタン */}
+                    <div className="mt-3">
+                      <button
+                        onClick={() => openImagePreviewPanel(
+                          toolState.result.images,
+                          `生成された画像（${toolState.result.images.length}枚）`
+                        )}
+                        className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                      >
+                        <PhotoIcon className="h-4 w-4 mr-2" />
+                        画像をプレビュー表示
+                      </button>
                     </div>
                   </div>
                 )}
@@ -655,6 +830,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             title={presentationPreview.title}
             isOpen={presentationPreview.isOpen}
             onClose={closePreviewPanel}
+            onWidthChange={handlePreviewPanelWidthChange}
+          />
+        )}
+        
+        {/* 画像プレビューパネル */}
+        {imagePreview.images.length > 0 && (
+          <ImagePreviewPanel
+            images={imagePreview.images}
+            title={imagePreview.title}
+            isOpen={imagePreview.isOpen}
+            onClose={closeImagePreviewPanel}
             onWidthChange={handlePreviewPanelWidthChange}
           />
         )}

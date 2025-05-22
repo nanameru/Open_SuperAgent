@@ -1,94 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { slideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
+import { Message } from 'ai';
 
-export const runtime = 'edge'; // Edge runtime is fine for a simple proxy
+// 開発環境のみログを出力する関数
+function devLog(message: string, data?: any) {
+  if (process.env.NODE_ENV !== 'production') {
+    if (data) {
+      console.log(`${message}`, data);
+    } else {
+      console.log(`${message}`);
+    }
+  }
+}
 
-// Define the target Mastra agent ID (ensure this matches your agent's name/ID)
-const MASTRA_AGENT_ID = 'slideCreatorAgent'; // Adjust if your agent ID is different
-// const MASTRA_SERVER_URL = process.env.MASTRA_SERVER_URL || 'http://localhost:3003'; // Allow overriding via env var
-const MASTRA_SERVER_URL = process.env.MASTRA_SERVER_URL || 'http://localhost:4111'; // Corrected default port
+// Vercel Serverless Function でストリームを許可するための設定
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic'; // 動的なレンダリングを強制
 
 export async function POST(req: NextRequest) {
+  // リクエスト情報は詳細なログを出力しない
+  
   try {
-    // Extract the messages from the request
-    const reqBody = await req.json();
-    const { messages } = reqBody;
-
-    console.log('[API] Received request with messages:', messages);
-
-    // Forward the request to the Mastra API
-    const upstreamResponse = await fetch('http://localhost:4111/api/agents/slideCreatorAgent/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ messages }),
-    });
-
-    if (!upstreamResponse.ok) {
-      console.error(`[API] Upstream error: ${upstreamResponse.status} ${upstreamResponse.statusText}`);
-      return new NextResponse(
-        JSON.stringify({ error: `Upstream error: ${upstreamResponse.status}` }),
-        { 
-          status: upstreamResponse.status,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    if (!upstreamResponse.body) {
-      console.error('[API] Upstream response has no body');
-      return new NextResponse(
-        JSON.stringify({ error: 'Upstream response has no body' }),
-        { 
-          status: 500, 
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+    const { messages } = await req.json();
+    
+    // メッセージの検証と処理
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
     }
     
-    console.log('[API] Successfully connected to upstream. Streaming response back to client.');
-
-    // Create a new ReadableStream to intercept and process the chunks
-    const reader = upstreamResponse.body.getReader();
-    const stream = new ReadableStream({
-      async start(controller) {
-        console.log('\\n--- [API] Mastra Stream Start (Proxying) ---');
-        
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              console.log('[API] Mastra Stream End (Proxying)');
-              controller.close();
-              break;
-            }
-            
-            // Directly enqueue the chunk from upstream
-            controller.enqueue(value);
-          }
-        } catch (e) {
-          console.error('[API] Error processing stream (Proxying):', e);
-          controller.error(e);
-        }
+    // 受信したメッセージの内容をログ出力 (最初の100文字程度)
+    // 詳細なログは出力しない
+    
+    // Mastraエージェントを使用してストリーミングレスポンスを取得
+    const mastraStreamResult = await slideCreatorAgent.stream(messages);
+    
+    // Stream オブジェクトの詳細をログ出力
+    devLog('Mastra Stream Result Type', typeof mastraStreamResult);
+    if (mastraStreamResult && typeof mastraStreamResult === 'object') {
+      devLog('Mastra Stream Result Keys', Object.keys(mastraStreamResult));
+      
+      // toDataStreamResponse メソッドの有無を確認
+      if (typeof (mastraStreamResult as any).toDataStreamResponse === 'function') {
+        devLog('Mastra Stream Result has toDataStreamResponse method');
       }
-    });
-
-    // Return the processed stream
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-  } catch (error) {
-    console.error('[API] Error:', error);
-    return new NextResponse(
-      JSON.stringify({ error: 'An error occurred processing the request' }),
-      { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' }
-      }
+    }
+    
+    // mastraStreamResult を適切なレスポンスに変換
+    if (typeof (mastraStreamResult as any).toDataStreamResponse === 'function') {
+      return (mastraStreamResult as any).toDataStreamResponse();
+    } else {
+      // toDataStreamResponse が利用できない場合のエラー報告
+      return NextResponse.json(
+        { error: 'Internal server error: Stream processing failed.' },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    // エラー詳細も簡素化
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json(
+      { error: 'Chat API error', details: message },
+      { status: 500 }
     );
   }
 } 

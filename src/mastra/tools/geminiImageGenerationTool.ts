@@ -83,19 +83,17 @@ export const geminiImageGenerationTool = createTool({
       fs.mkdirSync(imagesDir, { recursive: true });
     }
 
-    // 正しいエンドポイントに修正
+    // Imagen 3 APIエンドポイント
     const imagenApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
 
-    // 正しいリクエスト形式に修正
+    // Imagen 3 APIリクエストフォーマット
     const requestBody = {
       instances: [{ 
         prompt: prompt,
-        // 必要があればnegativePromptをここに追加
         ...(negativePrompt && { negative_prompt: negativePrompt }),
       }],
       parameters: { 
         sampleCount: numberOfImages || 1,
-        // 必要に応じて他のパラメーターを追加
         ...(aspectRatio && { aspectRatio }),
         ...(typeof seed === 'number' && { seed }),
         ...(personGeneration && { personGeneration }),
@@ -120,13 +118,20 @@ export const geminiImageGenerationTool = createTool({
       );
 
       const images: { url: string; b64Json: string }[] = [];
-      let imageObjects: any[] = [];
 
-      // 応答構造に対応
-      if (primaryResponse.data && Array.isArray(primaryResponse.data.predictions)) {
-        imageObjects = primaryResponse.data.predictions;
-      } else if (Array.isArray(primaryResponse.data)) {
-        imageObjects = primaryResponse.data;
+      // レスポンス構造をチェックし、正しい画像データを抽出
+      if (primaryResponse.data && primaryResponse.data.predictions && Array.isArray(primaryResponse.data.predictions)) {
+        // Google Imagen 3.0のレスポンス形式
+        for (const prediction of primaryResponse.data.predictions) {
+          if (prediction.bytesBase64Encoded) {
+            const base64Data = prediction.bytesBase64Encoded;
+            const imageName = `img_${uuidv4()}.png`;
+            const imagePath = path.join(imagesDir, imageName);
+            fs.writeFileSync(imagePath, Buffer.from(base64Data, 'base64'));
+            const imageUrl = `/generated-images/${imageName}`;
+            images.push({ url: imageUrl, b64Json: base64Data });
+          }
+        }
       } else {
         console.error(
           '[GeminiImageTool] Unexpected response structure from Imagen 3:',
@@ -136,28 +141,6 @@ export const geminiImageGenerationTool = createTool({
           images: [],
           error: 'Unexpected response structure from Imagen 3 API.',
         };
-      }
-
-      for (const imgObj of imageObjects) {
-        const base64Data =
-          imgObj.bytesBase64Encoded ||
-          imgObj.imageData ||
-          imgObj.image_data ||
-          imgObj.b64Json ||
-          imgObj.imageBytes;
-          
-        if (base64Data) {
-          const imageName = `img_${uuidv4()}.png`;
-          const imagePath = path.join(imagesDir, imageName);
-          fs.writeFileSync(imagePath, Buffer.from(base64Data, 'base64'));
-          const imageUrl = `/generated-images/${imageName}`;
-          images.push({ url: imageUrl, b64Json: base64Data });
-        } else {
-          console.warn(
-            '[GeminiImageTool] Image object did not contain base64 data:',
-            imgObj,
-          );
-        }
       }
 
       if (images.length > 0) {

@@ -1,75 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { slideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
+import { Message } from 'ai';
+import { randomUUID } from 'crypto';
 
-// Mastraエージェントのストリームエンドポイント
-// 環境変数などから取得することを推奨
-const mastraAgentStreamUrl = process.env.MASTRA_AGENT_STREAM_URL || 'http://localhost:4111/api/agents/slideCreatorAgent/stream';
+// 開発環境のみログを出力する関数
+function devLog(message: string, data?: any) {
+  if (process.env.NODE_ENV !== 'production') {
+    if (data) {
+      console.log(`${message}`, data);
+    } else {
+      console.log(`${message}`);
+    }
+  }
+}
+
+// Vercel Serverless Function でストリームを許可するための設定
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic'; // 動的なレンダリングを強制
 
 export async function GET(req: NextRequest) {
-  console.log(`[SSE Route] Received GET request for URL: ${req.url}`);
-  console.log(`[SSE Route] Attempting to proxy to Mastra server URL: ${mastraAgentStreamUrl}`);
-
+  // リクエスト情報は詳細なログを出力しない
+  
   try {
-    console.log('[SSE Route] Preparing to fetch from Mastra server...');
+    const messages: Message[] = [{
+      id: randomUUID(),
+      role: 'user',
+      content: 'Please provide the event stream for the current slide creation context.',
+      createdAt: new Date()
+    }];
     
-    const requestBody = {
-      messages: [{ role: 'user', content: 'Please provide the event stream for the current slide creation context.' }]
-    };
-    console.log('[SSE Route] Mastra request body:', JSON.stringify(requestBody));
-
-    const mastraResponse = await fetch(mastraAgentStreamUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify(requestBody),
-      // @ts-ignore duplex is a valid option for Node.js fetch but might not be in all TS lib versions
-      duplex: 'half', 
-    });
-
-    console.log(`[SSE Route] Received response from Mastra server. Status: ${mastraResponse.status}`);
-
-    if (!mastraResponse.ok) {
-      const errorBody = await mastraResponse.text();
-      console.error(`[SSE Route] Error from Mastra server (${mastraResponse.status}):`, errorBody);
-      return NextResponse.json(
-        { error: 'Failed to connect to Mastra stream', details: errorBody },
-        { status: mastraResponse.status }
-      );
+    // 詳細なメッセージ内容も省略
+    
+    // Mastra エージェントの stream API を呼び出し
+    const mastraStreamResult = await slideCreatorAgent.stream(messages);
+    
+    // Stream オブジェクトの詳細をログ出力
+    devLog('Mastra Stream Result Type', typeof mastraStreamResult);
+    if (mastraStreamResult && typeof mastraStreamResult === 'object') {
+      devLog('Mastra Stream Result Keys', Object.keys(mastraStreamResult));
+      
+      // toDataStreamResponse メソッドの有無を確認
+      if (typeof (mastraStreamResult as any).toDataStreamResponse === 'function') {
+        devLog('Mastra Stream Result has toDataStreamResponse method');
+      }
     }
 
-    if (!mastraResponse.body) {
-      console.error('[SSE Route] No response body from Mastra stream, despite OK status.');
+    // mastraStreamResult を適切なレスポンスに変換
+    if (typeof (mastraStreamResult as any).toDataStreamResponse === 'function') {
+      return (mastraStreamResult as any).toDataStreamResponse();
+    } else {
+      // toDataStreamResponse が利用できない場合のエラー報告
       return NextResponse.json(
-        { error: 'No response body from Mastra stream' },
+        { error: 'Internal server error: Stream processing failed.' },
         { status: 500 }
       );
     }
-
-    console.log('[SSE Route] Successfully connected to Mastra stream. Streaming response to client...');
-    
-    const responseHeaders = new Headers();
-    responseHeaders.set('Content-Type', 'text/event-stream');
-    responseHeaders.set('Cache-Control', 'no-cache, no-transform');
-    responseHeaders.set('Connection', 'keep-alive');
-    // X-Accel-Buffering is useful for Nginx environments to disable response buffering
-    responseHeaders.set('X-Accel-Buffering', 'no'); 
-
-    return new Response(mastraResponse.body, {
-      headers: responseHeaders,
-      status: mastraResponse.status, // Should be 200 if mastraResponse.ok was true
-    });
-
   } catch (error: any) {
-    console.error('[SSE Route] FATAL ERROR in try-catch block:', error);
-    // Log the full error object if possible, and its message and stack for more details
-    if (error instanceof Error) {
-      console.error('[SSE Route] Error name:', error.name);
-      console.error('[SSE Route] Error message:', error.message);
-      console.error('[SSE Route] Error stack:', error.stack);
-    }
+    // エラー詳細も簡素化
+    const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: 'Internal server error in SSE proxy', details: error.message || 'Unknown error' },
+      { error: 'Stream processing failed', details: message },
       { status: 500 }
     );
   }
