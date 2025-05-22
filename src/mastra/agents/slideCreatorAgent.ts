@@ -7,7 +7,8 @@ import {
   advancedCalculatorTool,
   geminiImageGenerationTool,
   geminiVideoGenerationTool,
-  grokXSearchTool
+  grokXSearchTool,
+  v0CodeGenerationTool
 } from '../tools'; // Import all tools
 import { Memory } from '@mastra/memory'; // Import Memory
 
@@ -30,6 +31,7 @@ You have access to the following specialized tools:
 - \`advancedCalculatorTool\`: Performs mathematical calculations
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
 - \`geminiVideoGenerationTool\`: Generates videos based on text prompts or images
+- \`v0CodeGenerationTool\`: Generates code for web applications using v0's AI model
 
 ## Communication Guidelines
 1. Be conversational but professional.
@@ -74,7 +76,8 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     grokXSearchTool, // Register the Grok X search tool
     advancedCalculatorTool, // Register the calculator tool
     geminiImageGenerationTool, // Register the image generation tool
-    geminiVideoGenerationTool // Register the video generation tool
+    geminiVideoGenerationTool, // Register the video generation tool
+    v0CodeGenerationTool // Register the v0 code generation tool
   },
   memory: new Memory({ // Add memory configuration
     options: {
