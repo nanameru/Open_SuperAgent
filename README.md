@@ -201,3 +201,73 @@ await presentationPreviewTool.invoke({
   theme: "dark"
 });
 ```
+
+## グラフィックレコーディング（グラレコ）機能
+
+### graphicRecordingTool
+
+テキスト内容を視覚的なタイムラインとグラフィック要素を用いたグラフィックレコーディング（グラレコ）に変換するツールです。会議やプレゼンテーションの内容をビジュアルで表現し、理解を促進します。
+
+#### 主な機能：
+
+1. **タイムライン表現**
+   - 縦型タイムラインでステップを視覚化
+   - 左右交互に配置されたカード表示
+   - ステップごとのアイコンと番号表示
+   - 「丸とフラップ装飾」による視覚的な階層表現
+
+2. **視覚的要素**
+   - 手書き風フォント（Yomogi, Zen Kurenaido, Kaisei Decol）
+   - Font Awesomeアイコンの効果的な配置
+   - 手描き風の囲み線、矢印、吹き出し
+   - キーワードの強調表示
+
+3. **カスタマイズオプション**
+   - 5種類のカラーテーマ（green, blue, orange, purple, pink）
+   - ステップ数の調整（2〜6ステップ）
+   - 3種類のデザインバリアント
+   - アイコン表示のオン/オフ
+
+4. **コードブロック表示**
+   - シンタックスハイライト対応
+   - 言語ラベル表示
+   - テーマカラーに合わせた装飾
+
+#### パラメータ：
+
+- `content`: グラレコ化する文章や記事の内容（必須）
+- `title`: グラレコのタイトル（任意）
+- `theme`: カラーテーマ（green, blue, orange, purple, pink）
+- `steps`: タイムラインのステップ数（2〜6）
+- `includeIcons`: Font Awesomeアイコンを含めるかどうか
+- `additionalNotes`: 追加のメモや指示
+- `variant`: バリアント（1, 2, 3）
+
+### 使用例
+
+```typescript
+// 基本的なグラフィックレコーディングの生成
+const grafreco = await graphicRecordingTool.invoke({
+  content: "アジャイル開発の手順：1. 要件収集 2. 計画策定 3. 開発 4. テスト 5. レビュー 6. リリース",
+  title: "アジャイル開発プロセス",
+  theme: "blue",
+  steps: 6
+});
+
+// カスタムバリアントの生成
+const customGrafreco = await graphicRecordingTool.invoke({
+  content: "機械学習モデルの構築手順：1. データ収集 2. 前処理 3. モデル選択 4. トレーニング 5. 評価",
+  title: "機械学習ワークフロー",
+  theme: "purple",
+  steps: 5,
+  variant: 2,
+  additionalNotes: "データ前処理のステップを強調する"
+});
+
+// プレビュー表示
+await presentationPreviewTool.invoke({
+  htmlContent: grafreco.htmlContent,
+  title: "アジャイル開発プロセス - グラフィックレコーディング",
+  theme: "light"
+});
+```

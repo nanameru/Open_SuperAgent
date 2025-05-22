@@ -9,7 +9,8 @@ import {
   geminiVideoGenerationTool,
   grokXSearchTool,
   imagen4GenerationTool,
-  v0CodeGenerationTool
+  v0CodeGenerationTool,
+  graphicRecordingTool
 } from '../tools'; // Import all tools
 import { Memory } from '@mastra/memory'; // Import Memory
 
@@ -34,6 +35,7 @@ You have access to the following specialized tools:
 - \`geminiVideoGenerationTool\`: Generates videos based on text prompts or images
 - \`imagen4GenerationTool\`: Generates high-quality images with enhanced detail using Google's Imagen 4 model
 - \`v0CodeGenerationTool\`: Generates code for web applications using v0's AI model
+- \`graphicRecordingTool\`: Creates timeline-based graphic recordings (grafreco) with visual elements
 
 ## Communication Guidelines
 1. Be conversational but professional.
@@ -80,7 +82,8 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     geminiImageGenerationTool, // Register the image generation tool
     geminiVideoGenerationTool, // Register the video generation tool
     imagen4GenerationTool, // Register the Imagen 4 generation tool
-    v0CodeGenerationTool // Register the v0 code generation tool
+    v0CodeGenerationTool, // Register the v0 code generation tool
+    graphicRecordingTool // Register the graphic recording tool
   },
   memory: new Memory({ // Add memory configuration
     options: {
