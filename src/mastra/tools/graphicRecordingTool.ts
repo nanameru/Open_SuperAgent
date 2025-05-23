@@ -13,8 +13,9 @@ export const graphicRecordingTool = tool({
     includeIcons: z.boolean().optional().default(true).describe('Font Awesomeアイコンを含めるかどうか。'),
     additionalNotes: z.string().optional().describe('追加のメモや指示（特定の要素を強調するなど）。'),
     variant: z.number().optional().default(1).describe('生成するバリアント（1, 2, 3のいずれか）。'),
+    autoPreview: z.boolean().optional().default(true).describe('生成後に自動的にプレビューを表示するかどうか。'),
   }),
-  execute: async ({ content, title, theme, steps, includeIcons, additionalNotes, variant }) => {
+  execute: async ({ content, title, theme, steps, includeIcons, additionalNotes, variant, autoPreview }) => {
     const uniqueId = `grafreco-${Math.random().toString(36).substring(7)}-v${variant || 1}`;
     
     // テーマカラーの設定
@@ -412,12 +413,23 @@ HTMLはすべて <div class="${promptArgs.uniqueId}"> 内にスコープして�
       // デフォルトのエラーHTMLとメッセージを使用
     }
 
+    // プレビュー用のコンポーネントデータを準備
+    const previewData = {
+      htmlContent: graphicRecordingHtml,
+      title: title || '無題のグラフィックレコーディング',
+      theme: theme || 'green',
+      steps: validSteps,
+      variant: variant || 1
+    };
+
     return {
       htmlContent: graphicRecordingHtml,
       message: message,
       variant: variant || 1,
       theme: theme || 'green',
-      steps: validSteps
+      steps: validSteps,
+      previewData: previewData, // プレビューコンポーネント用のデータ
+      autoPreview: autoPreview !== false // 自動プレビューフラグ
     };
   },
 }); 

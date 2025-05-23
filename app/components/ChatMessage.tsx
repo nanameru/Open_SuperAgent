@@ -178,6 +178,7 @@ const CollapsibleToolSection = ({
              toolName === 'gemini-image-generation' ? 'Gemini画像生成' : 
              toolName === 'imagen4-generation' ? 'Imagen 4画像生成' :
              toolName === 'htmlSlideTool' ? 'HTMLスライド生成' : 
+             toolName === 'graphicRecordingTool' ? 'グラフィックレコーディング' :
              toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
               <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
@@ -372,6 +373,27 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     htmlContent: tr.result.htmlContent,
                     title: tr.result.title || 'プレゼンテーションプレビュー'
                   });
+                }
+              }
+              
+              // グラフィックレコーディングツールの結果データを保存
+              if (toolState.toolName === 'graphicRecordingTool' && tr.result?.htmlContent) {
+                setPresentationTools(prev => ({
+                  ...prev,
+                  [tr.toolCallId]: {
+                    htmlContent: tr.result.htmlContent,
+                    title: tr.result.title || tr.result.previewData?.title || 'グラフィックレコーディング'
+                  }
+                }));
+                // autoPreview: true なら自動でプレビューパネルを開く
+                if (tr.result.autoPreview) {
+                  setPresentationPreview({
+                    isOpen: true,
+                    htmlContent: tr.result.htmlContent,
+                    title: tr.result.title || tr.result.previewData?.title || 'グラフィックレコーディング'
+                  });
+                  // 親コンポーネントに通知
+                  onPreviewOpen?.();
                 }
               }
               
@@ -588,7 +610,80 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     switch (toolName) {
       case 'presentationPreviewTool':
       case 'htmlSlideTool':
-        // ... existing code ...
+        if (result?.htmlContent) {
+          const htmlPreview = presentationTools[toolState.id]?.htmlContent || result.htmlContent;
+          const title = presentationTools[toolState.id]?.title || result.title || 'プレゼンテーションプレビュー';
+          return (
+            <div className="mt-2">
+              <div className="text-sm text-gray-700 mb-2">
+                {result.message || 'スライドが生成されました'}
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => openPreviewPanel(htmlPreview, title)}
+                  className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                >
+                  <DocumentTextIcon className="h-4 w-4 mr-2" />
+                  スライドをプレビュー表示
+                </button>
+              </div>
+            </div>
+          );
+        } else if (result?.error) {
+          return <div className="mt-2 text-red-500 text-sm">{result.error}</div>;
+        }
+        return null;
+
+      case 'graphicRecordingTool':
+        if (result?.htmlContent) {
+          const htmlPreview = presentationTools[toolState.id]?.htmlContent || result.htmlContent;
+          const title = presentationTools[toolState.id]?.title || result.title || result.previewData?.title || 'グラフィックレコーディング';
+          const theme = result.theme || 'green';
+          const steps = result.steps || 4;
+          const variant = result.variant || 1;
+          
+          // テーマカラーに対応するスタイルを取得
+          const getThemeColor = () => {
+            switch (theme) {
+              case 'blue': return 'bg-blue-50 text-blue-800';
+              case 'orange': return 'bg-orange-50 text-orange-800';
+              case 'purple': return 'bg-purple-50 text-purple-800';
+              case 'pink': return 'bg-pink-50 text-pink-800';
+              default: return 'bg-green-50 text-green-800'; // green
+            }
+          };
+          
+          return (
+            <div className="mt-2">
+              <div className="text-sm text-gray-700 mb-2">
+                {result.message || 'グラフィックレコーディングが生成されました'}
+              </div>
+              <div className={`flex items-center gap-2 text-xs ${getThemeColor()} px-3 py-1.5 rounded-full w-fit mb-2`}>
+                <span>テーマ: {theme}</span>
+                <span>•</span>
+                <span>ステップ: {steps}</span>
+                {variant > 1 && (
+                  <>
+                    <span>•</span>
+                    <span>バリアント: {variant}</span>
+                  </>
+                )}
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => openPreviewPanel(htmlPreview, title)}
+                  className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                >
+                  <DocumentTextIcon className="h-4 w-4 mr-2" />
+                  グラフィックレコーディングを表示
+                </button>
+              </div>
+            </div>
+          );
+        } else if (result?.error) {
+          return <div className="mt-2 text-red-500 text-sm">{result.error}</div>;
+        }
+        return null;
         
       case 'gemini-image-generation':
       case 'geminiImageGenerationTool':
@@ -674,8 +769,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     // ツールの呼び出しUIを構築
     const toolCallUiElements = Object.values(toolCallStates).map(toolState => {
       // プレゼンテーションプレビューツールかどうかを確認
-      const isPresentationTool = toolState.toolName === 'presentationPreviewTool' || 
-                               toolState.toolName === 'htmlSlideTool';
+      const isPresentationTool = 
+        toolState.toolName === 'presentationPreviewTool' || 
+        toolState.toolName === 'htmlSlideTool' ||
+        toolState.toolName === 'graphicRecordingTool';
       
       // このツールのHTMLコンテンツを取得
       const previewData = presentationTools[toolState.id];
