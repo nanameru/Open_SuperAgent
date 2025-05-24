@@ -30,7 +30,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [editedHtml, setEditedHtml] = useState(htmlContent);
   const [previewHtml, setPreviewHtml] = useState(htmlContent);
-  const [panelWidth, setPanelWidth] = useState<number>(50);
+  const [panelWidth, setPanelWidth] = useState<number>(80);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   
