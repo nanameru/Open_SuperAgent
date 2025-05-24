@@ -1,14 +1,13 @@
 'use client';
 
 import React from 'react';
-import { User, Mic, Paperclip, SendHorizonal } from 'lucide-react'; // Paperclip for attach, SendHorizonal or ArrowUp for send
+import { ArrowUp } from 'lucide-react';
 
 interface ChatInputAreaProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
-  // We might need a prop for a dedicated send button if the form submit on Enter is not enough
 }
 
 export const ChatInputArea = ({ 
@@ -18,33 +17,24 @@ export const ChatInputArea = ({
   isLoading 
 }: ChatInputAreaProps) => {
   return (
-    <div className="bg-white px-6 pb-4 pt-2 border-t border-slate-200">
-      <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
-        <div className="relative flex items-center bg-slate-50 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-gray-600 focus-within:border-gray-600 transition-all">
-          <button type="button" className="p-3 text-slate-500 hover:text-slate-700">
-            <User className="h-5 w-5" />
-          </button>
+    <div className="fixed bottom-0 left-0 right-0 bg-transparent pb-6 pt-4 z-10 ml-64">
+      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-6">
+        <div className="relative flex items-center bg-gray-100 rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
           <input
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder="Ask anything, create anything"
-            className="flex-1 p-3 pr-20 bg-transparent text-slate-800 placeholder-slate-500 focus:outline-none text-sm"
+            placeholder="質問してみましょう"
+            className="flex-1 p-3 pl-6 pr-16 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base"
             disabled={isLoading}
           />
-          <div className="absolute right-0 top-0 bottom-0 flex items-center pr-2 space-x-1">
-            <button type="button" className="p-2 text-slate-500 hover:text-slate-700 rounded-md hover:bg-slate-200">
-              <Paperclip className="h-5 w-5" /> {/* Open-SuperAgent has an attach icon */}
-            </button>
-            <button type="button" className="p-2 text-slate-500 hover:text-slate-700 rounded-md hover:bg-slate-200">
-              <Mic className="h-5 w-5" />
-            </button>
+          <div className="absolute right-2">
             <button 
               type="submit" 
               disabled={isLoading || !input.trim()} 
-              className="p-2 text-white bg-gray-800 rounded-md hover:bg-gray-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              className="p-2 text-white bg-black rounded-full hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              <SendHorizonal className="h-5 w-5" />
+              <ArrowUp className="h-5 w-5" />
             </button>
           </div>
         </div>

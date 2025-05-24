@@ -742,29 +742,43 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     }
   };
 
-  // ユーザーメッセージ
+  // メッセージコンテンツを文字列として取得
+  const getMessageContent = () => {
+    if (typeof message.content === 'string') {
+      return message.content;
+    }
+    if (Array.isArray(message.content)) {
+      return message.content
+        .filter(part => part.type === 'text' && part.text)
+        .map(part => part.text)
+        .join('');
+    }
+    return '';
+  };
+
+  const content = getMessageContent();
+
+  // ツールメッセージは表示しない
+  if (message.role === 'tool' || !content.trim()) {
+    return null;
+  }
+
+  // ユーザーメッセージ（右側、ダーク背景）
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end mb-4">
-        <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-800 text-white shadow">
-          {typeof message.content === 'string'
-            ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
-            : Array.isArray(message.content)
-              ? message.content.flatMap((part, index) => {
-                  if (part.type === 'text' && part.text) {
-                    return part.text.split('\n').map((line, i) => (
-                      <p key={`${index}-${i}`} className="mb-1">{line}</p>
-                    ));
-                  }
-                  return [];
-                })
-              : null}
+      <div className="flex justify-end mb-6">
+        <div className="max-w-[70%] px-4 py-3 rounded-2xl bg-gray-800 text-white">
+          <div className="text-base leading-relaxed">
+            {content.split('\n').map((line, i) => (
+              <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  // アシスタントメッセージ
+  // アシスタントメッセージ（左側、ライト背景）
   if (message.role === 'assistant') {
     // ツールの呼び出しUIを構築
     const toolCallUiElements = Object.values(toolCallStates).map(toolState => {
@@ -901,36 +915,30 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         </CollapsibleToolSection>
       );
     });
-    
-    const hasTextContent = typeof message.content === 'string' && message.content.trim().length > 0;
-    const hasUiParts = message.content && typeof message.content !== 'string' && message.content.length > 0;
 
     return (
       <>
-        <div className="flex justify-start mb-4 flex-col items-start">
-          {/* アシスタントテキストコンテンツ */}
-          {(hasTextContent || hasUiParts) && (
-            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-200 shadow-sm mb-2">
-              {typeof message.content === 'string'
-                ? message.content.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
-                : Array.isArray(message.content) && message.content.map((part, index) => {
-                    if (part.type === 'text' && part.text) {
-                      return part.text.split('\n').map((line, i) => (
-                        <p key={`${index}-${i}`} className="mb-1">{line}</p>
-                      ));
-                    }
-                    return null; 
-                  })}
+        {/* アシスタントテキストコンテンツ */}
+        {content.trim() && (
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+              <div className="text-base leading-relaxed">
+                {content.split('\n').map((line, i) => (
+                  <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+                ))}
+              </div>
             </div>
-          )}
-          
-          {/* 画像生成ツールの結果を直接表示 */}
-          {Object.values(toolCallStates).some(
-            tool => (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
-                   tool.status === 'success' && 
-                   tool.result?.images?.length > 0
-          ) && (
-            <div className="max-w-xl lg:max-w-2xl p-3 rounded-lg bg-gray-100 text-gray-800 border border-gray-200 shadow-sm mb-2">
+          </div>
+        )}
+        
+        {/* 画像生成ツールの結果を直接表示 */}
+        {Object.values(toolCallStates).some(
+          tool => (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
+                 tool.status === 'success' && 
+                 tool.result?.images?.length > 0
+        ) && (
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
               <h3 className="font-medium text-base mb-2">生成された画像</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {Object.values(toolCallStates)
@@ -985,15 +993,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 </button>
               </div>
             </div>
-          )}
-          
-          {/* ツールUIの表示 */}
-          {toolCallUiElements.length > 0 && (
-            <div className="w-full max-w-xl lg:max-w-2xl">
-              {toolCallUiElements}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+        
+        {/* ツールUIの表示 */}
+        {toolCallUiElements.length > 0 && (
+          <div className="w-full max-w-3xl mb-6">
+            {toolCallUiElements}
+          </div>
+        )}
         
         {/* プレゼンテーションプレビューパネル */}
         {presentationPreview.htmlContent && (
@@ -1020,17 +1028,5 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     );
   }
 
-  // role: 'tool' メッセージ（レガシーまたはアシスタントにマージされていないツール結果）
-  if (message.role === 'tool') {
-    return (
-      <div className="flex justify-center my-3">
-        <div className="p-3 rounded-md bg-yellow-100 border border-yellow-300 text-yellow-700 text-xs shadow-sm max-w-xl lg:max-w-2xl">
-          <p className="font-semibold">ツール結果 ({ message.tool_name || 'Unknown Tool'}):</p>
-          <pre className="whitespace-pre-wrap break-all mt-1">{typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2)}</pre>
-        </div>
-      </div>
-    );
-  }
-
-  return null; // その他のroleやempty messagesのフォールバック
+  return null;
 }; 

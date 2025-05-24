@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { Sidebar } from '@/app/components/Sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
 import { MainHeader } from '@/app/components/MainHeader';
 import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
@@ -9,6 +9,7 @@ import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
 import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
 import { Message } from 'ai';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -456,17 +457,12 @@ export default function AppPage() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-50 antialiased">
-      <Sidebar />
-      <div 
-        className={`flex flex-col flex-1 overflow-hidden bg-white transition-all duration-300`}
-        style={{ 
-          marginRight: isPreviewOpen ? `${previewPanelWidth}%` : '0' 
-        }}
-      >
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
         <MainHeader />
-        <main className="flex-1 flex flex-col p-6 overflow-y-auto">
-          <div className="w-full max-w-4xl mx-auto space-y-4 flex-grow mb-4 flex flex-col justify-end">
+        <main className="flex-1 flex flex-col overflow-y-auto bg-white pb-24">
+          <div className="w-full flex-1 flex flex-col px-6 py-6 max-w-4xl mx-auto">
             {/* スライドツールがアクティブな場合に表示 */}
             {slideToolState.isActive && (
               <PresentationTool 
@@ -496,21 +492,28 @@ export default function AppPage() {
               />
             )}
             
-            {combinedMessages.length === 0 && !isLoading && !error && (
-              <div className="flex-grow flex flex-col items-center justify-center">
-                <h1 className="text-2xl font-semibold text-gray-700">Open-SuperAgent</h1>
-                <p className="text-gray-500 mt-2">OpenなSuperAgentです！なんでもできるので何か指示してください！たとえば、生成AIについて調べてプレゼンテーションを作成して。など。</p>
+            {/* メッセージコンテナ - 常に同じ構造 */}
+            <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-end'}`}>
+              <div className="space-y-0">
+                {combinedMessages.length === 0 && !isLoading && !error && (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="text-center space-y-4">
+                      <h1 className="text-3xl font-normal text-gray-800">Open-SuperAgent</h1>
+                    </div>
+                  </div>
+                )}
+                
+                {combinedMessages.map((m, i) => (
+                  <ChatMessage 
+                    key={`${m.id}-${i}`} 
+                    message={m} 
+                    onPreviewOpen={() => setIsPreviewOpen(true)}
+                    onPreviewClose={() => setIsPreviewOpen(false)}
+                    onPreviewWidthChange={handlePreviewPanelWidthChange}
+                  />
+                ))}
               </div>
-            )}
-            {combinedMessages.map((m, i) => (
-              <ChatMessage 
-                key={`${m.id}-${i}`} 
-                message={m} 
-                onPreviewOpen={() => setIsPreviewOpen(true)}
-                onPreviewClose={() => setIsPreviewOpen(false)}
-                onPreviewWidthChange={handlePreviewPanelWidthChange}
-              />
-            ))}
+            </div>
           </div>
 
           {error && (
@@ -547,7 +550,7 @@ export default function AppPage() {
           handleSubmit={handleCustomSubmit}
           isLoading={isLoading}
         />
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

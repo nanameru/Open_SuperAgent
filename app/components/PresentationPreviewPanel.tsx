@@ -2,14 +2,22 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PresentationViewer } from './PresentationViewer';
-import { XMarkIcon, ArrowPathIcon, DocumentArrowDownIcon, CodeBracketIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { X, RotateCcw, Download, FileText, Code, GripVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 interface PresentationPreviewPanelProps {
   htmlContent: string;
   title: string;
   isOpen: boolean;
   onClose: () => void;
-  onWidthChange?: (width: number) => void; // パネルの幅が変更されたときに呼ばれるコールバック
+  onWidthChange?: (width: number) => void;
 }
 
 export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> = ({
@@ -22,56 +30,45 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [editedHtml, setEditedHtml] = useState(htmlContent);
   const [previewHtml, setPreviewHtml] = useState(htmlContent);
-  // リサイズ機能のための状態
-  const [panelWidth, setPanelWidth] = useState<number>(50); // パネル幅（％）
+  const [panelWidth, setPanelWidth] = useState<number>(50);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   
-  // htmlContentが変更されたらeditedHtmlも更新
   useEffect(() => {
     setEditedHtml(htmlContent);
     setPreviewHtml(htmlContent);
   }, [htmlContent]);
   
-  // パネル幅変更時に親コンポーネントに通知
   useEffect(() => {
     onWidthChange?.(panelWidth);
   }, [panelWidth, onWidthChange]);
   
-  // ドラッグ操作の開始
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
     document.body.style.cursor = 'ew-resize';
     
-    // カスタムドラッグイベントリスナーを追加
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
   }, []);
 
-  // ドラッグ中の処理
   const handleDragMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     
-    // ウィンドウの幅に対する相対位置を計算（％）
     const viewportWidth = window.innerWidth;
-    // 画面右端からマウス位置までの距離を計算し、パーセンテージに変換
     const widthPercentage = Math.min(Math.max(((viewportWidth - e.clientX) / viewportWidth) * 100, 20), 80);
     
     setPanelWidth(widthPercentage);
   }, [isDragging]);
 
-  // ドラッグ終了の処理
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
     document.body.style.cursor = '';
     
-    // イベントリスナーを削除
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
   }, [handleDragMove]);
 
-  // コンポーネントのアンマウント時にイベントリスナーをクリーンアップ
   useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleDragMove);
@@ -79,14 +76,11 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
     };
   }, [handleDragMove, handleDragEnd]);
   
-  // 編集内容をプレビューに適用
   const applyChanges = () => {
     setPreviewHtml(editedHtml);
-    // プレビュータブに切り替え
     setActiveTab('preview');
   };
   
-  // HTMLをダウンロード
   const downloadHtml = () => {
     const element = document.createElement('a');
     const file = new Blob([editedHtml], {type: 'text/html'});
@@ -101,136 +95,149 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
 
   return (
     <>
-      {/* オーバーレイ（背景をやや暗くする） */}
+      {/* オーバーレイ */}
       <div 
-        className="fixed inset-0 bg-black/20 z-40" 
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" 
         onClick={onClose}
       />
     
       {/* リサイズハンドル */}
       <div 
         ref={resizeHandleRef}
-        className={`fixed inset-y-0 z-50 w-1 cursor-ew-resize bg-transparent hover:bg-gray-400/50 transition-colors
-                    ${isDragging ? 'bg-gray-400/50' : ''}`}
+        className={`fixed inset-y-0 z-50 w-2 cursor-ew-resize bg-transparent hover:bg-primary/20 transition-colors group
+                    ${isDragging ? 'bg-primary/20' : ''}`}
         style={{ 
-          left: `calc(100% - ${panelWidth}% - 3px)`,
-          touchAction: 'none',
-          width: '6px'
+          left: `calc(100% - ${panelWidth}% - 4px)`,
+          touchAction: 'none'
         }}
         onMouseDown={handleDragStart}
       >
         <div className="h-full flex items-center justify-center">
-          <div className="h-16 w-1 bg-gray-400 rounded-full opacity-50"></div>
+          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
         </div>
       </div>
     
-      {/* サイドパネル */}
-      <div 
-        className={`fixed inset-y-0 right-0 bg-white shadow-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      {/* メインパネル */}
+      <Card 
+        className={`fixed inset-y-0 right-0 z-50 flex flex-col transition-all duration-300 ease-in-out border-l shadow-2xl
+                   ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={{ width: `${panelWidth}%` }}
       >
         {/* ヘッダー */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-gray-100 to-white">
-          <div className="flex items-center space-x-2">
-            <DocumentTextIcon className="h-5 w-5 text-gray-600" />
-            <h2 className="text-lg font-medium text-gray-900 truncate max-w-xs">{title}</h2>
-          </div>
-          <div className="flex items-center space-x-2">
-            {/* パネル幅入力フィールド */}
-            <div className="flex items-center mr-2">
-              <label htmlFor="panel-width" className="text-xs text-gray-500 mr-1">幅:</label>
-              <input
-                id="panel-width"
-                type="number"
-                min="20"
-                max="80"
-                value={Math.round(panelWidth)}
-                onChange={(e) => {
-                  const newWidth = Math.min(Math.max(parseInt(e.target.value, 10), 20), 80);
-                  if (!isNaN(newWidth)) {
-                    setPanelWidth(newWidth);
-                  }
-                }}
-                className="w-14 text-xs p-1 border border-gray-300 rounded"
-                aria-label="パネルの幅"
-              />
-              <span className="text-xs text-gray-500 ml-1">%</span>
-            </div>
-            <button 
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="Close panel"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* タブナビゲーション */}
-        <div className="flex border-b border-gray-200 bg-gray-50">
-          <button
-            className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
-              activeTab === 'preview' 
-                ? 'border-b-2 border-gray-700 text-gray-800 bg-white' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}
-            onClick={() => setActiveTab('preview')}
-          >
-            プレビュー
-          </button>
-          <button
-            className={`flex-1 py-2 px-4 text-sm font-medium text-center transition-colors duration-200 ${
-              activeTab === 'code' 
-                ? 'border-b-2 border-gray-700 text-gray-800 bg-white' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}
-            onClick={() => setActiveTab('code')}
-          >
-            HTML編集
-          </button>
-        </div>
-
-        {/* コンテンツエリア */}
-        <div className="flex-1 overflow-auto bg-gray-50">
-          {activeTab === 'preview' ? (
-            <div className="h-full p-2">
-              <div className="bg-white shadow-sm rounded-lg h-full overflow-hidden border border-gray-200">
-                <PresentationViewer 
-                  htmlContent={previewHtml} 
-                  height="100%" 
-                />
+        <CardHeader className="pb-3 bg-gradient-to-r from-background to-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <CardTitle className="text-lg truncate max-w-xs">{title}</CardTitle>
+                <Badge variant="secondary" className="w-fit text-xs">
+                  プレゼンテーション
+                </Badge>
               </div>
             </div>
-          ) : (
-            <div className="h-full flex flex-col p-2">
-              <div className="mb-2 flex justify-end space-x-2">
-                <button
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="panel-width" className="text-xs text-muted-foreground">
+                  幅:
+                </Label>
+                <Input
+                  id="panel-width"
+                  type="number"
+                  min="20"
+                  max="80"
+                  value={Math.round(panelWidth)}
+                  onChange={(e) => {
+                    const newWidth = Math.min(Math.max(parseInt(e.target.value, 10), 20), 80);
+                    if (!isNaN(newWidth)) {
+                      setPanelWidth(newWidth);
+                    }
+                  }}
+                  className="w-16 h-8 text-xs"
+                />
+                <span className="text-xs text-muted-foreground">%</span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <Separator />
+
+        {/* タブコンテンツ */}
+        <CardContent className="flex-1 p-0 overflow-hidden">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="h-full flex flex-col">
+            <div className="px-6 pt-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="preview" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  プレビュー
+                </TabsTrigger>
+                <TabsTrigger value="code" className="flex items-center gap-2">
+                  <Code className="h-4 w-4" />
+                  HTML編集
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="preview" className="flex-1 p-6 pt-4 m-0">
+              <Card className="h-full border-2 border-dashed border-muted-foreground/20 bg-muted/5">
+                <CardContent className="p-2 h-full">
+                  <div className="bg-background shadow-sm rounded-lg h-full overflow-hidden border">
+                    <PresentationViewer 
+                      htmlContent={previewHtml} 
+                      height="100%" 
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="code" className="flex-1 p-6 pt-4 m-0 flex flex-col">
+              <div className="mb-4 flex justify-end space-x-2">
+                <Button
                   onClick={applyChanges}
-                  className="px-3 py-1.5 bg-gray-700 text-white rounded flex items-center text-sm hover:bg-gray-600 transition-colors shadow-sm"
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-2"
                 >
-                  <ArrowPathIcon className="h-4 w-4 mr-1" />
+                  <RotateCcw className="h-4 w-4" />
                   プレビューに反映
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={downloadHtml}
-                  className="px-3 py-1.5 bg-gray-800 text-white rounded flex items-center text-sm hover:bg-gray-700 transition-colors shadow-sm"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
                 >
-                  <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                  <Download className="h-4 w-4" />
                   HTMLをダウンロード
-                </button>
+                </Button>
               </div>
-              <div className="flex-1 border border-gray-300 rounded-md shadow-sm overflow-hidden">
-                <textarea
-                  value={editedHtml}
-                  onChange={(e) => setEditedHtml(e.target.value)}
-                  className="font-mono text-sm bg-gray-900 text-gray-100 p-4 w-full h-full resize-none focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  spellCheck="false"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+              <Card className="flex-1 overflow-hidden">
+                <CardContent className="p-0 h-full">
+                  <Textarea
+                    value={editedHtml}
+                    onChange={(e) => setEditedHtml(e.target.value)}
+                    className="font-mono text-sm bg-muted/30 border-0 rounded-none h-full resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    placeholder="HTMLコードを編集..."
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </>
   );
 }; 

@@ -1,28 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Globe, Plus, Upload } from 'lucide-react'; // Using lucide-react for icons
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export const MainHeader = () => {
   return (
-    // モダンでスタイリッシュな灰色ベースのヘッダー
-    <header className="h-16 bg-white flex items-center justify-between px-6 border-b border-gray-200 shadow-sm">
-      {/* Title aligned to the left */}
-      <div>
-        <h1 className="text-lg font-semibold text-gray-800">Open-SuperAgent</h1>
-      </div>
-
-      {/* Icons on the right */}
-      <div className="flex items-center space-x-2">
-        <button className="p-2 rounded-md hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition-colors">
-          <Globe className="h-5 w-5" /> 
-        </button>
-        <button className="p-2 rounded-md hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition-colors">
-          <Plus className="h-5 w-5" />
-        </button>
-        <button className="p-2 rounded-md hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition-colors">
-          <Upload className="h-5 w-5" /> 
-        </button>
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 w-full">
+      <div className="flex h-14 items-center px-6">
+        {/* Left side with sidebar trigger */}
+        <div className="mr-4 hidden md:flex">
+          <SidebarTrigger />
+        </div>
       </div>
     </header>
   );
