@@ -17,6 +17,7 @@ import {
   Search,
   Settings,
   Users,
+  Image,
 } from "lucide-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -47,8 +48,13 @@ const data = {
     },
     {
       title: "ツール一覧",
-      url: "/",
+      url: "/tools",
       icon: ClipboardList,
+    },
+    {
+      title: "メディア一覧",
+      url: "/media",
+      icon: Image,
     },
   ],
   navSecondary: [
