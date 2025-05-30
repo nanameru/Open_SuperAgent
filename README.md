@@ -10,12 +10,88 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 - **ツール実行**: Mastraエージェントを活用した各種タスクの自動化
 - **ツール実行の可視化**: Mastraエージェントのツール実行状況をリアルタイムに表示
 - **レスポンシブデザイン**: モバイルからデスクトップまで対応したUI
+- **音声生成**: MiniMax T2A Large v2 APIを使用した高品質な音声合成
 
 ## 技術スタック
 
 - **フロントエンド**: Next.js 15、TailwindCSS、Vercel AI SDK
 - **バックエンド**: Mastraエージェントフレームワーク
+- **音声生成**: MiniMax T2A Large v2 API
 - **デプロイ**: Vercel
+
+## 音声生成機能（MiniMax TTS）
+
+### 概要
+MiniMax T2A Large v2 APIを使用した高品質な音声合成機能。100以上の音声オプション、感情表現、詳細なパラメータ調整が可能です。
+
+### 主な特徴
+
+1. **高品質な音声生成**
+   - 4つのモデル選択: speech-02-hd, speech-02-turbo, speech-01-hd, speech-01-turbo
+   - 最大50,000文字のテキスト対応（非同期処理）
+   - 複数の音声フォーマット: MP3, WAV, FLAC
+
+2. **豊富な音声オプション**
+   - 100以上のシステム音声
+   - カスタム音声クローニング対応
+   - 感情表現: neutral, happy, sad, angry, fearful, disgusted, surprised
+
+3. **詳細なパラメータ調整**
+   - 話速調整: 0.1-3.0倍速
+   - 音量調整: 0.1-2.0倍
+   - ピッチ調整: -12から+12
+   - サンプルレート: 16kHz-48kHz
+   - ビットレート: 64kbps-320kbps
+
+4. **多言語サポート**
+   - 中国語、英語、日本語、その他多数の言語
+   - 言語強化機能で認識精度向上
+
+5. **発音カスタマイズ**
+   - 発音辞書機能
+   - 英語正規化オプション
+   - カスタム発音調整
+
+### 使用方法
+
+```typescript
+// 基本的な音声生成
+const audioResult = await minimaxTTSTool.invoke({
+  text: "こんにちは、これはテスト音声です。",
+  model: "speech-02-hd",
+  voice_setting: {
+    voice_id: "Wise_Woman",
+    speed: 1.0,
+    vol: 1.0,
+    pitch: 0,
+    emotion: "happy",
+    english_normalization: true
+  },
+  audio_setting: {
+    audio_sample_rate: 32000,
+    bitrate: 128000,
+    format: "mp3",
+    channel: 1
+  },
+  action: "generate"
+});
+```
+
+### 環境変数設定
+
+```bash
+# MiniMax T2A Large v2 API Configuration
+MINIMAX_API_KEY=your_minimax_api_key_here
+MINIMAX_GROUP_ID=your_minimax_group_id_here
+```
+
+### 技術仕様
+
+- **非同期処理**: 長時間の音声生成に対応
+- **ポーリング機能**: タスク完了まで自動的に状態確認
+- **ファイル管理**: 生成された音声ファイルの自動保存
+- **エラーハンドリング**: 包括的なエラー処理とフォールバック
+- **音声プレイヤー**: チャット内での直接再生機能
 
 ## セットアップ手順
 
@@ -228,46 +304,65 @@ await presentationPreviewTool.invoke({
    - 3種類のデザインバリアント
    - アイコン表示のオン/オフ
 
-4. **コードブロック表示**
-   - シンタックスハイライト対応
-   - 言語ラベル表示
-   - テーマカラーに合わせた装飾
+## DJ音楽生成機能
 
-#### パラメータ：
+### geminiDJTool
 
-- `content`: グラレコ化する文章や記事の内容（必須）
-- `title`: グラレコのタイトル（任意）
-- `theme`: カラーテーマ（green, blue, orange, purple, pink）
-- `steps`: タイムラインのステップ数（2〜6）
-- `includeIcons`: Font Awesomeアイコンを含めるかどうか
-- `additionalNotes`: 追加のメモや指示
-- `variant`: バリアント（1, 2, 3）
+Gemini Lyria RealTimeを使用したリアルタイム音楽生成とDJ操作を行うツールです。プロンプトベースで音楽を生成し、チャット内で音声プレイヤーとして表示できます。
 
-### 使用例
+#### 主な機能：
+
+1. **リアルタイム音楽生成**
+   - WebSocketベースのストリーミング音楽生成
+   - プロンプトによる音楽スタイルの指定
+   - 重み付きプロンプトによる複数要素のブレンド
+
+2. **詳細なパラメータ制御**
+   - **BPM**: 60-200の範囲で拍数を指定
+   - **密度**: 0.0-1.0で音符の密度を調整
+   - **明度**: 0.0-1.0で音質の明るさを調整
+   - **スケール**: 13種類の音楽スケール（C Major、D Minor等）
+   - **ガイダンス**: プロンプト遵守の厳密さ（0.0-6.0）
+   - **温度**: 生成の多様性（0.0-3.0）
+
+3. **音楽制御機能**
+   - **generate**: 新しい音楽の生成
+   - **play**: 音楽の再生
+   - **pause**: 音楽の一時停止
+   - **stop**: 音楽の停止
+   - **reset**: セッションのリセット
+
+4. **チャット内音声表示**
+   - HTMLの`<audio>`タグを使用した音声プレイヤー
+   - マークダウン形式での音楽情報表示
+   - ダウンロードリンクの提供
+
+#### 使用例：
 
 ```typescript
-// 基本的なグラフィックレコーディングの生成
-const grafreco = await graphicRecordingTool.invoke({
-  content: "アジャイル開発の手順：1. 要件収集 2. 計画策定 3. 開発 4. テスト 5. レビュー 6. リリース",
-  title: "アジャイル開発プロセス",
-  theme: "blue",
-  steps: 6
+// 基本的な音楽生成
+await geminiDJTool.invoke({
+  prompts: [
+    { text: "minimal techno", weight: 0.7 },
+    { text: "ambient", weight: 0.3 }
+  ],
+  bpm: 120,
+  density: 0.6,
+  brightness: 0.8,
+  duration_seconds: 30,
+  action: "generate"
 });
 
-// カスタムバリアントの生成
-const customGrafreco = await graphicRecordingTool.invoke({
-  content: "機械学習モデルの構築手順：1. データ収集 2. 前処理 3. モデル選択 4. トレーニング 5. 評価",
-  title: "機械学習ワークフロー",
-  theme: "purple",
-  steps: 5,
-  variant: 2,
-  additionalNotes: "データ前処理のステップを強調する"
-});
-
-// プレビュー表示
-await presentationPreviewTool.invoke({
-  htmlContent: grafreco.htmlContent,
-  title: "アジャイル開発プロセス - グラフィックレコーディング",
-  theme: "light"
+// 音楽の再生制御
+await geminiDJTool.invoke({
+  action: "play",
+  session_id: "existing-session-id"
 });
 ```
+
+#### 技術仕様：
+
+- **出力形式**: 16ビットPCM音声、48kHz、ステレオ
+- **対応ジャンル**: Techno、Jazz、Classical、Ambient、Rock等
+- **楽器**: シンセサイザー、ドラム、ベース、ピアノ等多数対応
+- **ファイル保存**: `public/generated-music/`ディレクトリ

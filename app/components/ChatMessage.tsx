@@ -397,6 +397,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 }
               }
               
+              // 動画生成ツールの結果データを保存
+              if ((toolState.toolName === 'veo2-video-generation' || toolState.toolName === 'gemini-video-generation') && tr.result?.videos && tr.result.videos.length > 0) {
+                // 動画データの処理は後で追加
+              }
+              
               // 画像生成ツールの結果データを保存
               if ((toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation') && tr.result?.images && tr.result.images.length > 0) {
                 setImageTool(prev => ({
@@ -597,6 +602,190 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     onPreviewWidthChange?.(width); // 親コンポーネントに通知
   };
 
+  // マークダウンの画像・動画リンクを検出してメディア要素に変換する関数
+  const renderMarkdownMedia = (text: string): ReactNode[] => {
+    // 画像記法 ![alt](url) と画像URLを含む通常のリンク記法 [text](media-url) の両方に対応
+    const mediaRegex = /(!?)\[([^\]]*)\]\(([^)]+)\)/g;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mediaRegex.exec(text)) !== null) {
+      const [fullMatch, exclamationMark, altText, rawMediaUrl] = match;
+      
+      // メディアURLの前処理
+      let mediaUrl = rawMediaUrl;
+      
+      // sandbox:プレフィックスを除去（環境に応じて調整）
+      if (rawMediaUrl.startsWith('sandbox:')) {
+        mediaUrl = rawMediaUrl.replace('sandbox:', '');
+        console.log('Removed sandbox: prefix, new URL:', mediaUrl);
+      }
+      
+      // ローカルパス（/generated-で始まる）の場合の処理
+      if (mediaUrl.startsWith('/generated-')) {
+        console.log('Local generated media path detected:', mediaUrl);
+      }
+      
+      // メディアURLかどうかを判定（画像、動画、音声の全てに対応）
+      const isImageUrl = /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(mediaUrl) ||
+                        mediaUrl.includes('/generated-images/') ||
+                        rawMediaUrl.startsWith('sandbox:');
+      
+      const isVideoUrl = /\.(mp4|webm|ogg|mov|avi)(\?|$)/i.test(mediaUrl) ||
+                        mediaUrl.includes('/generated-videos/');
+      
+      const isAudioUrl = /\.(mp3|wav|ogg|m4a|aac|flac)(\?|$)/i.test(mediaUrl) ||
+                        mediaUrl.includes('/generated-music/');
+      
+      // 感嘆符がある場合のみメディアとして処理
+      const isMarkdownMedia = exclamationMark === '!' && (isImageUrl || isVideoUrl || isAudioUrl);
+      
+      console.log('Markdown link detected:', {
+        fullMatch,
+        exclamationMark,
+        altText,
+        rawMediaUrl,
+        mediaUrl,
+        isImageUrl,
+        isVideoUrl,
+        isAudioUrl,
+        isMarkdownMedia
+      });
+      
+      // マークダウンメディア記法でない場合は通常のリンクとして処理（スキップ）
+      if (!isMarkdownMedia) {
+        continue;
+      }
+      
+      // メディアの前のテキスト部分を追加
+      if (match.index > lastIndex) {
+        const beforeText = text.slice(lastIndex, match.index);
+        if (beforeText.trim()) {
+          parts.push(
+            <span key={`text-${lastIndex}`}>{beforeText}</span>
+          );
+        }
+      }
+      
+      // メディア要素を作成
+      if (isAudioUrl && !isImageUrl && !isVideoUrl) {
+        // 音声要素
+        parts.push(
+          <div key={`audio-${match.index}`} className="my-4">
+            <audio
+              controls
+              className="w-full max-w-md rounded-lg shadow-md"
+              preload="metadata"
+              onError={(e) => {
+                console.warn('Audio failed to load:', {
+                  url: mediaUrl,
+                  alt: altText,
+                  error: e.type
+                });
+              }}
+              onLoadStart={() => {
+                console.log('Audio loading started:', mediaUrl);
+              }}
+            >
+              <source src={mediaUrl} type="audio/wav" />
+              <source src={mediaUrl.replace('.wav', '.mp3')} type="audio/mpeg" />
+              Your browser does not support the audio element.
+            </audio>
+            {altText && (
+              <p className="text-sm text-gray-600 mt-2 italic">{altText}</p>
+            )}
+          </div>
+        );
+      } else if (isVideoUrl && !isImageUrl) {
+        // 動画要素
+        parts.push(
+          <div key={`video-${match.index}`} className="my-4">
+            <video
+              controls
+              className="w-full h-auto rounded-lg shadow-md"
+              preload="metadata"
+              onError={(e) => {
+                console.warn('Video failed to load:', {
+                  url: mediaUrl,
+                  alt: altText,
+                  error: e.type
+                });
+              }}
+              onLoadStart={() => {
+                console.log('Video loading started:', mediaUrl);
+              }}
+            >
+              <source src={mediaUrl} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+            {altText && (
+              <p className="text-sm text-gray-600 mt-2 italic">{altText}</p>
+            )}
+          </div>
+        );
+      } else {
+        // 画像要素
+        parts.push(
+          <div key={`img-${match.index}`} className="my-3">
+            <img
+              src={mediaUrl}
+              alt={altText}
+              className="max-w-full h-auto rounded-lg shadow-md cursor-grab active:cursor-grabbing hover:scale-105 transition-transform duration-300"
+              draggable={true}
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', mediaUrl);
+                e.dataTransfer.setData('application/json', JSON.stringify({
+                  url: mediaUrl,
+                  type: 'markdown-image',
+                  source: 'chat'
+                }));
+                console.log('Drag started for markdown image:', mediaUrl);
+              }}
+              onClick={() => window.open(mediaUrl, '_blank')}
+              onError={(e) => {
+                console.warn('Image failed to load:', {
+                  url: mediaUrl,
+                  alt: altText,
+                  error: e.type
+                });
+                // エラー時は画像を非表示にして、エラーメッセージを表示
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                
+                // エラーメッセージ要素を作成
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm';
+                errorDiv.innerHTML = `⚠️ 画像の読み込みに失敗しました<br><small class="text-red-500">${mediaUrl}</small>`;
+                target.parentNode?.insertBefore(errorDiv, target);
+              }}
+              onLoad={() => {
+                console.log('Image loaded successfully:', mediaUrl);
+              }}
+            />
+            {altText && (
+              <p className="text-sm text-gray-600 mt-1 italic">{altText}</p>
+            )}
+          </div>
+        );
+      }
+      
+      lastIndex = match.index + fullMatch.length;
+    }
+    
+    // 残りのテキスト部分を追加
+    if (lastIndex < text.length) {
+      const remainingText = text.slice(lastIndex);
+      if (remainingText.trim()) {
+        parts.push(
+          <span key={`text-${lastIndex}`}>{remainingText}</span>
+        );
+      }
+    }
+    
+    return parts.length > 0 ? parts : [text];
+  };
+
   // HTML文字列から純粋なテキストのみを抽出する関数
   const stripHtmlTags = (html: string) => {
     // ... existing code ...
@@ -736,6 +925,85 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         
       case 'braveSearchTool':
         // ... existing code ...
+      
+      case 'minimax-tts':
+        if (result?.audio_url) {
+          return (
+            <div className="mt-2">
+              <div className="text-sm text-gray-700 mb-2">
+                {result.message || '音声生成が完了しました'}
+              </div>
+              
+              {/* 音声ファイル情報 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <span className="font-medium">🎵 音声ファイル</span>
+                  {result.filename && (
+                    <>
+                      <span>•</span>
+                      <span>{result.filename}</span>
+                    </>
+                  )}
+                  {result.file_size && (
+                    <>
+                      <span>•</span>
+                      <span>{Math.round(result.file_size / 1000)}KB</span>
+                    </>
+                  )}
+                  {result.duration && (
+                    <>
+                      <span>•</span>
+                      <span>{Math.round(result.duration)}秒</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* 音声プレイヤー */}
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <audio
+                  controls
+                  className="w-full"
+                  preload="metadata"
+                  onError={(e) => {
+                    console.warn('Audio failed to load:', {
+                      url: result.audio_url,
+                      error: e.type
+                    });
+                  }}
+                  onLoadStart={() => {
+                    console.log('Audio loading started:', result.audio_url);
+                  }}
+                >
+                  <source src={result.audio_url} type="audio/mp3" />
+                  <source src={result.audio_url.replace('.mp3', '.wav')} type="audio/wav" />
+                  Your browser does not support the audio element.
+                </audio>
+                
+                {/* ダウンロードリンク */}
+                {result.download_url && (
+                  <div className="mt-3 text-center">
+                    <a
+                      href={result.download_url}
+                      download={result.filename}
+                      className="inline-flex items-center px-3 py-1 bg-gray-600 text-white rounded-md text-xs hover:bg-gray-700 transition-colors"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      ダウンロード
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        } else if (result?.error) {
+          return <div className="mt-2 text-red-500 text-sm">{result.error}</div>;
+        }
+        return null;
       
       default:
         // ... existing code ...
@@ -894,6 +1162,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   </div>
                 )}
                 
+                {/* 動画生成ツールの結果表示 */}
+                {(toolState.toolName === 'veo2-video-generation' || toolState.toolName === 'gemini-video-generation') && toolState.result?.videos && toolState.result.videos.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-xs font-medium text-gray-500 mb-2">生成された動画</h4>
+                    <div className="space-y-3">
+                      {toolState.result.videos.map((video: { url: string }, index: number) => (
+                        <div key={`tool-video-${index}`} className="space-y-2">
+                          <video 
+                            controls 
+                            width="100%" 
+                            style={{ maxWidth: '400px' }}
+                            className="rounded-lg border border-gray-200"
+                          >
+                            <source src={video.url} type="video/mp4" />
+                            Your browser does not support the video tag.
+                          </video>
+                          <div className="text-xs text-gray-500">
+                            Video {index + 1}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* プレゼンテーションプレビューボタン（結果の下にも表示） */}
                 {isPresentationTool && toolState.result?.htmlContent && (
                   <div className="mt-3">
@@ -924,7 +1217,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
               <div className="text-base leading-relaxed">
                 {content.split('\n').map((line, i) => (
-                  <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+                  <div key={i} className={i > 0 ? 'mt-2' : ''}>
+                    {renderMarkdownMedia(line)}
+                  </div>
                 ))}
               </div>
             </div>
@@ -991,6 +1286,70 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   <PhotoIcon className="h-4 w-4 mr-2" />
                   画像をプレビュー表示
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* 動画生成ツールの結果を直接表示 */}
+        {Object.values(toolCallStates).some(
+          tool => (tool.toolName === 'veo2-video-generation' || tool.toolName === 'gemini-video-generation') && 
+                 tool.status === 'success' && 
+                 tool.result?.videos?.length > 0
+        ) && (
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+              <h3 className="font-medium text-base mb-3">🎬 生成された動画</h3>
+              <div className="space-y-4">
+                {Object.values(toolCallStates)
+                  .filter(tool => 
+                    (tool.toolName === 'veo2-video-generation' || tool.toolName === 'gemini-video-generation') && 
+                    tool.status === 'success' && 
+                    tool.result?.videos?.length > 0
+                  )
+                  .flatMap(tool => 
+                    tool.result.videos.map((video: { url: string }, index: number) => (
+                      <div key={`direct-video-${tool.id}-${index}`} className="space-y-3">
+                        <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                          <video 
+                            controls 
+                            width="100%" 
+                            style={{ maxWidth: '800px' }}
+                            className="rounded-lg"
+                            preload="metadata"
+                            onError={(e) => {
+                              console.error('Video load error:', e);
+                              console.log('Video URL:', video.url);
+                            }}
+                            onLoadStart={() => {
+                              console.log('Video loading started:', video.url);
+                            }}
+                          >
+                            <source src={video.url} type="video/mp4" />
+                            Your browser does not support the video tag.
+                          </video>
+                          <div className="mt-3 text-sm text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                Veo2
+                              </span>
+                              <span className="text-gray-500">•</span>
+                              <span>Video {index + 1}</span>
+                            </div>
+                            {tool.result.title && (
+                              <div className="mt-2">
+                                <strong>Prompt:</strong> <em>{tool.result.title}</em>
+                              </div>
+                            )}
+                            <div className="mt-1 text-xs text-gray-500">
+                              URL: {video.url}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )
+                }
               </div>
             </div>
           </div>

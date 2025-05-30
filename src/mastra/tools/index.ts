@@ -111,3 +111,4 @@ export { grokXSearchTool } from './grokXSearchTool';
 export { imagen4GenerationTool } from './imagen4GenerationTool';
 export { v0CodeGenerationTool } from './v0CodeGenerationTool';
 export { graphicRecordingTool } from './graphicRecordingTool';
+export { minimaxTTSTool } from './minimaxTTSTool';

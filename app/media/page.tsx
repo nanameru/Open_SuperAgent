@@ -19,7 +19,7 @@ import { AppSidebar } from '@/components/app-sidebar';
 interface MediaFile {
   id: string;
   name: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   url: string;
   size: string;
   createdAt: string;
@@ -48,8 +48,12 @@ export default function MediaPage() {
         const videoResponse = await fetch('/api/media/videos');
         const videos = videoResponse.ok ? await videoResponse.json() : [];
         
+        // 音楽ファイルを取得
+        const musicResponse = await fetch('/api/media/music');
+        const music = musicResponse.ok ? await musicResponse.json() : [];
+        
         // 全てのメディアファイルを結合し、作成日時でソート
-        const allMedia = [...images, ...videos].sort((a, b) => 
+        const allMedia = [...images, ...videos, ...music].sort((a, b) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         
@@ -144,23 +148,29 @@ export default function MediaPage() {
                                 alt={file.name}
                                 className="w-16 h-16 object-cover rounded-md"
                               />
-                            ) : (
+                            ) : file.type === 'video' ? (
                               <video
                                 src={file.url}
                                 className="w-16 h-16 object-cover rounded-md"
                                 muted
                                 preload="metadata"
                               />
+                            ) : (
+                              <audio
+                                src={file.url}
+                                className="w-16 h-16 object-cover rounded-md"
+                                controls
+                              />
                             )}
-                                                     </TableCell>
-                           <TableCell className="font-medium">{file.name}</TableCell>
-                           <TableCell className="hidden sm:table-cell">
-                             <Badge variant={file.type === 'image' ? 'default' : 'secondary'}>
-                               {file.type === 'image' ? '画像' : '動画'}
-                             </Badge>
-                           </TableCell>
-                           <TableCell className="hidden md:table-cell">{file.size}</TableCell>
-                           <TableCell className="hidden lg:table-cell">{formatDate(file.createdAt)}</TableCell>
+                          </TableCell>
+                          <TableCell className="font-medium">{file.name}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge variant={file.type === 'image' ? 'default' : file.type === 'video' ? 'secondary' : 'destructive'}>
+                              {file.type === 'image' ? '画像' : file.type === 'video' ? '動画' : '音楽'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">{file.size}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{formatDate(file.createdAt)}</TableCell>
                           <TableCell className="text-right">
                             <a
                               href={file.url}

@@ -10,7 +10,8 @@ import {
   grokXSearchTool,
   imagen4GenerationTool,
   v0CodeGenerationTool,
-  graphicRecordingTool
+  graphicRecordingTool,
+  minimaxTTSTool
 } from '../tools'; // Import all tools
 import { Memory } from '@mastra/memory'; // Import Memory
 
@@ -20,7 +21,7 @@ export const slideCreatorAgent = new Agent({
 # System Prompt
 
 ## Initial Context and Setup
-You are a powerful universal AI agent named Open-SuperAgent. You have access to various tools that allow you to assist users with a wide range of tasks - not just coding, but any task that your tools enable. You can generate presentations, search for information, perform calculations, generate images and videos, and more.
+You are a powerful universal AI agent named Open-SuperAgent. You have access to various tools that allow you to assist users with a wide range of tasks - not just coding, but any task that your tools enable. You can generate presentations, search for information, perform calculations, generate images and videos, create audio content, and more.
 
 Your main goal is to follow the USER's instructions at each message, denoted by the <user_query> tag.
 
@@ -36,6 +37,7 @@ You have access to the following specialized tools:
 - \`imagen4GenerationTool\`: Generates high-quality images with enhanced detail using Google's Imagen 4 model
 - \`v0CodeGenerationTool\`: Generates code for web applications using v0's AI model
 - \`graphicRecordingTool\`: Creates timeline-based graphic recordings (grafreco) with visual elements
+- \`minimaxTTSTool\`: Generates high-quality speech audio using MiniMax T2A Large v2 API with 100+ voice options, emotion control, and detailed parameter adjustment
 
 ## Communication Guidelines
 1. Be conversational but professional.
@@ -83,14 +85,15 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     geminiVideoGenerationTool, // Register the video generation tool
     imagen4GenerationTool, // Register the Imagen 4 generation tool
     v0CodeGenerationTool, // Register the v0 code generation tool
-    graphicRecordingTool // Register the graphic recording tool
+    graphicRecordingTool, // Register the graphic recording tool
+    minimaxTTSTool // Register the MiniMax TTS tool
   },
   memory: new Memory({ // Add memory configuration
     options: {
       lastMessages: 10, // Remember the last 10 messages
       semanticRecall: false, // You can enable this for more advanced recall based on meaning
       threads: {
-        generateTitle: false, // Whether to auto-generate titles for conversation threads
+        generateTitle: false, // Whether to auto-generate titles for auto-generate titles for conversation threads
       },
     },
   }),
