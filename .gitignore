@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated media files (do not commit)
+/public/generated-images/
+/public/generated-music/
+/public/generated-videos/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
