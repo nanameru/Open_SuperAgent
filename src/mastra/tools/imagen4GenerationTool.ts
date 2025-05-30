@@ -38,6 +38,7 @@ const imagen4GenerationToolOutputSchema = z.object({
   title: z.string().optional().describe('生成された画像のタイトル'),
   toolName: z.string().optional().describe('表示目的のツール名'),
   toolDisplayName: z.string().optional().describe('ユーザーフレンドリーなツール名'),
+  markdownImages: z.string().optional().describe('チャット表示用のマークダウン形式の画像文字列'),
 });
 
 // 入力と出力の型を定義
@@ -160,16 +161,24 @@ export const imagen4GenerationTool = createTool({
       }
 
       if (images.length > 0) {
+        // マークダウン形式の画像リンクを生成
+        const markdownImages = images.map((img, index) => 
+          `![Generated Image ${index + 1}](${img.url})`
+        ).join('\n\n');
+        
+        const successMessage = `${images.length}枚の画像を生成しました！\n\n${markdownImages}`;
+        
         return {
           images,
           prompt: prompt || '',
           success: true,
-          message: `Successfully generated ${images.length} image${images.length > 1 ? 's' : ''}.`,
+          message: successMessage,
           autoOpenPreview: autoOpenPreview ?? true,
           seed: result.data?.seed,
           title: `${prompt?.substring(0, 30)}${prompt?.length > 30 ? '...' : ''}`,
           toolName: 'imagen4-generation',
           toolDisplayName: 'Imagen 4画像生成',
+          markdownImages,
         };
       } else {
         return {

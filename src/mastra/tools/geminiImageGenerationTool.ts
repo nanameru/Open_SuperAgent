@@ -62,6 +62,7 @@ const geminiImageGenerationToolOutputSchema = z.object({
   title: z.string().optional().describe('Title for the generated images.'),
   toolName: z.string().optional().describe('Name of the tool for display purposes.'),
   toolDisplayName: z.string().optional().describe('User-friendly name of the tool.'),
+  markdownImages: z.string().optional().describe('Markdown formatted string containing all generated images for chat display.'),
 });
 
 // 入力と出力の型を定義
@@ -197,15 +198,23 @@ export const geminiImageGenerationTool = createTool({
       }
 
       if (images.length > 0) {
+        // マークダウン形式の画像リンクを生成
+        const markdownImages = images.map((img, index) => 
+          `![Generated Image ${index + 1}](${img.url})`
+        ).join('\n\n');
+        
+        const successMessage = `${images.length}枚の画像を生成しました！\n\n${markdownImages}`;
+        
         return { 
           images, 
           prompt: prompt || '',
           success: true,
-          message: `Successfully generated ${images.length} image${images.length > 1 ? 's' : ''}.`,
+          message: successMessage,
           autoOpenPreview: autoOpenPreview ?? true,
           title: `${prompt?.substring(0, 30)}${prompt?.length > 30 ? '...' : ''}`,
           toolName: 'gemini-image-generation',
-          toolDisplayName: 'Gemini画像生成'
+          toolDisplayName: 'Gemini画像生成',
+          markdownImages
         };
       } else {
         return {

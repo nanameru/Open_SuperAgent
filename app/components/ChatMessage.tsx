@@ -46,13 +46,6 @@ interface ExtendedMessage {
   }>;
 }
 
-interface ChatMessageProps {
-  message: ExtendedMessage;
-  onPreviewOpen?: () => void; // プレビューが開かれたときのコールバック
-  onPreviewClose?: () => void; // プレビューが閉じられたときのコールバック
-  onPreviewWidthChange?: (width: number) => void; // プレビューパネルの幅が変更されたときのコールバック
-}
-
 // ツール呼び出しの状態を管理するための型
 interface ToolCallState {
   id: string;
@@ -80,6 +73,29 @@ interface ImagePreviewState {
   title: string;
 }
 
+// Browserbaseプレビュー状態
+interface BrowserbasePreviewState {
+  isOpen: boolean;
+  sessionId: string;
+  replayUrl: string;
+  liveViewUrl?: string;
+  pageTitle?: string;
+  title: string;
+}
+
+interface ChatMessageProps {
+  message: ExtendedMessage;
+  onPreviewOpen?: () => void; // プレビューが開かれたときのコールバック
+  onPreviewClose?: () => void; // プレビューが閉じられたときのコールバック
+  onPreviewWidthChange?: (width: number) => void; // プレビューパネルの幅が変更されたときのコールバック
+  onBrowserbasePreview?: (data: {
+    sessionId: string;
+    replayUrl: string;
+    liveViewUrl?: string;
+    pageTitle?: string;
+  }) => void; // Browserbaseプレビューが開かれたときのコールバック
+}
+
 // 折りたたみ可能なツールセクションコンポーネント
 const CollapsibleToolSection = ({
   toolName,
@@ -88,10 +104,13 @@ const CollapsibleToolSection = ({
   isLoading,
   isPreviewTool = false,
   isImageTool = false,
+  isBrowserbaseTool = false,
   onPreviewClick = () => {},
   onImageClick = () => {},
+  onBrowserbaseClick = () => {},
   previewHtml = '',
   imageUrls = [],
+  browserbaseData = null,
 }: {
   toolName: string;
   toolState: 'call' | 'partial-call' | 'result' | string;
@@ -99,10 +118,18 @@ const CollapsibleToolSection = ({
   isLoading: boolean;
   isPreviewTool?: boolean;
   isImageTool?: boolean;
+  isBrowserbaseTool?: boolean;
   onPreviewClick?: () => void;
   onImageClick?: () => void;
+  onBrowserbaseClick?: () => void;
   previewHtml?: string;
   imageUrls?: string[];
+  browserbaseData?: {
+    sessionId: string;
+    replayUrl: string;
+    liveViewUrl?: string;
+    pageTitle?: string;
+  } | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -179,6 +206,7 @@ const CollapsibleToolSection = ({
              toolName === 'imagen4-generation' ? 'Imagen 4画像生成' :
              toolName === 'htmlSlideTool' ? 'HTMLスライド生成' : 
              toolName === 'graphicRecordingTool' ? 'グラフィックレコーディング' :
+             toolName === 'browserbase-automation' ? 'ブラウザ自動化' :
              toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
               <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
@@ -223,6 +251,23 @@ const CollapsibleToolSection = ({
             </button>
           )}
           
+          {/* Browserbaseツールの場合はBrowserbaseプレビューボタンを表示 */}
+          {isBrowserbaseTool && browserbaseData && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onBrowserbaseClick();
+              }}
+              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+              title="Browserbase操作画面を表示"
+            >
+              <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span>プレビュー</span>
+            </button>
+          )}
+          
           <button 
             className="text-gray-500 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-200/50"
             aria-label={isExpanded ? "折りたたむ" : "展開する"}
@@ -246,7 +291,7 @@ const CollapsibleToolSection = ({
   );
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose, onPreviewWidthChange }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose, onPreviewWidthChange, onBrowserbasePreview }) => {
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
@@ -272,6 +317,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         url: string;
         b64Json: string;
       }>;
+      title: string;
+    }
+  }>({});
+  
+  // Browserbaseツールの情報を保持
+  const [browserbaseTool, setBrowserbaseTool] = useState<{
+    [key: string]: {
+      sessionId: string;
+      replayUrl: string;
+      liveViewUrl?: string;
+      pageTitle?: string;
       title: string;
     }
   }>({});
@@ -420,6 +476,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     title: tr.result.title || `生成された画像（${tr.result.images.length}枚）`
                   });
                 }
+              }
+              
+              // Browserbaseツールの結果データを保存
+              if (toolState.toolName === 'browserbase-automation' && tr.result?.sessionId) {
+                setBrowserbaseTool(prev => ({
+                  ...prev,
+                  [tr.toolCallId]: {
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: tr.result.liveViewUrl,
+                    pageTitle: tr.result.pageTitle,
+                    title: tr.result.pageTitle || 'ブラウザ自動化セッション'
+                  }
+                }));
               }
             }
           });
@@ -926,6 +996,47 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       case 'braveSearchTool':
         // ... existing code ...
       
+      case 'browserbase-automation':
+        if (result?.sessionId) {
+          const browserbaseData = browserbaseTool[toolState.id];
+          return (
+            <div className="mt-2">
+              <div className="text-sm text-gray-700 mb-2">
+                ブラウザ自動化が完了しました
+              </div>
+              {result.pageTitle && (
+                <div className="text-xs text-gray-600 mb-2">
+                  ページ: {result.pageTitle}
+                </div>
+              )}
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    if (onBrowserbasePreview && toolState.result?.sessionId) {
+                      onBrowserbasePreview({
+                        sessionId: toolState.result.sessionId,
+                        replayUrl: toolState.result.replayUrl,
+                        liveViewUrl: toolState.result.liveViewUrl,
+                        pageTitle: toolState.result.pageTitle
+                      });
+                    }
+                  }}
+                  className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+                  title="Browserbase操作画面を表示"
+                >
+                  <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  プレビュー
+                </button>
+              </div>
+            </div>
+          );
+        } else if (result?.error) {
+          return <div className="mt-2 text-red-500 text-sm">{result.error}</div>;
+        }
+        return null;
+      
       case 'minimax-tts':
         if (result?.audio_url) {
           return (
@@ -1062,6 +1173,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       // このツールの画像データを取得
       const imageData = imageTool[toolState.id];
       
+      // このツールのBrowserbaseデータを取得
+      const browserbaseData = toolState.result?.sessionId ? {
+        sessionId: toolState.result.sessionId,
+        replayUrl: toolState.result.replayUrl,
+        liveViewUrl: toolState.result.liveViewUrl,
+        pageTitle: toolState.result.pageTitle
+      } : null;
+      
       return (
         <CollapsibleToolSection 
           key={toolState.id} 
@@ -1070,6 +1189,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           isLoading={isLoading}
           isPreviewTool={isPresentationTool}
           isImageTool={toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation'}
+          isBrowserbaseTool={toolState.toolName === 'browserbase-automation'}
           onPreviewClick={() => {
             if (previewData) {
               openPreviewPanel(previewData.htmlContent, previewData.title);
@@ -1090,9 +1210,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               );
             }
           }}
+          onBrowserbaseClick={() => {
+            if (onBrowserbasePreview && toolState.result?.sessionId) {
+              onBrowserbasePreview({
+                sessionId: toolState.result.sessionId,
+                replayUrl: toolState.result.replayUrl,
+                liveViewUrl: toolState.result.liveViewUrl,
+                pageTitle: toolState.result.pageTitle
+              });
+            }
+          }}
           previewHtml={previewData?.htmlContent || toolState.result?.htmlContent}
           imageUrls={imageData?.images?.map(img => img.url) || 
                     (toolState.result?.images ? toolState.result.images.map((img: {url: string}) => img.url) : [])}
+          browserbaseData={browserbaseData}
         >
           <div className="space-y-3">
             <div>

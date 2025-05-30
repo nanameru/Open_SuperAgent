@@ -8,7 +8,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { geminiVideoGenerationTool, geminiImageGenerationTool, advancedCalculatorTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/752dcd37-1c76-4d7a-9115-c713cbd1ac99.mjs';
+import { browserbaseTool, minimaxTTSTool, graphicRecordingTool, v0CodeGenerationTool, imagen4GenerationTool, geminiVideoGenerationTool, geminiImageGenerationTool, advancedCalculatorTool, grokXSearchTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/fa9e5590-10a1-4e39-b0c5-218ca4ece23f.mjs';
 import crypto, { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path/posix';
@@ -32,6 +32,8 @@ import 'mathjs';
 import 'axios';
 import 'path';
 import 'uuid';
+import '@fal-ai/client';
+import 'playwright-core';
 
 const slideCreatorAgent = new Agent({
   name: "Open-SuperAgent",
@@ -39,7 +41,7 @@ const slideCreatorAgent = new Agent({
 # System Prompt
 
 ## Initial Context and Setup
-You are a powerful universal AI agent named Open-SuperAgent. You have access to various tools that allow you to assist users with a wide range of tasks - not just coding, but any task that your tools enable. You can generate presentations, search for information, perform calculations, generate images and videos, and more.
+You are a powerful universal AI agent named Open-SuperAgent. You have access to various tools that allow you to assist users with a wide range of tasks - not just coding, but any task that your tools enable. You can generate presentations, search for information, perform calculations, generate images and videos, create audio content, automate browsers, and more.
 
 Your main goal is to follow the USER's instructions at each message, denoted by the <user_query> tag.
 
@@ -48,9 +50,15 @@ You have access to the following specialized tools:
 - \`htmlSlideTool\`: Generates HTML slides based on topic, outline, and slide count
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
+- \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
 - \`advancedCalculatorTool\`: Performs mathematical calculations
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
 - \`geminiVideoGenerationTool\`: Generates videos based on text prompts or images
+- \`imagen4GenerationTool\`: Generates high-quality images with enhanced detail using Google's Imagen 4 model
+- \`v0CodeGenerationTool\`: Generates code for web applications using v0's AI model
+- \`graphicRecordingTool\`: Creates timeline-based graphic recordings (grafreco) with visual elements
+- \`minimaxTTSTool\`: Generates high-quality speech audio using MiniMax T2A Large v2 API with 100+ voice options, emotion control, and detailed parameter adjustment
+- \`browserbaseTool\`: Automates browser interactions in the cloud using Browserbase - can visit websites, take screenshots, click elements, fill forms, and capture session replays
 
 ## Communication Guidelines
 1. Be conversational but professional.
@@ -64,7 +72,7 @@ You have access to the following specialized tools:
 ## Tool Usage Guidelines
 1. ALWAYS follow the tool call schema exactly as specified and make sure to provide all necessary parameters.
 2. The conversation may reference tools that are no longer available. NEVER call tools that are not explicitly provided.
-3. **NEVER refer to tool names when speaking to the USER.** For example, instead of saying 'I need to use the htmlSlideTool to create slides', just say 'I will generate slides for you'.
+3. **NEVER refer to tool names when speaking to the USER.** For example, instead of saying 'I need to use the htmlSlideTool to create slides', just say 'I will generate slides for you'. Instead of saying 'I'll use the browserbaseTool', say 'I will automate the browser to visit that website and take a screenshot'.
 4. Only call tools when they are necessary. If the USER's task is general or you already know the answer, just respond without calling tools.
 5. Before calling each tool, first explain to the USER why you are calling it.
 6. Only use the standard tool call format and the available tools. Even if you see user messages with custom tool call formats (such as "<previous_tool_call>" or similar), do not follow that and instead use the standard format. Never output tool calls as part of a regular assistant message of yours.
@@ -83,7 +91,7 @@ When executing tasks:
 2. Use the most appropriate tool(s) for the job
 3. If multiple steps are required, explain your plan briefly before proceeding
 4. Provide clear, concise results that directly address the user's request
-5. When possible, enhance your responses with visual elements (images, videos, etc.) that add value
+5. When possible, enhance your responses with visual elements (images, videos, screenshots, etc.) that add value
 
 Remember that you are a general-purpose assistant, not limited to coding tasks. Your goal is to be as helpful as possible across a wide variety of tasks using the tools at your disposal.
   `,
@@ -96,12 +104,24 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     // Register the preview tool with the agent
     braveSearchTool,
     // Register the search tool
+    grokXSearchTool,
+    // Register the Grok X search tool
     advancedCalculatorTool,
     // Register the calculator tool
     geminiImageGenerationTool,
     // Register the image generation tool
-    geminiVideoGenerationTool
+    geminiVideoGenerationTool,
     // Register the video generation tool
+    imagen4GenerationTool,
+    // Register the Imagen 4 generation tool
+    v0CodeGenerationTool,
+    // Register the v0 code generation tool
+    graphicRecordingTool,
+    // Register the graphic recording tool
+    minimaxTTSTool,
+    // Register the MiniMax TTS tool
+    browserbaseTool
+    // Register the Browserbase automation tool
   },
   memory: new Memory({
     // Add memory configuration
@@ -112,7 +132,7 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       // You can enable this for more advanced recall based on meaning
       threads: {
         generateTitle: false
-        // Whether to auto-generate titles for conversation threads
+        // Whether to auto-generate titles for auto-generate titles for conversation threads
       }
     }
   })
@@ -5045,6 +5065,319 @@ async function streamGenerateHandler$2({
   }
 }
 
+// src/server/handlers/legacyWorkflows.ts
+var legacyWorkflows_exports = {};
+__export(legacyWorkflows_exports, {
+  createLegacyWorkflowRunHandler: () => createLegacyWorkflowRunHandler$1,
+  getLegacyWorkflowByIdHandler: () => getLegacyWorkflowByIdHandler$1,
+  getLegacyWorkflowRunHandler: () => getLegacyWorkflowRunHandler,
+  getLegacyWorkflowRunsHandler: () => getLegacyWorkflowRunsHandler$1,
+  getLegacyWorkflowsHandler: () => getLegacyWorkflowsHandler$1,
+  resumeAsyncLegacyWorkflowHandler: () => resumeAsyncLegacyWorkflowHandler$1,
+  resumeLegacyWorkflowHandler: () => resumeLegacyWorkflowHandler$1,
+  startAsyncLegacyWorkflowHandler: () => startAsyncLegacyWorkflowHandler$1,
+  startLegacyWorkflowRunHandler: () => startLegacyWorkflowRunHandler$1,
+  watchLegacyWorkflowHandler: () => watchLegacyWorkflowHandler$1
+});
+async function getLegacyWorkflowsHandler$1({ mastra }) {
+  try {
+    const workflows = mastra.legacy_getWorkflows({ serialized: false });
+    const _workflows = Object.entries(workflows).reduce((acc, [key, workflow]) => {
+      if (workflow.isNested) return acc;
+      acc[key] = {
+        stepGraph: workflow.stepGraph,
+        stepSubscriberGraph: workflow.stepSubscriberGraph,
+        serializedStepGraph: workflow.serializedStepGraph,
+        serializedStepSubscriberGraph: workflow.serializedStepSubscriberGraph,
+        name: workflow.name,
+        triggerSchema: workflow.triggerSchema ? stringify(esm_default(workflow.triggerSchema)) : void 0,
+        steps: Object.entries(workflow.steps).reduce((acc2, [key2, step]) => {
+          const _step = step;
+          acc2[key2] = {
+            id: _step.id,
+            description: _step.description,
+            workflowId: _step.workflowId,
+            inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
+            outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
+          };
+          return acc2;
+        }, {})
+      };
+      return acc;
+    }, {});
+    return _workflows;
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error getting workflows" });
+  }
+}
+async function getLegacyWorkflowByIdHandler$1({ mastra, workflowId }) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    if (!workflow) {
+      throw new HTTPException(404, { message: "Workflow not found" });
+    }
+    return {
+      stepGraph: workflow.stepGraph,
+      stepSubscriberGraph: workflow.stepSubscriberGraph,
+      serializedStepGraph: workflow.serializedStepGraph,
+      serializedStepSubscriberGraph: workflow.serializedStepSubscriberGraph,
+      name: workflow.name,
+      triggerSchema: workflow.triggerSchema ? stringify(esm_default(workflow.triggerSchema)) : void 0,
+      steps: Object.entries(workflow.steps).reduce((acc, [key, step]) => {
+        const _step = step;
+        acc[key] = {
+          id: _step.id,
+          description: _step.description,
+          workflowId: _step.workflowId,
+          inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
+          outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
+        };
+        return acc;
+      }, {})
+    };
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error getting workflow" });
+  }
+}
+async function startAsyncLegacyWorkflowHandler$1({
+  mastra,
+  runtimeContext,
+  workflowId,
+  runId,
+  triggerData
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    if (!workflow) {
+      throw new HTTPException(404, { message: "Workflow not found" });
+    }
+    if (!runId) {
+      const newRun = workflow.createRun();
+      const result2 = await newRun.start({
+        triggerData,
+        runtimeContext
+      });
+      return result2;
+    }
+    const run = workflow.getMemoryRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    const result = await run.start({
+      triggerData,
+      runtimeContext
+    });
+    return result;
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error executing workflow" });
+  }
+}
+async function getLegacyWorkflowRunHandler({
+  mastra,
+  workflowId,
+  runId
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    if (!runId) {
+      throw new HTTPException(400, { message: "Run ID is required" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    if (!workflow) {
+      throw new HTTPException(404, { message: "Workflow not found" });
+    }
+    const run = await workflow.getRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    return run;
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error getting workflow run" });
+  }
+}
+async function createLegacyWorkflowRunHandler$1({
+  mastra,
+  workflowId,
+  runId: prevRunId
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    if (!workflow) {
+      throw new HTTPException(404, { message: "Workflow not found" });
+    }
+    const newRun = workflow.createRun({ runId: prevRunId });
+    return { runId: newRun.runId };
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error creating workflow run" });
+  }
+}
+async function startLegacyWorkflowRunHandler$1({
+  mastra,
+  runtimeContext,
+  workflowId,
+  runId,
+  triggerData
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    if (!runId) {
+      throw new HTTPException(400, { message: "runId required to start run" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    const run = workflow.getMemoryRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    void run.start({
+      triggerData,
+      runtimeContext
+    });
+    return { message: "Workflow run started" };
+  } catch (e) {
+    return handleError$1(e, "Error starting workflow run");
+  }
+}
+async function watchLegacyWorkflowHandler$1({
+  mastra,
+  workflowId,
+  runId
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    if (!runId) {
+      throw new HTTPException(400, { message: "runId required to watch workflow" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    const run = workflow.getMemoryRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    let unwatch;
+    let asyncRef = null;
+    const stream = new ReadableStream$1({
+      start(controller) {
+        unwatch = run.watch(({ activePaths, runId: runId2, timestamp, results }) => {
+          const activePathsObj = Object.fromEntries(activePaths);
+          controller.enqueue(JSON.stringify({ activePaths: activePathsObj, runId: runId2, timestamp, results }));
+          if (asyncRef) {
+            clearImmediate(asyncRef);
+            asyncRef = null;
+          }
+          asyncRef = setImmediate(() => {
+            const runDone = Object.values(activePathsObj).every((value) => value.status !== "executing");
+            if (runDone) {
+              controller.close();
+              unwatch?.();
+            }
+          });
+        });
+      },
+      cancel() {
+        unwatch?.();
+      }
+    });
+    return stream;
+  } catch (error) {
+    return handleError$1(error, "Error watching workflow");
+  }
+}
+async function resumeAsyncLegacyWorkflowHandler$1({
+  mastra,
+  workflowId,
+  runId,
+  body,
+  runtimeContext
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    if (!runId) {
+      throw new HTTPException(400, { message: "runId required to resume workflow" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    const run = workflow.getMemoryRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    const result = await run.resume({
+      stepId: body.stepId,
+      context: body.context,
+      runtimeContext
+    });
+    return result;
+  } catch (error) {
+    return handleError$1(error, "Error resuming workflow step");
+  }
+}
+async function resumeLegacyWorkflowHandler$1({
+  mastra,
+  workflowId,
+  runId,
+  body,
+  runtimeContext
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    if (!runId) {
+      throw new HTTPException(400, { message: "runId required to resume workflow" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    const run = workflow.getMemoryRun(runId);
+    if (!run) {
+      throw new HTTPException(404, { message: "Workflow run not found" });
+    }
+    void run.resume({
+      stepId: body.stepId,
+      context: body.context,
+      runtimeContext
+    });
+    return { message: "Workflow run resumed" };
+  } catch (error) {
+    return handleError$1(error, "Error resuming workflow");
+  }
+}
+async function getLegacyWorkflowRunsHandler$1({
+  mastra,
+  workflowId,
+  fromDate,
+  toDate,
+  limit,
+  offset,
+  resourceId
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    const workflow = mastra.legacy_getWorkflow(workflowId);
+    const workflowRuns = await workflow.getWorkflowRuns({ fromDate, toDate, limit, offset, resourceId }) || {
+      runs: [],
+      total: 0
+    };
+    return workflowRuns;
+  } catch (error) {
+    return handleError$1(error, "Error getting workflow runs");
+  }
+}
+
 // src/server/handlers/logs.ts
 var logs_exports = {};
 __export(logs_exports, {
@@ -5080,9 +5413,10 @@ async function getLogsByRunIdHandler$1({
 async function getLogTransports$1({ mastra }) {
   try {
     const logger = mastra.getLogger();
-    const transports = logger.transports;
+    console.log(logger);
+    const transports = logger.getTransports();
     return {
-      transports: transports ? Object.keys(transports) : []
+      transports: transports ? [...transports.keys()] : []
     };
   } catch (error) {
     return handleError$1(error, "Error getting log Transports");
@@ -5775,7 +6109,7 @@ async function describeIndex$1({
       throw new HTTPException(400, { message: "Index name is required" });
     }
     const vector = getVector(mastra, vectorName);
-    const stats = await vector.describeIndex(indexName);
+    const stats = await vector.describeIndex({ indexName });
     return {
       dimension: stats.dimension,
       count: stats.count,
@@ -5795,331 +6129,10 @@ async function deleteIndex$1({
       throw new HTTPException(400, { message: "Index name is required" });
     }
     const vector = getVector(mastra, vectorName);
-    await vector.deleteIndex(indexName);
+    await vector.deleteIndex({ indexName });
     return { success: true };
   } catch (error) {
     return handleError$1(error, "Error deleting index");
-  }
-}
-
-// src/server/handlers/vNextWorkflows.ts
-var vNextWorkflows_exports = {};
-__export(vNextWorkflows_exports, {
-  createVNextWorkflowRunHandler: () => createVNextWorkflowRunHandler$1,
-  getVNextWorkflowByIdHandler: () => getVNextWorkflowByIdHandler$1,
-  getVNextWorkflowRunByIdHandler: () => getVNextWorkflowRunByIdHandler,
-  getVNextWorkflowRunsHandler: () => getVNextWorkflowRunsHandler$1,
-  getVNextWorkflowsHandler: () => getVNextWorkflowsHandler$1,
-  resumeAsyncVNextWorkflowHandler: () => resumeAsyncVNextWorkflowHandler$1,
-  resumeVNextWorkflowHandler: () => resumeVNextWorkflowHandler$1,
-  startAsyncVNextWorkflowHandler: () => startAsyncVNextWorkflowHandler$1,
-  startVNextWorkflowRunHandler: () => startVNextWorkflowRunHandler$1,
-  watchVNextWorkflowHandler: () => watchVNextWorkflowHandler$1
-});
-async function getVNextWorkflowsHandler$1({ mastra }) {
-  try {
-    const workflows = mastra.vnext_getWorkflows({ serialized: false });
-    const _workflows = Object.entries(workflows).reduce((acc, [key, workflow]) => {
-      acc[key] = {
-        name: workflow.name,
-        steps: Object.entries(workflow.steps).reduce((acc2, [key2, step]) => {
-          acc2[key2] = {
-            id: step.id,
-            description: step.description,
-            inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
-            outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
-            resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
-            suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
-          };
-          return acc2;
-        }, {}),
-        stepGraph: workflow.serializedStepGraph,
-        inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
-        outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
-      };
-      return acc;
-    }, {});
-    return _workflows;
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error getting workflows" });
-  }
-}
-async function getVNextWorkflowByIdHandler$1({ mastra, workflowId }) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    if (!workflow) {
-      throw new HTTPException(404, { message: "Workflow not found" });
-    }
-    return {
-      steps: Object.entries(workflow.steps).reduce((acc, [key, step]) => {
-        acc[key] = {
-          id: step.id,
-          description: step.description,
-          inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
-          outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
-          resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
-          suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
-        };
-        return acc;
-      }, {}),
-      name: workflow.name,
-      stepGraph: workflow.serializedStepGraph,
-      inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
-      outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
-    };
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error getting workflow" });
-  }
-}
-async function getVNextWorkflowRunByIdHandler({
-  mastra,
-  workflowId,
-  runId
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    if (!runId) {
-      throw new HTTPException(400, { message: "Run ID is required" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    if (!workflow) {
-      throw new HTTPException(404, { message: "Workflow not found" });
-    }
-    const run = await workflow.getWorkflowRunById(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    return run;
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error getting workflow run" });
-  }
-}
-async function createVNextWorkflowRunHandler$1({
-  mastra,
-  workflowId,
-  runId: prevRunId
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    if (!workflow) {
-      throw new HTTPException(404, { message: "Workflow not found" });
-    }
-    const run = workflow.createRun({ runId: prevRunId });
-    return { runId: run.runId };
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error creating workflow run" });
-  }
-}
-async function startAsyncVNextWorkflowHandler$1({
-  mastra,
-  runtimeContext,
-  workflowId,
-  runId,
-  inputData,
-  runtimeContextFromRequest
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    if (!workflow) {
-      throw new HTTPException(404, { message: "Workflow not found" });
-    }
-    const finalRuntimeContext = new RuntimeContext$1([
-      ...Array.from(runtimeContext?.entries() ?? []),
-      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
-    ]);
-    const _run = workflow.createRun({ runId });
-    const result = await _run.start({
-      inputData,
-      runtimeContext: finalRuntimeContext
-    });
-    return result;
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error executing workflow" });
-  }
-}
-async function startVNextWorkflowRunHandler$1({
-  mastra,
-  runtimeContext,
-  workflowId,
-  runId,
-  inputData,
-  runtimeContextFromRequest
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    if (!runId) {
-      throw new HTTPException(400, { message: "runId required to start run" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRunById(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    const finalRuntimeContext = new RuntimeContext$1([
-      ...Array.from(runtimeContext?.entries() ?? []),
-      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
-    ]);
-    const _run = workflow.createRun({ runId });
-    void _run.start({
-      inputData,
-      runtimeContext: finalRuntimeContext
-    });
-    return { message: "Workflow run started" };
-  } catch (e) {
-    return handleError$1(e, "Error starting workflow run");
-  }
-}
-async function watchVNextWorkflowHandler$1({
-  mastra,
-  workflowId,
-  runId
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    if (!runId) {
-      throw new HTTPException(400, { message: "runId required to watch workflow" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRunById(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    const _run = workflow.createRun({ runId });
-    let unwatch;
-    let asyncRef = null;
-    const stream = new ReadableStream$1({
-      start(controller) {
-        unwatch = _run.watch(({ type, payload, eventTimestamp }) => {
-          controller.enqueue(JSON.stringify({ type, payload, eventTimestamp, runId }));
-          if (asyncRef) {
-            clearImmediate(asyncRef);
-            asyncRef = null;
-          }
-          asyncRef = setImmediate(async () => {
-            const runDone = payload.workflowState.status !== "running";
-            if (runDone) {
-              controller.close();
-              unwatch?.();
-            }
-          });
-        });
-      },
-      cancel() {
-        unwatch?.();
-      }
-    });
-    return stream;
-  } catch (error) {
-    return handleError$1(error, "Error watching workflow");
-  }
-}
-async function resumeAsyncVNextWorkflowHandler$1({
-  mastra,
-  workflowId,
-  runId,
-  body,
-  runtimeContext,
-  runtimeContextFromRequest
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    if (!runId) {
-      throw new HTTPException(400, { message: "runId required to resume workflow" });
-    }
-    if (!body.step) {
-      throw new HTTPException(400, { message: "step required to resume workflow" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRunById(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    const finalRuntimeContext = new RuntimeContext$1([
-      ...Array.from(runtimeContext?.entries() ?? []),
-      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
-    ]);
-    const _run = workflow.createRun({ runId });
-    const result = await _run.resume({
-      step: body.step,
-      resumeData: body.resumeData,
-      runtimeContext: finalRuntimeContext
-    });
-    return result;
-  } catch (error) {
-    return handleError$1(error, "Error resuming workflow step");
-  }
-}
-async function resumeVNextWorkflowHandler$1({
-  mastra,
-  workflowId,
-  runId,
-  body,
-  runtimeContext
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    if (!runId) {
-      throw new HTTPException(400, { message: "runId required to resume workflow" });
-    }
-    if (!body.step) {
-      throw new HTTPException(400, { message: "step required to resume workflow" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    const run = await workflow.getWorkflowRunById(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    const _run = workflow.createRun({ runId });
-    void _run.resume({
-      step: body.step,
-      resumeData: body.resumeData,
-      runtimeContext
-    });
-    return { message: "Workflow run resumed" };
-  } catch (error) {
-    return handleError$1(error, "Error resuming workflow");
-  }
-}
-async function getVNextWorkflowRunsHandler$1({
-  mastra,
-  workflowId,
-  fromDate,
-  toDate,
-  limit,
-  offset,
-  resourceId
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    const workflow = mastra.vnext_getWorkflow(workflowId);
-    const workflowRuns = await workflow.getWorkflowRuns({ fromDate, toDate, limit, offset, resourceId }) || {
-      runs: [],
-      total: 0
-    };
-    return workflowRuns;
-  } catch (error) {
-    return handleError$1(error, "Error getting workflow runs");
   }
 }
 
@@ -6208,9 +6221,9 @@ async function transcribeSpeechHandler({
 // src/server/handlers/workflows.ts
 var workflows_exports = {};
 __export(workflows_exports, {
-  createRunHandler: () => createRunHandler$1,
+  createWorkflowRunHandler: () => createWorkflowRunHandler$1,
   getWorkflowByIdHandler: () => getWorkflowByIdHandler$1,
-  getWorkflowRunHandler: () => getWorkflowRunHandler,
+  getWorkflowRunByIdHandler: () => getWorkflowRunByIdHandler,
   getWorkflowRunsHandler: () => getWorkflowRunsHandler$1,
   getWorkflowsHandler: () => getWorkflowsHandler$1,
   resumeAsyncWorkflowHandler: () => resumeAsyncWorkflowHandler$1,
@@ -6223,25 +6236,23 @@ async function getWorkflowsHandler$1({ mastra }) {
   try {
     const workflows = mastra.getWorkflows({ serialized: false });
     const _workflows = Object.entries(workflows).reduce((acc, [key, workflow]) => {
-      if (workflow.isNested) return acc;
       acc[key] = {
-        stepGraph: workflow.stepGraph,
-        stepSubscriberGraph: workflow.stepSubscriberGraph,
-        serializedStepGraph: workflow.serializedStepGraph,
-        serializedStepSubscriberGraph: workflow.serializedStepSubscriberGraph,
         name: workflow.name,
-        triggerSchema: workflow.triggerSchema ? stringify(esm_default(workflow.triggerSchema)) : void 0,
+        description: workflow.description,
         steps: Object.entries(workflow.steps).reduce((acc2, [key2, step]) => {
-          const _step = step;
           acc2[key2] = {
-            id: _step.id,
-            description: _step.description,
-            workflowId: _step.workflowId,
-            inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
-            outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
+            id: step.id,
+            description: step.description,
+            inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
+            outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
+            resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
+            suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
           };
           return acc2;
-        }, {})
+        }, {}),
+        stepGraph: workflow.serializedStepGraph,
+        inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
+        outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
       };
       return acc;
     }, {});
@@ -6260,65 +6271,28 @@ async function getWorkflowByIdHandler$1({ mastra, workflowId }) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
     return {
-      stepGraph: workflow.stepGraph,
-      stepSubscriberGraph: workflow.stepSubscriberGraph,
-      serializedStepGraph: workflow.serializedStepGraph,
-      serializedStepSubscriberGraph: workflow.serializedStepSubscriberGraph,
-      name: workflow.name,
-      triggerSchema: workflow.triggerSchema ? stringify(esm_default(workflow.triggerSchema)) : void 0,
       steps: Object.entries(workflow.steps).reduce((acc, [key, step]) => {
-        const _step = step;
         acc[key] = {
-          id: _step.id,
-          description: _step.description,
-          workflowId: _step.workflowId,
-          inputSchema: _step.inputSchema ? stringify(esm_default(_step.inputSchema)) : void 0,
-          outputSchema: _step.outputSchema ? stringify(esm_default(_step.outputSchema)) : void 0
+          id: step.id,
+          description: step.description,
+          inputSchema: step.inputSchema ? stringify(esm_default(step.inputSchema)) : void 0,
+          outputSchema: step.outputSchema ? stringify(esm_default(step.outputSchema)) : void 0,
+          resumeSchema: step.resumeSchema ? stringify(esm_default(step.resumeSchema)) : void 0,
+          suspendSchema: step.suspendSchema ? stringify(esm_default(step.suspendSchema)) : void 0
         };
         return acc;
-      }, {})
+      }, {}),
+      name: workflow.name,
+      description: workflow.description,
+      stepGraph: workflow.serializedStepGraph,
+      inputSchema: workflow.inputSchema ? stringify(esm_default(workflow.inputSchema)) : void 0,
+      outputSchema: workflow.outputSchema ? stringify(esm_default(workflow.outputSchema)) : void 0
     };
   } catch (error) {
     throw new HTTPException(500, { message: error?.message || "Error getting workflow" });
   }
 }
-async function startAsyncWorkflowHandler$1({
-  mastra,
-  runtimeContext,
-  workflowId,
-  runId,
-  triggerData
-}) {
-  try {
-    if (!workflowId) {
-      throw new HTTPException(400, { message: "Workflow ID is required" });
-    }
-    const workflow = mastra.getWorkflow(workflowId);
-    if (!workflow) {
-      throw new HTTPException(404, { message: "Workflow not found" });
-    }
-    if (!runId) {
-      const newRun = workflow.createRun();
-      const result2 = await newRun.start({
-        triggerData,
-        runtimeContext
-      });
-      return result2;
-    }
-    const run = workflow.getMemoryRun(runId);
-    if (!run) {
-      throw new HTTPException(404, { message: "Workflow run not found" });
-    }
-    const result = await run.start({
-      triggerData,
-      runtimeContext
-    });
-    return result;
-  } catch (error) {
-    throw new HTTPException(500, { message: error?.message || "Error executing workflow" });
-  }
-}
-async function getWorkflowRunHandler({
+async function getWorkflowRunByIdHandler({
   mastra,
   workflowId,
   runId
@@ -6334,7 +6308,7 @@ async function getWorkflowRunHandler({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
-    const run = await workflow.getRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
@@ -6343,7 +6317,7 @@ async function getWorkflowRunHandler({
     throw new HTTPException(500, { message: error?.message || "Error getting workflow run" });
   }
 }
-async function createRunHandler$1({
+async function createWorkflowRunHandler$1({
   mastra,
   workflowId,
   runId: prevRunId
@@ -6356,10 +6330,40 @@ async function createRunHandler$1({
     if (!workflow) {
       throw new HTTPException(404, { message: "Workflow not found" });
     }
-    const newRun = workflow.createRun({ runId: prevRunId });
-    return { runId: newRun.runId };
+    const run = workflow.createRun({ runId: prevRunId });
+    return { runId: run.runId };
   } catch (error) {
     throw new HTTPException(500, { message: error?.message || "Error creating workflow run" });
+  }
+}
+async function startAsyncWorkflowHandler$1({
+  mastra,
+  runtimeContext,
+  workflowId,
+  runId,
+  inputData,
+  runtimeContextFromRequest
+}) {
+  try {
+    if (!workflowId) {
+      throw new HTTPException(400, { message: "Workflow ID is required" });
+    }
+    const workflow = mastra.getWorkflow(workflowId);
+    if (!workflow) {
+      throw new HTTPException(404, { message: "Workflow not found" });
+    }
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
+    const _run = workflow.createRun({ runId });
+    const result = await _run.start({
+      inputData,
+      runtimeContext: finalRuntimeContext
+    });
+    return result;
+  } catch (error) {
+    throw new HTTPException(500, { message: error?.message || "Error executing workflow" });
   }
 }
 async function startWorkflowRunHandler$1({
@@ -6367,7 +6371,8 @@ async function startWorkflowRunHandler$1({
   runtimeContext,
   workflowId,
   runId,
-  triggerData
+  inputData,
+  runtimeContextFromRequest
 }) {
   try {
     if (!workflowId) {
@@ -6377,13 +6382,18 @@ async function startWorkflowRunHandler$1({
       throw new HTTPException(400, { message: "runId required to start run" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getMemoryRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
-    void run.start({
-      triggerData,
-      runtimeContext
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
+    const _run = workflow.createRun({ runId });
+    void _run.start({
+      inputData,
+      runtimeContext: finalRuntimeContext
     });
     return { message: "Workflow run started" };
   } catch (e) {
@@ -6403,23 +6413,23 @@ async function watchWorkflowHandler$1({
       throw new HTTPException(400, { message: "runId required to watch workflow" });
     }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getMemoryRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
+    const _run = workflow.createRun({ runId });
     let unwatch;
     let asyncRef = null;
     const stream = new ReadableStream$1({
       start(controller) {
-        unwatch = run.watch(({ activePaths, runId: runId2, timestamp, results }) => {
-          const activePathsObj = Object.fromEntries(activePaths);
-          controller.enqueue(JSON.stringify({ activePaths: activePathsObj, runId: runId2, timestamp, results }));
+        unwatch = _run.watch(({ type, payload, eventTimestamp }) => {
+          controller.enqueue(JSON.stringify({ type, payload, eventTimestamp, runId }));
           if (asyncRef) {
             clearImmediate(asyncRef);
             asyncRef = null;
           }
-          asyncRef = setImmediate(() => {
-            const runDone = Object.values(activePathsObj).every((value) => value.status !== "executing");
+          asyncRef = setImmediate(async () => {
+            const runDone = payload.workflowState.status !== "running";
             if (runDone) {
               controller.close();
               unwatch?.();
@@ -6441,7 +6451,8 @@ async function resumeAsyncWorkflowHandler$1({
   workflowId,
   runId,
   body,
-  runtimeContext
+  runtimeContext,
+  runtimeContextFromRequest
 }) {
   try {
     if (!workflowId) {
@@ -6450,15 +6461,23 @@ async function resumeAsyncWorkflowHandler$1({
     if (!runId) {
       throw new HTTPException(400, { message: "runId required to resume workflow" });
     }
+    if (!body.step) {
+      throw new HTTPException(400, { message: "step required to resume workflow" });
+    }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getMemoryRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
-    const result = await run.resume({
-      stepId: body.stepId,
-      context: body.context,
-      runtimeContext
+    const finalRuntimeContext = new RuntimeContext$1([
+      ...Array.from(runtimeContext?.entries() ?? []),
+      ...Array.from(Object.entries(runtimeContextFromRequest ?? {}))
+    ]);
+    const _run = workflow.createRun({ runId });
+    const result = await _run.resume({
+      step: body.step,
+      resumeData: body.resumeData,
+      runtimeContext: finalRuntimeContext
     });
     return result;
   } catch (error) {
@@ -6479,14 +6498,18 @@ async function resumeWorkflowHandler$1({
     if (!runId) {
       throw new HTTPException(400, { message: "runId required to resume workflow" });
     }
+    if (!body.step) {
+      throw new HTTPException(400, { message: "step required to resume workflow" });
+    }
     const workflow = mastra.getWorkflow(workflowId);
-    const run = workflow.getMemoryRun(runId);
+    const run = await workflow.getWorkflowRunById(runId);
     if (!run) {
       throw new HTTPException(404, { message: "Workflow run not found" });
     }
-    void run.resume({
-      stepId: body.stepId,
-      context: body.context,
+    const _run = workflow.createRun({ runId });
+    void _run.resume({
+      step: body.step,
+      resumeData: body.resumeData,
       runtimeContext
     });
     return { message: "Workflow run resumed" };
@@ -7522,6 +7545,187 @@ async function setAgentInstructionsHandler(c2) {
   }
 }
 
+// src/server/handlers/auth/defaults.ts
+var defaultAuthConfig = {
+  public: [
+    "/",
+    "/refresh-events",
+    "/__refresh",
+    "/assets/*",
+    "/auth/*",
+    "/openapi.json",
+    "/swagger-ui",
+    ["/api/agents", "GET"],
+    ["/a2a/*", ["GET"]]
+  ],
+  // Simple rule system
+  rules: [
+    // Admin users can do anything
+    {
+      condition: (user) => {
+        if (typeof user === "object" && user !== null) {
+          if ("isAdmin" in user) {
+            return !!user.isAdmin;
+          }
+          if ("role" in user) {
+            return user.role === "admin";
+          }
+        }
+        return false;
+      },
+      allow: true
+    }
+  ]
+};
+
+// src/server/handlers/auth/helpers.ts
+var canAccessPublicly = (path, method, authConfig) => {
+  const publicAccess = [...defaultAuthConfig.public || [], ...authConfig.public || []];
+  for (const patternPathOrMethod of publicAccess) {
+    if (patternPathOrMethod instanceof RegExp) {
+      if (patternPathOrMethod.test(path)) {
+        return true;
+      }
+    }
+    if (typeof patternPathOrMethod === "string" && pathMatchesPattern(path, patternPathOrMethod)) {
+      return true;
+    }
+    if (Array.isArray(patternPathOrMethod) && patternPathOrMethod.length === 2) {
+      const [pattern, methodOrMethods] = patternPathOrMethod;
+      if (pathMatchesPattern(path, pattern) && matchesOrIncludes(methodOrMethods, method)) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+var pathMatchesPattern = (path, pattern) => {
+  if (pattern.endsWith("*")) {
+    const prefix = pattern.slice(0, -1);
+    return path.startsWith(prefix);
+  }
+  return path === pattern;
+};
+var pathMatchesRule = (path, rulePath) => {
+  if (!rulePath) return true;
+  if (typeof rulePath === "string") {
+    return pathMatchesPattern(path, rulePath);
+  }
+  if (rulePath instanceof RegExp) {
+    console.log("rulePath", rulePath, path, rulePath.test(path));
+    return rulePath.test(path);
+  }
+  if (Array.isArray(rulePath)) {
+    return rulePath.some((p2) => pathMatchesPattern(path, p2));
+  }
+  return false;
+};
+var matchesOrIncludes = (values, value) => {
+  if (typeof values === "string") {
+    return values === value;
+  }
+  if (Array.isArray(values)) {
+    return values.includes(value);
+  }
+  return false;
+};
+var checkRules = async (rules, path, method, user) => {
+  for (const i2 in rules || []) {
+    const rule = rules?.[i2];
+    if (!pathMatchesRule(path, rule.path)) {
+      continue;
+    }
+    if (rule.methods && !matchesOrIncludes(rule.methods, method)) {
+      continue;
+    }
+    const condition = rule.condition;
+    if (typeof condition === "function") {
+      const allowed = await Promise.resolve().then(() => condition(user)).catch(() => false);
+      if (allowed) {
+        return true;
+      }
+    } else if (rule.allow) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// src/server/handlers/auth/index.ts
+var authenticationMiddleware = async (c2, next) => {
+  const mastra = c2.get("mastra");
+  const authConfig = mastra.getServer()?.experimental_auth;
+  if (!authConfig) {
+    return next();
+  }
+  if (canAccessPublicly(c2.req.path, c2.req.method, authConfig)) {
+    return next();
+  }
+  const authHeader = c2.req.header("Authorization");
+  let token = authHeader ? authHeader.replace("Bearer ", "") : null;
+  if (!token && c2.req.query("apiKey")) {
+    token = c2.req.query("apiKey") || null;
+  }
+  if (!token) {
+    return c2.json({ error: "Authentication required" }, 401);
+  }
+  try {
+    let user;
+    if (typeof authConfig.authenticateToken === "function") {
+      user = await authConfig.authenticateToken(token, c2.req);
+    } else {
+      throw new Error("No token verification method configured");
+    }
+    if (!user) {
+      return c2.json({ error: "Invalid or expired token" }, 401);
+    }
+    c2.get("runtimeContext").set("user", user);
+    return next();
+  } catch (err) {
+    console.error(err);
+    return c2.json({ error: "Invalid or expired token" }, 401);
+  }
+};
+var authorizationMiddleware = async (c2, next) => {
+  const mastra = c2.get("mastra");
+  const authConfig = mastra.getServer()?.experimental_auth;
+  if (!authConfig) {
+    return next();
+  }
+  const path = c2.req.path;
+  const method = c2.req.method;
+  if (canAccessPublicly(path, method, authConfig)) {
+    return next();
+  }
+  const user = c2.get("runtimeContext").get("user");
+  if (typeof authConfig.authorize === "function") {
+    try {
+      const isAuthorized = await authConfig.authorize(path, method, user, c2);
+      if (isAuthorized) {
+        return next();
+      }
+      return c2.json({ error: "Access denied" }, 403);
+    } catch (err) {
+      console.error(err);
+      return c2.json({ error: "Authorization error" }, 500);
+    }
+  }
+  if (authConfig.rules && authConfig.rules.length > 0) {
+    const isAuthorized = await checkRules(authConfig.rules, path, method, user);
+    if (isAuthorized) {
+      return next();
+    }
+    return c2.json({ error: "Access denied" }, 403);
+  }
+  if (defaultAuthConfig.rules && defaultAuthConfig.rules.length > 0) {
+    const isAuthorized = await checkRules(defaultAuthConfig.rules, path, method, user);
+    if (isAuthorized) {
+      return next();
+    }
+  }
+  return c2.json({ error: "Access denied" }, 403);
+};
+
 // src/server/handlers/client.ts
 var clients = /* @__PURE__ */ new Set();
 function handleClientsRefresh(c2) {
@@ -7552,6 +7756,184 @@ function handleTriggerClientsRefresh(c2) {
     }
   });
   return c2.json({ success: true, clients: clients.size });
+}
+async function getLegacyWorkflowsHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const workflows = await getLegacyWorkflowsHandler$1({
+      mastra
+    });
+    return c2.json(workflows);
+  } catch (error) {
+    return handleError(error, "Error getting workflows");
+  }
+}
+async function getLegacyWorkflowByIdHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const workflowId = c2.req.param("workflowId");
+    const workflow = await getLegacyWorkflowByIdHandler$1({
+      mastra,
+      workflowId
+    });
+    return c2.json(workflow);
+  } catch (error) {
+    return handleError(error, "Error getting workflow");
+  }
+}
+async function startAsyncLegacyWorkflowHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const runtimeContext = c2.get("runtimeContext");
+    const workflowId = c2.req.param("workflowId");
+    const triggerData = await c2.req.json();
+    const runId = c2.req.query("runId");
+    const result = await startAsyncLegacyWorkflowHandler$1({
+      mastra,
+      runtimeContext,
+      workflowId,
+      runId,
+      triggerData
+    });
+    return c2.json(result);
+  } catch (error) {
+    return handleError(error, "Error executing workflow");
+  }
+}
+async function createLegacyWorkflowRunHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const workflowId = c2.req.param("workflowId");
+    const prevRunId = c2.req.query("runId");
+    const result = await createLegacyWorkflowRunHandler$1({
+      mastra,
+      workflowId,
+      runId: prevRunId
+    });
+    return c2.json(result);
+  } catch (e2) {
+    return handleError(e2, "Error creating run");
+  }
+}
+async function startLegacyWorkflowRunHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const runtimeContext = c2.get("runtimeContext");
+    const workflowId = c2.req.param("workflowId");
+    const triggerData = await c2.req.json();
+    const runId = c2.req.query("runId");
+    await startLegacyWorkflowRunHandler$1({
+      mastra,
+      runtimeContext,
+      workflowId,
+      runId,
+      triggerData
+    });
+    return c2.json({ message: "Workflow run started" });
+  } catch (e2) {
+    return handleError(e2, "Error starting workflow run");
+  }
+}
+function watchLegacyWorkflowHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const logger2 = mastra.getLogger();
+    const workflowId = c2.req.param("workflowId");
+    const runId = c2.req.query("runId");
+    if (!runId) {
+      throw new HTTPException$1(400, { message: "runId required to watch workflow" });
+    }
+    return stream(
+      c2,
+      async (stream4) => {
+        try {
+          const result = await watchLegacyWorkflowHandler$1({
+            mastra,
+            workflowId,
+            runId
+          });
+          stream4.onAbort(() => {
+            if (!result.locked) {
+              return result.cancel();
+            }
+          });
+          for await (const chunk of result) {
+            await stream4.write(chunk.toString() + "");
+          }
+        } catch (err) {
+          console.log(err);
+        }
+      },
+      async (err) => {
+        logger2.error("Error in watch stream: " + err?.message);
+      }
+    );
+  } catch (error) {
+    return handleError(error, "Error watching workflow");
+  }
+}
+async function resumeAsyncLegacyWorkflowHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const runtimeContext = c2.get("runtimeContext");
+    const workflowId = c2.req.param("workflowId");
+    const runId = c2.req.query("runId");
+    const { stepId, context } = await c2.req.json();
+    if (!runId) {
+      throw new HTTPException$1(400, { message: "runId required to resume workflow" });
+    }
+    const result = await resumeAsyncLegacyWorkflowHandler$1({
+      mastra,
+      runtimeContext,
+      workflowId,
+      runId,
+      body: { stepId, context }
+    });
+    return c2.json(result);
+  } catch (error) {
+    return handleError(error, "Error resuming workflow step");
+  }
+}
+async function resumeLegacyWorkflowHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const runtimeContext = c2.get("runtimeContext");
+    const workflowId = c2.req.param("workflowId");
+    const runId = c2.req.query("runId");
+    const { stepId, context } = await c2.req.json();
+    if (!runId) {
+      throw new HTTPException$1(400, { message: "runId required to resume workflow" });
+    }
+    await resumeLegacyWorkflowHandler$1({
+      mastra,
+      runtimeContext,
+      workflowId,
+      runId,
+      body: { stepId, context }
+    });
+    return c2.json({ message: "Workflow run resumed" });
+  } catch (error) {
+    return handleError(error, "Error resuming workflow");
+  }
+}
+async function getLegacyWorkflowRunsHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const workflowId = c2.req.param("workflowId");
+    const { fromDate, toDate, limit, offset, resourceId } = c2.req.query();
+    const workflowRuns = await getLegacyWorkflowRunsHandler$1({
+      mastra,
+      workflowId,
+      fromDate: fromDate ? new Date(fromDate) : void 0,
+      toDate: toDate ? new Date(toDate) : void 0,
+      limit: limit ? Number(limit) : void 0,
+      offset: offset ? Number(offset) : void 0,
+      resourceId
+    });
+    return c2.json(workflowRuns);
+  } catch (error) {
+    return handleError(error, "Error getting workflow runs");
+  }
 }
 async function getLogsHandler(c2) {
   try {
@@ -9462,7 +9844,7 @@ var getMcpServerMessageHandler = async (c2) => {
   try {
     await server.startHTTP({
       url: new URL(c2.req.url),
-      httpPath: `/api/servers/${serverId}/mcp`,
+      httpPath: `/api/mcp/${serverId}/mcp`,
       req,
       res,
       options: {
@@ -9483,8 +9865,8 @@ var getMcpServerSseHandler = async (c2) => {
     return c2.json({ error: `MCP server '${serverId}' not found` }, 404);
   }
   const requestUrl = new URL(c2.req.url);
-  const sseConnectionPath = `/api/servers/${serverId}/sse`;
-  const sseMessagePath = `/api/servers/${serverId}/messages`;
+  const sseConnectionPath = `/api/mcp/${serverId}/sse`;
+  const sseMessagePath = `/api/mcp/${serverId}/messages`;
   try {
     return await server.startHonoSSE({
       url: requestUrl,
@@ -9495,6 +9877,148 @@ var getMcpServerSseHandler = async (c2) => {
   } catch (error) {
     c2.get("logger")?.error({ err: error, serverId, path: requestUrl.pathname }, "Error in MCP SSE route handler");
     return handleError(error, "Error handling MCP SSE request");
+  }
+};
+var listMcpRegistryServersHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  if (!mastra || typeof mastra.getMCPServers !== "function") {
+    c2.get("logger")?.error("Mastra instance or getMCPServers method not available in listMcpRegistryServersHandler");
+    return c2.json({ error: "Mastra instance or getMCPServers method not available" }, 500);
+  }
+  const mcpServersMap = mastra.getMCPServers();
+  if (!mcpServersMap) {
+    c2.get("logger")?.warn("getMCPServers returned undefined or null in listMcpRegistryServersHandler");
+    return c2.json({ servers: [], next: null, total_count: 0 });
+  }
+  const allServersArray = Array.from(
+    mcpServersMap instanceof Map ? mcpServersMap.values() : Object.values(mcpServersMap)
+  );
+  const limit = parseInt(c2.req.query("limit") || "50", 10);
+  const offset = parseInt(c2.req.query("offset") || "0", 10);
+  const paginatedServers = allServersArray.slice(offset, offset + limit);
+  const serverInfos = paginatedServers.map((server) => server.getServerInfo());
+  const total_count = allServersArray.length;
+  let next = null;
+  if (offset + limit < total_count) {
+    const nextOffset = offset + limit;
+    const currentUrl = new URL(c2.req.url);
+    currentUrl.searchParams.set("offset", nextOffset.toString());
+    currentUrl.searchParams.set("limit", limit.toString());
+    next = currentUrl.toString();
+  }
+  return c2.json({
+    servers: serverInfos,
+    next,
+    total_count
+  });
+};
+var getMcpRegistryServerDetailHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("id");
+  const requestedVersion = c2.req.query("version");
+  if (!mastra || typeof mastra.getMCPServer !== "function") {
+    c2.get("logger")?.error("Mastra instance or getMCPServer method not available in getMcpRegistryServerDetailHandler");
+    return c2.json({ error: "Mastra instance or getMCPServer method not available" }, 500);
+  }
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server with ID '${serverId}' not found` }, 404);
+  }
+  const serverDetailInfo = server.getServerDetail();
+  if (requestedVersion && serverDetailInfo.version_detail.version !== requestedVersion) {
+    c2.get("logger")?.info(
+      `MCP server with ID '${serverId}' found, but version '${serverDetailInfo.version_detail.version}' does not match requested version '${requestedVersion}'.`
+    );
+    return c2.json(
+      {
+        error: `MCP server with ID '${serverId}' found, but not version '${requestedVersion}'. Available version is '${serverDetailInfo.version_detail.version}'.`
+      },
+      404
+      // Return 404 as the specific version is not found
+    );
+  }
+  return c2.json(serverDetailInfo);
+};
+var listMcpServerToolsHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("serverId");
+  if (!mastra || typeof mastra.getMCPServer !== "function") {
+    c2.get("logger")?.error("Mastra instance or getMCPServer method not available in listMcpServerToolsHandler");
+    return c2.json({ error: "Mastra instance or getMCPServer method not available" }, 500);
+  }
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server with ID '${serverId}' not found` }, 404);
+  }
+  if (typeof server.getToolListInfo !== "function") {
+    c2.get("logger")?.error(`MCPServer with ID '${serverId}' does not support getToolListInfo.`);
+    return c2.json({ error: `Server '${serverId}' cannot list tools in this way.` }, 501);
+  }
+  try {
+    const toolListInfo = server.getToolListInfo();
+    return c2.json(toolListInfo);
+  } catch (error) {
+    c2.get("logger")?.error(`Error in listMcpServerToolsHandler for serverId '${serverId}':`, { error: error.message });
+    return handleError(error, `Error listing tools for MCP server '${serverId}'`);
+  }
+};
+var getMcpServerToolDetailHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("serverId");
+  const toolId = c2.req.param("toolId");
+  if (!mastra || typeof mastra.getMCPServer !== "function") {
+    c2.get("logger")?.error("Mastra instance or getMCPServer method not available in getMcpServerToolDetailHandler");
+    return c2.json({ error: "Mastra instance or getMCPServer method not available" }, 500);
+  }
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server with ID '${serverId}' not found` }, 404);
+  }
+  if (typeof server.getToolInfo !== "function") {
+    c2.get("logger")?.error(`MCPServer with ID '${serverId}' does not support getToolInfo.`);
+    return c2.json({ error: `Server '${serverId}' cannot provide tool details in this way.` }, 501);
+  }
+  try {
+    const toolInfo = server.getToolInfo(toolId);
+    if (!toolInfo) {
+      return c2.json({ error: `Tool with ID '${toolId}' not found on MCP server '${serverId}'` }, 404);
+    }
+    return c2.json(toolInfo);
+  } catch (error) {
+    c2.get("logger")?.error(`Error in getMcpServerToolDetailHandler for serverId '${serverId}', toolId '${toolId}':`, {
+      error: error.message
+    });
+    return handleError(error, `Error getting tool '${toolId}' details for MCP server '${serverId}'`);
+  }
+};
+var executeMcpServerToolHandler = async (c2) => {
+  const mastra = getMastra(c2);
+  const serverId = c2.req.param("serverId");
+  const toolId = c2.req.param("toolId");
+  if (!mastra || typeof mastra.getMCPServer !== "function") {
+    c2.get("logger")?.error("Mastra instance or getMCPServer method not available in executeMcpServerToolHandler");
+    return c2.json({ error: "Mastra instance or getMCPServer method not available" }, 500);
+  }
+  const server = mastra.getMCPServer(serverId);
+  if (!server) {
+    return c2.json({ error: `MCP server with ID '${serverId}' not found` }, 404);
+  }
+  if (typeof server.executeTool !== "function") {
+    c2.get("logger")?.error(`MCPServer with ID '${serverId}' does not support executeTool.`);
+    return c2.json({ error: `Server '${serverId}' cannot execute tools in this way.` }, 501);
+  }
+  try {
+    const body = await c2.req.json();
+    const args = body?.data;
+    const runtimeContext = body?.runtimeContext;
+    const result = await server.executeTool(toolId, args, runtimeContext);
+    return c2.json({ result });
+  } catch (error) {
+    c2.get("logger")?.error(`Error executing tool '${toolId}' on server '${serverId}':`, { error: error.message });
+    if (error.name === "ZodError") {
+      return c2.json({ error: "Invalid tool arguments", details: error.errors }, 400);
+    }
+    return handleError(error, `Error executing tool '${toolId}' on MCP server '${serverId}'`);
   }
 };
 async function getMemoryStatusHandler(c2) {
@@ -10001,186 +10525,6 @@ async function deleteIndex(c2) {
     return handleError(error, "Error deleting index");
   }
 }
-async function getVNextWorkflowsHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflows = await getVNextWorkflowsHandler$1({
-      mastra
-    });
-    return c2.json(workflows);
-  } catch (error) {
-    return handleError(error, "Error getting workflows");
-  }
-}
-async function getVNextWorkflowByIdHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const workflow = await getVNextWorkflowByIdHandler$1({
-      mastra,
-      workflowId
-    });
-    return c2.json(workflow);
-  } catch (error) {
-    return handleError(error, "Error getting workflow");
-  }
-}
-async function createVNextWorkflowRunHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const prevRunId = c2.req.query("runId");
-    const result = await createVNextWorkflowRunHandler$1({
-      mastra,
-      workflowId,
-      runId: prevRunId
-    });
-    return c2.json(result);
-  } catch (e2) {
-    return handleError(e2, "Error creating run");
-  }
-}
-async function startAsyncVNextWorkflowHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const runtimeContext = c2.get("runtimeContext");
-    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
-    const runId = c2.req.query("runId");
-    const result = await startAsyncVNextWorkflowHandler$1({
-      mastra,
-      runtimeContext,
-      runtimeContextFromRequest,
-      workflowId,
-      runId,
-      inputData
-    });
-    return c2.json(result);
-  } catch (error) {
-    return handleError(error, "Error executing workflow");
-  }
-}
-async function startVNextWorkflowRunHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const runtimeContext = c2.get("runtimeContext");
-    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
-    const runId = c2.req.query("runId");
-    await startVNextWorkflowRunHandler$1({
-      mastra,
-      runtimeContext,
-      runtimeContextFromRequest,
-      workflowId,
-      runId,
-      inputData
-    });
-    return c2.json({ message: "Workflow run started" });
-  } catch (e2) {
-    return handleError(e2, "Error starting workflow run");
-  }
-}
-function watchVNextWorkflowHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const logger2 = mastra.getLogger();
-    const workflowId = c2.req.param("workflowId");
-    const runId = c2.req.query("runId");
-    if (!runId) {
-      throw new HTTPException$1(400, { message: "runId required to watch workflow" });
-    }
-    return stream(
-      c2,
-      async (stream4) => {
-        try {
-          const result = await watchVNextWorkflowHandler$1({
-            mastra,
-            workflowId,
-            runId
-          });
-          stream4.onAbort(() => {
-            if (!result.locked) {
-              return result.cancel();
-            }
-          });
-          for await (const chunk of result) {
-            await stream4.write(chunk.toString() + "");
-          }
-        } catch (err) {
-          console.log(err);
-        }
-      },
-      async (err) => {
-        logger2.error("Error in watch stream: " + err?.message);
-      }
-    );
-  } catch (error) {
-    return handleError(error, "Error watching workflow");
-  }
-}
-async function resumeAsyncVNextWorkflowHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const runId = c2.req.query("runId");
-    const runtimeContext = c2.get("runtimeContext");
-    const { step, resumeData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
-    if (!runId) {
-      throw new HTTPException$1(400, { message: "runId required to resume workflow" });
-    }
-    const result = await resumeAsyncVNextWorkflowHandler$1({
-      mastra,
-      runtimeContext,
-      runtimeContextFromRequest,
-      workflowId,
-      runId,
-      body: { step, resumeData }
-    });
-    return c2.json(result);
-  } catch (error) {
-    return handleError(error, "Error resuming workflow step");
-  }
-}
-async function resumeVNextWorkflowHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const runId = c2.req.query("runId");
-    const { step, resumeData, runtimeContext } = await c2.req.json();
-    if (!runId) {
-      throw new HTTPException$1(400, { message: "runId required to resume workflow" });
-    }
-    await resumeVNextWorkflowHandler$1({
-      mastra,
-      runtimeContext,
-      workflowId,
-      runId,
-      body: { step, resumeData }
-    });
-    return c2.json({ message: "Workflow run resumed" });
-  } catch (error) {
-    return handleError(error, "Error resuming workflow");
-  }
-}
-async function getVNextWorkflowRunsHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const workflowId = c2.req.param("workflowId");
-    const { fromDate, toDate, limit, offset, resourceId } = c2.req.query();
-    const workflowRuns = await getVNextWorkflowRunsHandler$1({
-      mastra,
-      workflowId,
-      fromDate: fromDate ? new Date(fromDate) : void 0,
-      toDate: toDate ? new Date(toDate) : void 0,
-      limit: limit ? Number(limit) : void 0,
-      offset: offset ? Number(offset) : void 0,
-      resourceId
-    });
-    return c2.json(workflowRuns);
-  } catch (error) {
-    return handleError(error, "Error getting workflow runs");
-  }
-}
 async function getSpeakersHandler(c2) {
   try {
     const mastra = c2.get("mastra");
@@ -10264,31 +10608,12 @@ async function getWorkflowByIdHandler(c2) {
     return handleError(error, "Error getting workflow");
   }
 }
-async function startAsyncWorkflowHandler(c2) {
-  try {
-    const mastra = c2.get("mastra");
-    const runtimeContext = c2.get("runtimeContext");
-    const workflowId = c2.req.param("workflowId");
-    const triggerData = await c2.req.json();
-    const runId = c2.req.query("runId");
-    const result = await startAsyncWorkflowHandler$1({
-      mastra,
-      runtimeContext,
-      workflowId,
-      runId,
-      triggerData
-    });
-    return c2.json(result);
-  } catch (error) {
-    return handleError(error, "Error executing workflow");
-  }
-}
-async function createRunHandler(c2) {
+async function createWorkflowRunHandler(c2) {
   try {
     const mastra = c2.get("mastra");
     const workflowId = c2.req.param("workflowId");
     const prevRunId = c2.req.query("runId");
-    const result = await createRunHandler$1({
+    const result = await createWorkflowRunHandler$1({
       mastra,
       workflowId,
       runId: prevRunId
@@ -10298,19 +10623,40 @@ async function createRunHandler(c2) {
     return handleError(e2, "Error creating run");
   }
 }
+async function startAsyncWorkflowHandler(c2) {
+  try {
+    const mastra = c2.get("mastra");
+    const workflowId = c2.req.param("workflowId");
+    const runtimeContext = c2.get("runtimeContext");
+    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
+    const runId = c2.req.query("runId");
+    const result = await startAsyncWorkflowHandler$1({
+      mastra,
+      runtimeContext,
+      runtimeContextFromRequest,
+      workflowId,
+      runId,
+      inputData
+    });
+    return c2.json(result);
+  } catch (error) {
+    return handleError(error, "Error executing workflow");
+  }
+}
 async function startWorkflowRunHandler(c2) {
   try {
     const mastra = c2.get("mastra");
-    const runtimeContext = c2.get("runtimeContext");
     const workflowId = c2.req.param("workflowId");
-    const triggerData = await c2.req.json();
+    const runtimeContext = c2.get("runtimeContext");
+    const { inputData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     const runId = c2.req.query("runId");
     await startWorkflowRunHandler$1({
       mastra,
       runtimeContext,
+      runtimeContextFromRequest,
       workflowId,
       runId,
-      triggerData
+      inputData
     });
     return c2.json({ message: "Workflow run started" });
   } catch (e2) {
@@ -10358,19 +10704,20 @@ function watchWorkflowHandler(c2) {
 async function resumeAsyncWorkflowHandler(c2) {
   try {
     const mastra = c2.get("mastra");
-    const runtimeContext = c2.get("runtimeContext");
     const workflowId = c2.req.param("workflowId");
     const runId = c2.req.query("runId");
-    const { stepId, context } = await c2.req.json();
+    const runtimeContext = c2.get("runtimeContext");
+    const { step, resumeData, runtimeContext: runtimeContextFromRequest } = await c2.req.json();
     if (!runId) {
       throw new HTTPException$1(400, { message: "runId required to resume workflow" });
     }
     const result = await resumeAsyncWorkflowHandler$1({
       mastra,
       runtimeContext,
+      runtimeContextFromRequest,
       workflowId,
       runId,
-      body: { stepId, context }
+      body: { step, resumeData }
     });
     return c2.json(result);
   } catch (error) {
@@ -10380,10 +10727,9 @@ async function resumeAsyncWorkflowHandler(c2) {
 async function resumeWorkflowHandler(c2) {
   try {
     const mastra = c2.get("mastra");
-    const runtimeContext = c2.get("runtimeContext");
     const workflowId = c2.req.param("workflowId");
     const runId = c2.req.query("runId");
-    const { stepId, context } = await c2.req.json();
+    const { step, resumeData, runtimeContext } = await c2.req.json();
     if (!runId) {
       throw new HTTPException$1(400, { message: "runId required to resume workflow" });
     }
@@ -10392,7 +10738,7 @@ async function resumeWorkflowHandler(c2) {
       runtimeContext,
       workflowId,
       runId,
-      body: { stepId, context }
+      body: { step, resumeData }
     });
     return c2.json({ message: "Workflow run resumed" });
   } catch (error) {
@@ -10609,6 +10955,8 @@ async function createHonoServer(mastra, options = {}) {
     };
     app.use("*", timeout(server?.timeout ?? 3 * 60 * 1e3), cors(corsConfig));
   }
+  app.use("*", authenticationMiddleware);
+  app.use("*", authorizationMiddleware);
   const bodyLimitOptions = {
     maxSize: server?.bodySizeLimit ?? 4.5 * 1024 * 1024,
     // 4.5 MB,
@@ -11654,7 +12002,7 @@ async function createHonoServer(mastra, options = {}) {
     executeAgentToolHandler
   );
   app.post(
-    "/api/servers/:serverId/mcp",
+    "/api/mcp/:serverId/mcp",
     bodyLimit(bodyLimitOptions),
     h({
       description: "Send a message to an MCP server using Streamable HTTP",
@@ -11681,8 +12029,8 @@ async function createHonoServer(mastra, options = {}) {
     }),
     getMcpServerMessageHandler
   );
-  const mcpSseBasePath = "/api/servers/:serverId/sse";
-  const mcpSseMessagePath = "/api/servers/:serverId/messages";
+  const mcpSseBasePath = "/api/mcp/:serverId/sse";
+  const mcpSseMessagePath = "/api/mcp/:serverId/messages";
   app.get(
     mcpSseBasePath,
     h({
@@ -11739,6 +12087,158 @@ async function createHonoServer(mastra, options = {}) {
       }
     }),
     getMcpServerSseHandler
+  );
+  app.get(
+    "/api/mcp/v0/servers",
+    h({
+      description: "List all available MCP server instances with basic information.",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "limit",
+          in: "query",
+          description: "Number of results per page.",
+          required: false,
+          schema: { type: "integer", default: 50, minimum: 1, maximum: 5e3 }
+        },
+        {
+          name: "offset",
+          in: "query",
+          description: "Number of results to skip for pagination.",
+          required: false,
+          schema: { type: "integer", default: 0, minimum: 0 }
+        }
+      ],
+      responses: {
+        200: {
+          description: "A list of MCP server instances.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  servers: { type: "array", items: { $ref: "#/components/schemas/ServerInfo" } },
+                  next: { type: "string", format: "uri", nullable: true },
+                  total_count: { type: "integer" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }),
+    listMcpRegistryServersHandler
+  );
+  app.get(
+    "/api/mcp/v0/servers/:id",
+    h({
+      description: "Get detailed information about a specific MCP server instance.",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          description: "Unique ID of the MCP server instance.",
+          schema: { type: "string" }
+        },
+        {
+          name: "version",
+          in: "query",
+          required: false,
+          description: "Desired MCP server version (currently informational, server returns its actual version).",
+          schema: { type: "string" }
+        }
+      ],
+      responses: {
+        200: {
+          description: "Detailed information about the MCP server instance.",
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/ServerDetailInfo" } }
+          }
+        },
+        404: {
+          description: "MCP server instance not found.",
+          content: { "application/json": { schema: { type: "object", properties: { error: { type: "string" } } } } }
+        }
+      }
+    }),
+    getMcpRegistryServerDetailHandler
+  );
+  app.get(
+    "/api/mcp/:serverId/tools",
+    h({
+      description: "List all tools available on a specific MCP server instance.",
+      tags: ["mcp"],
+      parameters: [
+        {
+          name: "serverId",
+          in: "path",
+          required: true,
+          description: "Unique ID of the MCP server instance.",
+          schema: { type: "string" }
+        }
+      ],
+      responses: {
+        200: { description: "A list of tools for the MCP server." },
+        // Define schema if you have one for McpServerToolListResponse
+        404: { description: "MCP server instance not found." },
+        501: { description: "Server does not support listing tools." }
+      }
+    }),
+    listMcpServerToolsHandler
+  );
+  app.get(
+    "/api/mcp/:serverId/tools/:toolId",
+    h({
+      description: "Get details for a specific tool on an MCP server.",
+      tags: ["mcp"],
+      parameters: [
+        { name: "serverId", in: "path", required: true, schema: { type: "string" } },
+        { name: "toolId", in: "path", required: true, schema: { type: "string" } }
+      ],
+      responses: {
+        200: { description: "Details of the specified tool." },
+        // Define schema for McpToolInfo
+        404: { description: "MCP server or tool not found." },
+        501: { description: "Server does not support getting tool details." }
+      }
+    }),
+    getMcpServerToolDetailHandler
+  );
+  app.post(
+    "/api/mcp/:serverId/tools/:toolId/execute",
+    bodyLimit(bodyLimitOptions),
+    h({
+      description: "Execute a specific tool on an MCP server.",
+      tags: ["mcp"],
+      parameters: [
+        { name: "serverId", in: "path", required: true, schema: { type: "string" } },
+        { name: "toolId", in: "path", required: true, schema: { type: "string" } }
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                data: { type: "object" },
+                runtimeContext: { type: "object" }
+              }
+            }
+          }
+        }
+        // Simplified schema
+      },
+      responses: {
+        200: { description: "Result of the tool execution." },
+        400: { description: "Invalid tool arguments." },
+        404: { description: "MCP server or tool not found." },
+        501: { description: "Server does not support tool execution." }
+      }
+    }),
+    executeMcpServerToolHandler
   );
   app.get(
     "/api/memory/status",
@@ -12024,23 +12524,23 @@ async function createHonoServer(mastra, options = {}) {
     storeTelemetryHandler
   );
   app.get(
-    "/api/workflows/v-next",
+    "/api/workflows/legacy",
     h({
-      description: "Get all vNext workflows",
-      tags: ["vNextWorkflows"],
+      description: "Get all legacy workflows",
+      tags: ["legacyWorkflows"],
       responses: {
         200: {
-          description: "List of all vNext workflows"
+          description: "List of all legacy workflows"
         }
       }
     }),
-    getVNextWorkflowsHandler
+    getLegacyWorkflowsHandler
   );
   app.get(
-    "/api/workflows/v-next/:workflowId",
+    "/api/workflows/legacy/:workflowId",
     h({
-      description: "Get vNext workflow by ID",
-      tags: ["vNextWorkflows"],
+      description: "Get legacy workflow by ID",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12051,20 +12551,20 @@ async function createHonoServer(mastra, options = {}) {
       ],
       responses: {
         200: {
-          description: "vNext workflow details"
+          description: "Legacy Workflow details"
         },
         404: {
-          description: "vNext workflow not found"
+          description: "Legacy Workflow not found"
         }
       }
     }),
-    getVNextWorkflowByIdHandler
+    getLegacyWorkflowByIdHandler
   );
   app.get(
-    "/api/workflows/v-next/:workflowId/runs",
+    "/api/workflows/legacy/:workflowId/runs",
     h({
-      description: "Get all runs for a vNext workflow",
-      tags: ["vNextWorkflows"],
+      description: "Get all runs for a legacy workflow",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12080,17 +12580,17 @@ async function createHonoServer(mastra, options = {}) {
       ],
       responses: {
         200: {
-          description: "List of vNext workflow runs from storage"
+          description: "List of legacy workflow runs from storage"
         }
       }
     }),
-    getVNextWorkflowRunsHandler
+    getLegacyWorkflowRunsHandler
   );
   app.post(
-    "/api/workflows/v-next/:workflowId/resume",
+    "/api/workflows/legacy/:workflowId/resume",
     h({
-      description: "Resume a suspended vNext workflow step",
-      tags: ["vNextWorkflows"],
+      description: "Resume a suspended legacy workflow step",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12112,29 +12612,22 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                step: {
-                  oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
-                },
-                resumeData: { type: "object" },
-                runtimeContext: {
-                  type: "object",
-                  description: "Runtime context for the workflow execution"
-                }
-              },
-              required: ["step"]
+                stepId: { type: "string" },
+                context: { type: "object" }
+              }
             }
           }
         }
       }
     }),
-    resumeVNextWorkflowHandler
+    resumeLegacyWorkflowHandler
   );
   app.post(
-    "/api/workflows/v-next/:workflowId/resume-async",
+    "/api/workflows/legacy/:workflowId/resume-async",
     bodyLimit(bodyLimitOptions),
     h({
-      description: "Resume a suspended vNext workflow step",
-      tags: ["vNextWorkflows"],
+      description: "Resume a suspended legacy workflow step",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12156,29 +12649,21 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                step: {
-                  oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
-                },
-                resumeData: { type: "object" },
-                runtimeContext: {
-                  type: "object",
-                  description: "Runtime context for the workflow execution"
-                }
-              },
-              required: ["step"]
+                stepId: { type: "string" },
+                context: { type: "object" }
+              }
             }
           }
         }
       }
     }),
-    resumeAsyncVNextWorkflowHandler
+    resumeAsyncLegacyWorkflowHandler
   );
   app.post(
-    "/api/workflows/v-next/:workflowId/create-run",
-    bodyLimit(bodyLimitOptions),
+    "/api/workflows/legacy/:workflowId/create-run",
     h({
-      description: "Create a new vNext workflow run",
-      tags: ["vNextWorkflows"],
+      description: "Create a new legacy workflow run",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12195,18 +12680,18 @@ async function createHonoServer(mastra, options = {}) {
       ],
       responses: {
         200: {
-          description: "New vNext workflow run created"
+          description: "New legacy workflow run created"
         }
       }
     }),
-    createVNextWorkflowRunHandler
+    createLegacyWorkflowRunHandler
   );
   app.post(
-    "/api/workflows/v-next/:workflowId/start-async",
+    "/api/workflows/legacy/:workflowId/start-async",
     bodyLimit(bodyLimitOptions),
     h({
-      description: "Execute/Start a vNext workflow",
-      tags: ["vNextWorkflows"],
+      description: "Execute/Start a legacy workflow",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12228,11 +12713,7 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                inputData: { type: "object" },
-                runtimeContext: {
-                  type: "object",
-                  description: "Runtime context for the workflow execution"
-                }
+                input: { type: "object" }
               }
             }
           }
@@ -12240,20 +12721,20 @@ async function createHonoServer(mastra, options = {}) {
       },
       responses: {
         200: {
-          description: "vNext workflow execution result"
+          description: "Legacy Workflow execution result"
         },
         404: {
-          description: "vNext workflow not found"
+          description: "Legacy Workflow not found"
         }
       }
     }),
-    startAsyncVNextWorkflowHandler
+    startAsyncLegacyWorkflowHandler
   );
   app.post(
-    "/api/workflows/v-next/:workflowId/start",
+    "/api/workflows/legacy/:workflowId/start",
     h({
-      description: "Create and start a new vNext workflow run",
-      tags: ["vNextWorkflows"],
+      description: "Create and start a new legacy workflow run",
+      tags: ["legacyWorkflows"],
       parameters: [
         {
           name: "workflowId",
@@ -12275,11 +12756,7 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                inputData: { type: "object" },
-                runtimeContext: {
-                  type: "object",
-                  description: "Runtime context for the workflow execution"
-                }
+                input: { type: "object" }
               }
             }
           }
@@ -12287,19 +12764,19 @@ async function createHonoServer(mastra, options = {}) {
       },
       responses: {
         200: {
-          description: "vNext workflow run started"
+          description: "Legacy Workflow run started"
         },
         404: {
-          description: "vNext workflow not found"
+          description: "Legacy Workflow not found"
         }
       }
     }),
-    startVNextWorkflowRunHandler
+    startLegacyWorkflowRunHandler
   );
   app.get(
-    "/api/workflows/v-next/:workflowId/watch",
+    "/api/workflows/legacy/:workflowId/watch",
     h({
-      description: "Watch vNext workflow transitions in real-time",
+      description: "Watch legacy workflow transitions in real-time",
       parameters: [
         {
           name: "workflowId",
@@ -12314,14 +12791,14 @@ async function createHonoServer(mastra, options = {}) {
           schema: { type: "string" }
         }
       ],
-      tags: ["vNextWorkflows"],
+      tags: ["legacyWorkflows"],
       responses: {
         200: {
-          description: "vNext workflow transitions in real-time"
+          description: "Legacy Workflow transitions in real-time"
         }
       }
     }),
-    watchVNextWorkflowHandler
+    watchLegacyWorkflowHandler
   );
   app.get(
     "/api/workflows",
@@ -12412,52 +12889,22 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                stepId: { type: "string" },
-                context: { type: "object" }
-              }
+                step: {
+                  oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
+                },
+                resumeData: { type: "object" },
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
+              },
+              required: ["step"]
             }
           }
         }
       }
     }),
     resumeWorkflowHandler
-  );
-  app.post(
-    "/api/workflows/:workflowId/resumeAsync",
-    bodyLimit(bodyLimitOptions),
-    h({
-      description: "@deprecated Use /api/workflows/:workflowId/resume-async instead",
-      tags: ["workflows"],
-      parameters: [
-        {
-          name: "workflowId",
-          in: "path",
-          required: true,
-          schema: { type: "string" }
-        },
-        {
-          name: "runId",
-          in: "query",
-          required: true,
-          schema: { type: "string" }
-        }
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                stepId: { type: "string" },
-                context: { type: "object" }
-              }
-            }
-          }
-        }
-      }
-    }),
-    resumeAsyncWorkflowHandler
   );
   app.post(
     "/api/workflows/:workflowId/resume-async",
@@ -12486,9 +12933,16 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                stepId: { type: "string" },
-                context: { type: "object" }
-              }
+                step: {
+                  oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
+                },
+                resumeData: { type: "object" },
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
+              },
+              required: ["step"]
             }
           }
         }
@@ -12497,7 +12951,8 @@ async function createHonoServer(mastra, options = {}) {
     resumeAsyncWorkflowHandler
   );
   app.post(
-    "/api/workflows/:workflowId/createRun",
+    "/api/workflows/:workflowId/create-run",
+    bodyLimit(bodyLimitOptions),
     h({
       description: "Create a new workflow run",
       tags: ["workflows"],
@@ -12521,51 +12976,7 @@ async function createHonoServer(mastra, options = {}) {
         }
       }
     }),
-    createRunHandler
-  );
-  app.post(
-    "/api/workflows/:workflowId/startAsync",
-    bodyLimit(bodyLimitOptions),
-    h({
-      description: "@deprecated Use /api/workflows/:workflowId/start-async instead",
-      tags: ["workflows"],
-      parameters: [
-        {
-          name: "workflowId",
-          in: "path",
-          required: true,
-          schema: { type: "string" }
-        },
-        {
-          name: "runId",
-          in: "query",
-          required: false,
-          schema: { type: "string" }
-        }
-      ],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                input: { type: "object" }
-              }
-            }
-          }
-        }
-      },
-      responses: {
-        200: {
-          description: "Workflow execution result"
-        },
-        404: {
-          description: "Workflow not found"
-        }
-      }
-    }),
-    startAsyncWorkflowHandler
+    createWorkflowRunHandler
   );
   app.post(
     "/api/workflows/:workflowId/start-async",
@@ -12594,7 +13005,11 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                input: { type: "object" }
+                inputData: { type: "object" },
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               }
             }
           }
@@ -12602,10 +13017,10 @@ async function createHonoServer(mastra, options = {}) {
       },
       responses: {
         200: {
-          description: "Workflow execution result"
+          description: "workflow execution result"
         },
         404: {
-          description: "Workflow not found"
+          description: "workflow not found"
         }
       }
     }),
@@ -12637,7 +13052,11 @@ async function createHonoServer(mastra, options = {}) {
             schema: {
               type: "object",
               properties: {
-                input: { type: "object" }
+                inputData: { type: "object" },
+                runtimeContext: {
+                  type: "object",
+                  description: "Runtime context for the workflow execution"
+                }
               }
             }
           }
@@ -12645,10 +13064,10 @@ async function createHonoServer(mastra, options = {}) {
       },
       responses: {
         200: {
-          description: "Workflow run started"
+          description: "workflow run started"
         },
         404: {
-          description: "Workflow not found"
+          description: "workflow not found"
         }
       }
     }),
@@ -12675,7 +13094,7 @@ async function createHonoServer(mastra, options = {}) {
       tags: ["workflows"],
       responses: {
         200: {
-          description: "Workflow transitions in real-time"
+          description: "workflow transitions in real-time"
         }
       }
     }),
@@ -13093,7 +13512,7 @@ async function createNodeServer(mastra, options = {}) {
     {
       fetch: app.fetch,
       port,
-      hostname: serverOptions?.host ?? "localhost"
+      hostname: serverOptions?.host
     },
     () => {
       const logger2 = mastra.getLogger();

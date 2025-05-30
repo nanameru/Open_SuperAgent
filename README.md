@@ -83,6 +83,10 @@ const audioResult = await minimaxTTSTool.invoke({
 # MiniMax T2A Large v2 API Configuration
 MINIMAX_API_KEY=your_minimax_api_key_here
 MINIMAX_GROUP_ID=your_minimax_group_id_here
+
+# Browserbase Configuration
+BROWSERBASE_API_KEY=your_browserbase_api_key_here
+BROWSERBASE_PROJECT_ID=your_browserbase_project_id_here
 ```
 
 ### 技術仕様

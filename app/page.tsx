@@ -7,6 +7,7 @@ import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
+import { BrowserbaseTool } from './components/BrowserbaseTool';
 import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -40,6 +41,21 @@ interface ImageToolState {
   forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
 }
 
+// Browserbaseツール関連の状態
+interface BrowserbaseToolState {
+  isActive: boolean;
+  sessionId: string;
+  replayUrl: string;
+  liveViewUrl?: string;
+  screenshot?: {
+    url: string;
+    path: string;
+  };
+  pageTitle?: string;
+  elementText?: string;
+  forcePanelOpen?: boolean; // プレビューパネルを強制的に開くフラグ
+}
+
 // メッセージの型（Message型とToolMessage型の両方を含む）
 type UIMessage = Message | ToolMessage;
 
@@ -60,6 +76,17 @@ export default function AppPage() {
     isActive: false,
     images: [],
     prompt: '生成された画像',
+    forcePanelOpen: false
+  });
+  // Browserbaseツール関連の状態
+  const [browserbaseToolState, setBrowserbaseToolState] = useState<BrowserbaseToolState>({
+    isActive: false,
+    sessionId: '',
+    replayUrl: '',
+    liveViewUrl: undefined,
+    screenshot: undefined,
+    pageTitle: undefined,
+    elementText: undefined,
     forcePanelOpen: false
   });
   // プレビューパネルの表示状態
@@ -134,6 +161,17 @@ export default function AppPage() {
         prompt: '生成された画像',
         forcePanelOpen: false
       });
+      // Browserbaseツール状態もリセット
+      setBrowserbaseToolState({
+        isActive: false,
+        sessionId: '',
+        replayUrl: '',
+        liveViewUrl: undefined,
+        screenshot: undefined,
+        pageTitle: undefined,
+        elementText: undefined,
+        forcePanelOpen: false
+      });
     }
   }, [messages.length]);
 
@@ -178,12 +216,48 @@ export default function AppPage() {
       // ツール呼び出しを含むメッセージを処理
       if (msg.content && typeof msg.content === 'string') {
         try {
+          // Browserbaseツールの結果を直接検出（マークダウンコンテンツから）
+          if (msg.content.includes('ブラウザ自動化完了') || msg.content.includes('browserbase-automation')) {
+            console.log("[Page] Browserbase tool result detected in message content");
+            
+            // セッションIDを抽出
+            const sessionIdMatch = msg.content.match(/セッション:\s*([a-f0-9-]+)/i);
+            const replayUrlMatch = msg.content.match(/\[操作記録を表示\]\((https:\/\/browserbase\.com\/sessions\/[^)]+)\)/);
+            const liveViewUrlMatch = msg.content.match(/\[リアルタイム表示\]\((https:\/\/[^)]+)\)/);
+            
+            if (sessionIdMatch && replayUrlMatch) {
+              const sessionId = sessionIdMatch[1];
+              const replayUrl = replayUrlMatch[1];
+              const liveViewUrl = liveViewUrlMatch ? liveViewUrlMatch[1] : undefined;
+              
+              console.log("[Page] Extracted Browserbase session info:", { sessionId, replayUrl, liveViewUrl });
+              
+              setBrowserbaseToolState(prev => ({
+                ...prev,
+                isActive: true,
+                sessionId: sessionId,
+                replayUrl: replayUrl,
+                liveViewUrl: liveViewUrl,
+                forcePanelOpen: true
+              }));
+            }
+          }
+          
           // ツール呼び出しの検出（JSONパース）
           if (msg.content.includes('toolName') || msg.content.includes('toolCallId')) {
             try {
               const parsed = JSON.parse(msg.content);
               if (parsed.toolName || parsed.tool) {
                 const toolName = parsed.toolName || parsed.tool;
+                
+                // Browserbaseツールの呼び出しを検出
+                if (toolName === 'browserbase-automation') {
+                  console.log("[Page] Browserbase tool call detected");
+                  setBrowserbaseToolState(prev => ({
+                    ...prev,
+                    isActive: true
+                  }));
+                }
                 
                 // htmlSlideToolの呼び出しを検出
                 if (toolName === 'htmlSlideTool') {
@@ -344,6 +418,15 @@ export default function AppPage() {
                   }));
                 }
                 
+                // Browserbaseツールの呼び出しを検出
+                if (toolName === 'browserbase-automation') {
+                  console.log("[Page] Browserbase tool annotation call detected");
+                  setBrowserbaseToolState(prev => ({
+                    ...prev,
+                    isActive: true
+                  }));
+                }
+                
                 // ツールメッセージを追加
                 setToolMessages(prev => {
                   if (!prev.some(m => m.toolName === toolName)) {
@@ -402,6 +485,28 @@ export default function AppPage() {
                   }
                 }
                 
+                // Browserbaseツールの結果を検出した場合
+                if (annotation.toolName === 'browserbase-automation' && annotation.result) {
+                  console.log("[Page] Browserbase tool annotation result received");
+                  const result = annotation.result;
+                  const success = result.success || false;
+                  const autoOpenPreview = result.autoOpenPreview ?? true;
+                  
+                  if (success && result.sessionId) {
+                    setBrowserbaseToolState(prev => ({
+                      ...prev,
+                      isActive: true,
+                      sessionId: result.sessionId,
+                      replayUrl: result.replayUrl,
+                      liveViewUrl: result.liveViewUrl,
+                      screenshot: result.screenshot,
+                      pageTitle: result.pageTitle,
+                      elementText: result.elementText,
+                      forcePanelOpen: autoOpenPreview
+                    }));
+                  }
+                }
+                
                 // ツール結果をツールメッセージに反映
                 setToolMessages(prev => prev.map(m => 
                   m.toolName === annotation.toolName 
@@ -423,6 +528,11 @@ export default function AppPage() {
   useEffect(() => {
     console.log("[Page] 現在のツールメッセージ:", toolMessages);
   }, [toolMessages]);
+
+  // Browserbaseツール状態のデバッグ
+  useEffect(() => {
+    console.log("[Page] Browserbaseツール状態:", browserbaseToolState);
+  }, [browserbaseToolState]);
 
   // useChatのメッセージとツールメッセージを結合して時系列順に表示
   const combinedMessages = [...messages];
@@ -456,94 +566,149 @@ export default function AppPage() {
     setPreviewPanelWidth(width);
   }, []);
 
+  // Browserbaseプレビューを開く関数
+  const handleBrowserbasePreview = useCallback((data: {
+    sessionId: string;
+    replayUrl: string;
+    liveViewUrl?: string;
+    pageTitle?: string;
+  }) => {
+    setBrowserbaseToolState({
+      isActive: true,
+      sessionId: data.sessionId,
+      replayUrl: data.replayUrl,
+      liveViewUrl: data.liveViewUrl,
+      pageTitle: data.pageTitle,
+      forcePanelOpen: true
+    });
+    setIsPreviewOpen(true);
+  }, []);
+
   return (
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
         <MainHeader />
-        <main className="flex-1 flex flex-col overflow-y-auto bg-white pb-24">
-          <div className="w-full flex-1 flex flex-col px-6 py-6 max-w-4xl mx-auto">
-            {/* スライドツールがアクティブな場合に表示 */}
-            {slideToolState.isActive && (
-              <PresentationTool 
-                htmlContent={slideToolState.htmlContent}
-                title={slideToolState.title}
-                autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
-                forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
-                onPreviewOpen={() => setIsPreviewOpen(true)}
-                onPreviewClose={() => setIsPreviewOpen(false)}
-                onCreatePresentation={() => {
-                  // スライド編集機能を開く
-                  console.log("Edit in AI Slides clicked");
-                }}
-              />
-            )}
-            
-            {/* 画像ツールがアクティブな場合に表示 */}
-            {imageToolState.isActive && imageToolState.images.length > 0 && (
-              <ImageTool 
-                images={imageToolState.images}
-                prompt={imageToolState.prompt}
-                autoOpenPreview={true} // 画像があれば自動的に開く
-                forcePanelOpen={imageToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
-                onPreviewOpen={() => setIsPreviewOpen(true)}
-                onPreviewClose={() => setIsPreviewOpen(false)}
-                onPreviewWidthChange={handlePreviewPanelWidthChange}
-              />
-            )}
-            
-            {/* メッセージコンテナ - 常に同じ構造 */}
-            <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-end'}`}>
-              <div className="space-y-0">
-                {combinedMessages.length === 0 && !isLoading && !error && (
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="text-center space-y-4">
-                      <h1 className="text-3xl font-normal text-gray-800">Open-SuperAgent</h1>
+        <div className="flex-1 flex overflow-hidden">
+          {/* メインチャットエリア */}
+          <main className={`flex-1 flex flex-col overflow-y-auto bg-white pb-24 transition-all duration-300 ${
+            browserbaseToolState.isActive && browserbaseToolState.sessionId ? 'mr-96' : ''
+          }`}>
+            <div className="w-full flex-1 flex flex-col px-6 py-6 max-w-4xl mx-auto">
+              {/* スライドツールがアクティブな場合に表示 */}
+              {slideToolState.isActive && (
+                <PresentationTool 
+                  htmlContent={slideToolState.htmlContent}
+                  title={slideToolState.title}
+                  autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
+                  forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                  onPreviewOpen={() => setIsPreviewOpen(true)}
+                  onPreviewClose={() => setIsPreviewOpen(false)}
+                  onCreatePresentation={() => {
+                    // スライド編集機能を開く
+                    console.log("Edit in AI Slides clicked");
+                  }}
+                />
+              )}
+              
+              {/* 画像ツールがアクティブな場合に表示 */}
+              {imageToolState.isActive && imageToolState.images.length > 0 && (
+                <ImageTool 
+                  images={imageToolState.images}
+                  prompt={imageToolState.prompt}
+                  autoOpenPreview={true} // 画像があれば自動的に開く
+                  forcePanelOpen={imageToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                  onPreviewOpen={() => setIsPreviewOpen(true)}
+                  onPreviewClose={() => setIsPreviewOpen(false)}
+                  onPreviewWidthChange={handlePreviewPanelWidthChange}
+                />
+              )}
+              
+              {/* メッセージコンテナ - 常に同じ構造 */}
+              <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-end'}`}>
+                <div className="space-y-0">
+                  {combinedMessages.length === 0 && !isLoading && !error && (
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="text-center space-y-4">
+                        <h1 className="text-3xl font-normal text-gray-800">Open-SuperAgent</h1>
+                      </div>
                     </div>
-                  </div>
-                )}
-                
-                {combinedMessages.map((m, i) => (
-                  <ChatMessage 
-                    key={`${m.id}-${i}`} 
-                    message={m} 
-                    onPreviewOpen={() => setIsPreviewOpen(true)}
-                    onPreviewClose={() => setIsPreviewOpen(false)}
-                    onPreviewWidthChange={handlePreviewPanelWidthChange}
-                  />
-                ))}
+                  )}
+                  
+                  {combinedMessages.map((m, i) => (
+                    <ChatMessage 
+                      key={`${m.id}-${i}`} 
+                      message={m} 
+                      onPreviewOpen={() => setIsPreviewOpen(true)}
+                      onPreviewClose={() => setIsPreviewOpen(false)}
+                      onPreviewWidthChange={handlePreviewPanelWidthChange}
+                      onBrowserbasePreview={handleBrowserbasePreview}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {error && (
-            <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
-              <p>Error: {error.message}</p>
-              <p>Please check your API key and network connection.</p>
-              <button 
-                onClick={() => {
-                  // ツール状態をリセット
-                  setSlideToolState({
-                    isActive: false,
-                    htmlContent: '',
-                    title: '生成AIプレゼンテーション',
-                    forcePanelOpen: false
-                  });
-                  setImageToolState({
-                    isActive: false,
-                    images: [],
-                    prompt: '生成された画像',
-                    forcePanelOpen: false
-                  });
-                  console.log("ツール状態をリセットしました");
-                }}
-                className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
-              >
-                状態をリセット
-              </button>
+            {error && (
+              <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
+                <p>Error: {error.message}</p>
+                <p>Please check your API key and network connection.</p>
+                <button 
+                  onClick={() => {
+                    // ツール状態をリセット
+                    setSlideToolState({
+                      isActive: false,
+                      htmlContent: '',
+                      title: '生成AIプレゼンテーション',
+                      forcePanelOpen: false
+                    });
+                    setImageToolState({
+                      isActive: false,
+                      images: [],
+                      prompt: '生成された画像',
+                      forcePanelOpen: false
+                    });
+                    setBrowserbaseToolState({
+                      isActive: false,
+                      sessionId: '',
+                      replayUrl: '',
+                      liveViewUrl: undefined,
+                      screenshot: undefined,
+                      pageTitle: undefined,
+                      elementText: undefined,
+                      forcePanelOpen: false
+                    });
+                    console.log("ツール状態をリセットしました");
+                  }}
+                  className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+                >
+                  状態をリセット
+                </button>
+              </div>
+            )}
+          </main>
+
+          {/* Browserbaseツールサイドパネル - ツール実行時のみ表示 */}
+          {browserbaseToolState.isActive && browserbaseToolState.sessionId && (
+            <div className="w-96 bg-gray-50 border-l border-gray-200 overflow-y-auto">
+              <div className="p-4">
+                <BrowserbaseTool 
+                  sessionId={browserbaseToolState.sessionId}
+                  replayUrl={browserbaseToolState.replayUrl}
+                  liveViewUrl={browserbaseToolState.liveViewUrl}
+                  screenshot={browserbaseToolState.screenshot}
+                  pageTitle={browserbaseToolState.pageTitle}
+                  elementText={browserbaseToolState.elementText}
+                  autoOpenPreview={true}
+                  forcePanelOpen={browserbaseToolState.forcePanelOpen}
+                  onPreviewOpen={() => setIsPreviewOpen(true)}
+                  onPreviewClose={() => setIsPreviewOpen(false)}
+                  onPreviewWidthChange={handlePreviewPanelWidthChange}
+                />
+              </div>
             </div>
           )}
-        </main>
+        </div>
         <ChatInputArea
           input={input}
           handleInputChange={handleInputChange}
