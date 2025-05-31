@@ -18,6 +18,7 @@ import {
   Settings,
   Users,
   Image,
+  Lightbulb,
 } from "lucide-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -79,6 +80,16 @@ const data = {
       name: "ドキュメント",
       url: "#",
       icon: File,
+    },
+    {
+      name: "ユースケース一覧",
+      url: "/usecases",
+      icon: Lightbulb,
+    },
+    {
+      name: "YAML記憶装置",
+      url: "/memory-synapse",
+      icon: Database,
     },
   ],
 }
