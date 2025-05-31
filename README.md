@@ -84,9 +84,15 @@ const audioResult = await minimaxTTSTool.invoke({
 MINIMAX_API_KEY=your_minimax_api_key_here
 MINIMAX_GROUP_ID=your_minimax_group_id_here
 
-# Browserbase Configuration
+# Browserbase Configuration (for browser automation)
+# Get your API key from: https://browserbase.com/dashboard/settings
 BROWSERBASE_API_KEY=your_browserbase_api_key_here
 BROWSERBASE_PROJECT_ID=your_browserbase_project_id_here
+
+# Google Generative AI Configuration (for Stagehand)
+# Get your API key from: https://aistudio.google.com/app/apikey
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key_here
+GEMINI_API_KEY=your_google_ai_api_key_here
 ```
 
 ### 技術仕様
@@ -370,3 +376,18 @@ await geminiDJTool.invoke({
 - **対応ジャンル**: Techno、Jazz、Classical、Ambient、Rock等
 - **楽器**: シンセサイザー、ドラム、ベース、ピアノ等多数対応
 - **ファイル保存**: `public/generated-music/`ディレクトリ
+
+## 🔑 APIキー取得手順
+
+### Google Generative AI APIキー
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
+2. Googleアカウントでサインイン
+3. "Create API Key" をクリック
+4. 生成されたAPIキーをコピー
+5. `.env`ファイルに `GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here` として追加
+
+### Browserbase APIキー
+1. [Browserbase Dashboard](https://browserbase.com/dashboard/settings) にアクセス
+2. アカウント作成またはサインイン
+3. API KeyとProject IDを取得
+4. `.env`ファイルに追加

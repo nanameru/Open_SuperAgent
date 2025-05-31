@@ -46,11 +46,10 @@ export default function MemorySynapsePage() {
   })
   const [yamlOutput, setYamlOutput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const svgRef = useRef<SVGSVGElement>(null)
-  const cytoscapeRef = useRef<HTMLDivElement>(null)
-  const cyRef = useRef<cytoscape.Core | null>(null)
-  const forceGraph3DRef = useRef<HTMLDivElement>(null)
-  const threeJsRef = useRef<HTMLDivElement>(null)
+  const d3NeuralRef = useRef<HTMLDivElement>(null)
+  const visNetworkRef = useRef<HTMLDivElement>(null)
+  const cytoscapeNeuralRef = useRef<HTMLDivElement>(null)
+  const cyNeuralRef = useRef<cytoscape.Core | null>(null)
 
   // キーワード抽出とシナプス更新
   const processQuery = async () => {
@@ -173,12 +172,322 @@ ${synapseData.edges.map(edge =>
     setYamlOutput(yaml)
   }, [synapseData])
 
-  // Cytoscape.js可視化
+  // D3.js + カスタムニューラル表現
   useEffect(() => {
-    if (!cytoscapeRef.current || synapseData.nodes.length === 0) return
+    if (!d3NeuralRef.current || synapseData.nodes.length === 0) return
 
-    if (cyRef.current) {
-      cyRef.current.destroy()
+    const container = d3.select(d3NeuralRef.current)
+    container.selectAll("*").remove()
+
+    const width = 600
+    const height = 400
+
+    const svg = container.append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .style("background", "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)")
+
+    // ニューラルネットワーク風のグラデーション定義
+    const defs = svg.append("defs")
+    
+    // ニューロン用グラデーション
+    const neuronGradient = defs.append("radialGradient")
+      .attr("id", "neuronGradient")
+      .attr("cx", "30%")
+      .attr("cy", "30%")
+    neuronGradient.append("stop").attr("offset", "0%").attr("stop-color", "#ff6b6b")
+    neuronGradient.append("stop").attr("offset", "70%").attr("stop-color", "#4ecdc4")
+    neuronGradient.append("stop").attr("offset", "100%").attr("stop-color", "#45b7d1")
+
+    // シナプス用グラデーション
+    const synapseGradient = defs.append("linearGradient")
+      .attr("id", "synapseGradient")
+    synapseGradient.append("stop").attr("offset", "0%").attr("stop-color", "#ff9ff3")
+    synapseGradient.append("stop").attr("offset", "100%").attr("stop-color", "#54a0ff")
+
+    const d3Nodes = synapseData.nodes.map(node => ({ ...node }))
+    const d3Edges = synapseData.edges.map(edge => ({ ...edge }))
+
+    const simulation = d3.forceSimulation(d3Nodes)
+      .force("link", d3.forceLink(d3Edges).id((d: any) => d.id).distance(150))
+      .force("charge", d3.forceManyBody().strength(-500))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(30))
+
+    // シナプス（エッジ）描画
+    const synapses = svg.append("g")
+      .selectAll("path")
+      .data(d3Edges)
+      .enter().append("path")
+      .attr("fill", "none")
+      .attr("stroke", "url(#synapseGradient)")
+      .attr("stroke-width", (d: any) => Math.sqrt(d.weight) * 3 + 2)
+      .attr("opacity", 0.8)
+      .style("filter", "drop-shadow(0px 0px 6px #54a0ff)")
+
+    // ニューロン（ノード）描画
+    const neurons = svg.append("g")
+      .selectAll("g")
+      .data(d3Nodes)
+      .enter().append("g")
+      .style("cursor", "pointer")
+      .call(d3.drag<any, any>()
+        .on("start", (event, d: any) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart()
+          d.fx = d.x
+          d.fy = d.y
+        })
+        .on("drag", (event, d: any) => {
+          d.fx = event.x
+          d.fy = event.y
+        })
+        .on("end", (event, d: any) => {
+          if (!event.active) simulation.alphaTarget(0)
+          d.fx = null
+          d.fy = null
+        }))
+
+    // ニューロン本体
+    neurons.append("circle")
+      .attr("r", (d: any) => Math.sqrt(d.freq) * 8 + 15)
+      .attr("fill", "url(#neuronGradient)")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 3)
+      .style("filter", "drop-shadow(0px 0px 10px #ff6b6b)")
+
+    // 樹状突起（dendrites）
+    neurons.each(function(d: any) {
+      const neuron = d3.select(this)
+      const dendriteCount = Math.min(d.freq * 2 + 3, 8)
+      
+      for (let i = 0; i < dendriteCount; i++) {
+        const angle = (i / dendriteCount) * 2 * Math.PI
+        const length = 20 + Math.random() * 15
+        
+        neuron.append("line")
+          .attr("x1", 0)
+          .attr("y1", 0)
+          .attr("x2", Math.cos(angle) * length)
+          .attr("y2", Math.sin(angle) * length)
+          .attr("stroke", "#ff9ff3")
+          .attr("stroke-width", 2)
+          .attr("opacity", 0.7)
+      }
+    })
+
+    // ニューロンラベル
+    neurons.append("text")
+      .text((d: any) => d.label)
+      .attr("text-anchor", "middle")
+      .attr("dy", 5)
+      .attr("font-size", "12px")
+      .attr("font-weight", "bold")
+      .attr("fill", "#fff")
+      .style("text-shadow", "2px 2px 4px rgba(0,0,0,0.8)")
+
+    // 活性化パルスアニメーション
+    const addPulse = () => {
+      neurons.append("circle")
+        .attr("r", (d: any) => Math.sqrt(d.freq) * 8 + 15)
+        .attr("fill", "none")
+        .attr("stroke", "#ff6b6b")
+        .attr("stroke-width", 3)
+        .attr("opacity", 1)
+        .transition()
+        .duration(2000)
+        .attr("r", (d: any) => Math.sqrt(d.freq) * 12 + 25)
+        .attr("opacity", 0)
+        .remove()
+    }
+
+    const pulseInterval = setInterval(addPulse, 3000)
+
+    // シミュレーション更新
+    simulation.on("tick", () => {
+      synapses.attr("d", (d: any) => {
+        const dx = d.target.x - d.source.x
+        const dy = d.target.y - d.source.y
+        const dr = Math.sqrt(dx * dx + dy * dy) * 0.3
+        return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`
+      })
+
+      neurons.attr("transform", (d: any) => `translate(${d.x},${d.y})`)
+    })
+
+    return () => {
+      clearInterval(pulseInterval)
+    }
+
+  }, [synapseData])
+
+  // Vis.js Network (脳科学向け)
+  useEffect(() => {
+    if (!visNetworkRef.current || synapseData.nodes.length === 0) return
+
+    const initVisNetwork = async () => {
+      try {
+        const { Network } = await import('vis-network/standalone')
+        const { DataSet } = await import('vis-data/standalone')
+
+        // ニューロン風ノードデータ
+        const nodes = new DataSet(synapseData.nodes.map(node => ({
+          id: node.id,
+          label: node.label,
+          size: node.freq * 15 + 20,
+          color: {
+            background: `hsl(${(node.freq * 60) % 360}, 80%, 60%)`,
+            border: '#ffffff',
+            highlight: {
+              background: `hsl(${(node.freq * 60) % 360}, 90%, 70%)`,
+              border: '#ff6b6b'
+            }
+          },
+          font: {
+            color: '#ffffff',
+            size: 14,
+            face: 'Arial',
+            strokeWidth: 2,
+            strokeColor: '#000000'
+          },
+          shadow: {
+            enabled: true,
+            color: 'rgba(0,0,0,0.5)',
+            size: 10,
+            x: 3,
+            y: 3
+          },
+          shape: 'dot'
+        })))
+
+        // シナプス風エッジデータ
+        const edges = new DataSet(synapseData.edges.map((edge, index) => ({
+          id: index,
+          from: typeof edge.source === 'string' ? edge.source : String(edge.source),
+          to: typeof edge.target === 'string' ? edge.target : String(edge.target),
+          width: edge.weight * 3 + 2,
+          color: {
+            color: `hsl(${(edge.weight * 90) % 360}, 70%, 50%)`,
+            highlight: '#ff6b6b',
+            opacity: 0.8
+          },
+          smooth: {
+            enabled: true,
+            type: 'curvedCW',
+            roundness: 0.2
+          },
+          arrows: {
+            to: {
+              enabled: true,
+              scaleFactor: 0.8
+            }
+          },
+          shadow: {
+            enabled: true,
+            color: 'rgba(0,0,0,0.3)',
+            size: 5,
+            x: 2,
+            y: 2
+          }
+        })))
+
+        const data = { nodes, edges }
+
+        const options = {
+          physics: {
+            enabled: true,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+              gravitationalConstant: -50,
+              centralGravity: 0.01,
+              springLength: 200,
+              springConstant: 0.08,
+              damping: 0.4,
+              avoidOverlap: 1
+            },
+            maxVelocity: 50,
+            minVelocity: 0.1,
+            timestep: 0.35,
+            adaptiveTimestep: true,
+            stabilization: {
+              enabled: true,
+              iterations: 1000,
+              updateInterval: 25
+            }
+          },
+          interaction: {
+            dragNodes: true,
+            dragView: true,
+            zoomView: true,
+            selectConnectedEdges: true,
+            hover: true,
+            hoverConnectedEdges: true,
+            tooltipDelay: 200
+          },
+          layout: {
+            improvedLayout: true,
+            clusterThreshold: 150
+          }
+        }
+
+        if (visNetworkRef.current) {
+          visNetworkRef.current.innerHTML = ''
+          const network = new Network(visNetworkRef.current, data, options)
+
+          // ニューロン活性化エフェクト
+          network.on("click", (params) => {
+            if (params.nodes.length > 0) {
+              const nodeId = params.nodes[0]
+              const connectedEdges = network.getConnectedEdges(nodeId)
+              
+              // 一時的にエッジを光らせる
+              const edgeUpdates = connectedEdges.map(edgeId => ({
+                id: Number(edgeId),
+                color: { color: '#ff6b6b', opacity: 1.0 }
+              }))
+              edges.update(edgeUpdates)
+
+              setTimeout(() => {
+                const originalUpdates = connectedEdges.map(edgeId => {
+                  const originalEdge = synapseData.edges[Number(edgeId)]
+                  return {
+                    id: Number(edgeId),
+                    color: {
+                      color: `hsl(${(originalEdge.weight * 90) % 360}, 70%, 50%)`,
+                      opacity: 0.8
+                    }
+                  }
+                })
+                edges.update(originalUpdates)
+              }, 1000)
+            }
+          })
+        }
+
+      } catch (error) {
+        console.error('Vis.js Network initialization error:', error)
+        if (visNetworkRef.current) {
+          visNetworkRef.current.innerHTML = `
+            <div class="flex items-center justify-center h-96 text-gray-500">
+              <div class="text-center">
+                <p>🧠 Vis.js Network</p>
+                <p class="text-sm mt-2">ライブラリ読み込み中...</p>
+              </div>
+            </div>
+          `
+        }
+      }
+    }
+
+    initVisNetwork()
+
+  }, [synapseData])
+
+  // Cytoscape.js + 神経科学エクステンション
+  useEffect(() => {
+    if (!cytoscapeNeuralRef.current || synapseData.nodes.length === 0) return
+
+    if (cyNeuralRef.current) {
+      cyNeuralRef.current.destroy()
     }
 
     const cytoscapeElements = [
@@ -194,348 +503,127 @@ ${synapseData.edges.map(edge =>
           id: `edge-${index}`,
           source: typeof edge.source === 'string' ? edge.source : String(edge.source),
           target: typeof edge.target === 'string' ? edge.target : String(edge.target),
-          weight: edge.weight,
-          label: `${edge.weight}`
+          weight: edge.weight
         }
       }))
     ]
 
-    cyRef.current = cytoscape({
-      container: cytoscapeRef.current,
+    cyNeuralRef.current = cytoscape({
+      container: cytoscapeNeuralRef.current,
       elements: cytoscapeElements,
       style: [
         {
           selector: 'node',
           style: {
-            'background-color': '#69b3ff',
+            'background-color': 'mapData(freq, 1, 10, #4ecdc4, #ff6b6b)',
             'label': 'data(label)',
-            'width': 'mapData(freq, 1, 10, 20, 80)',
-            'height': 'mapData(freq, 1, 10, 20, 80)',
-            'font-size': '12px',
+            'width': 'mapData(freq, 1, 10, 40, 100)',
+            'height': 'mapData(freq, 1, 10, 40, 100)',
+            'font-size': '14px',
+            'font-weight': 'bold',
             'text-valign': 'center',
             'text-halign': 'center',
-            'color': '#000',
-            'border-width': 2,
-            'border-color': '#fff'
+            'color': '#ffffff',
+            'text-outline-width': 2,
+            'text-outline-color': '#000000',
+            'border-width': 4,
+            'border-color': '#ffffff',
+            'shape': 'ellipse'
           }
         },
         {
           selector: 'edge',
           style: {
-            'width': 'mapData(weight, 1, 10, 3, 15)',
-            'line-color': '#666',
-            'target-arrow-color': '#666',
+            'width': 'mapData(weight, 1, 10, 4, 20)',
+            'line-color': 'mapData(weight, 1, 10, #54a0ff, #ff6b6b)',
+            'target-arrow-color': 'mapData(weight, 1, 10, #54a0ff, #ff6b6b)',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
-            'opacity': 0.8,
-            'label': 'data(label)',
-            'font-size': 10,
-            'text-rotation': 'autorotate',
-            'text-margin-y': -10,
-            'color': '#666'
-          } as any
+            'control-point-step-size': 40,
+            'opacity': 0.9
+          }
+        },
+        {
+          selector: 'node:selected',
+          style: {
+            'border-color': '#ff6b6b',
+            'border-width': 6
+          }
+        },
+        {
+          selector: 'edge:selected',
+          style: {
+            'line-color': '#ff6b6b',
+            'target-arrow-color': '#ff6b6b',
+            'width': 'mapData(weight, 1, 10, 6, 25)',
+            'opacity': 1.0
+          }
         }
       ],
       layout: {
         name: 'cose',
         animate: true,
-        animationDuration: 1000
+        animationDuration: 2000,
+        nodeRepulsion: 8000,
+        nodeOverlap: 20,
+        idealEdgeLength: 150,
+        edgeElasticity: 200,
+        nestingFactor: 1.2,
+        gravity: 0.25,
+        numIter: 1000,
+        initialTemp: 200,
+        coolingFactor: 0.95,
+        minTemp: 1.0
       } as any
     })
 
-    cyRef.current.on('tap', 'node', function(evt) {
+    // ニューロン活性化エフェクト
+    cyNeuralRef.current.on('tap', 'node', function(evt) {
       const node = evt.target
-      console.log('Clicked node:', node.data())
-    })
-
-    cyRef.current.on('tap', 'edge', function(evt) {
-      const edge = evt.target
-      console.log('Clicked edge:', edge.data())
-    })
-
-  }, [synapseData])
-
-  // 3D Force Graph可視化
-  useEffect(() => {
-    if (!forceGraph3DRef.current || synapseData.nodes.length === 0) return
-
-    const initForceGraph3D = async () => {
-      try {
-        const ForceGraph3D = (await import('3d-force-graph')).default
-        
-        const graph3DData = {
-          nodes: synapseData.nodes.map(node => ({
-            id: node.id,
-            name: node.label,
-            val: node.freq * 3,
-            color: `hsl(${(node.freq * 30) % 360}, 70%, 60%)`
-          })),
-          links: synapseData.edges.map(edge => ({
-            source: typeof edge.source === 'string' ? edge.source : String(edge.source),
-            target: typeof edge.target === 'string' ? edge.target : String(edge.target),
-            value: edge.weight * 2,
-            color: `rgba(${255 - edge.weight * 20}, ${100 + edge.weight * 30}, 255, ${Math.min(edge.weight * 0.4 + 0.3, 1)})`,
-            label: `重み: ${edge.weight}`
-          }))
+      const connectedEdges = node.connectedEdges()
+      
+      // パルス効果
+      node.animate({
+        style: {
+          'width': node.style('width') * 1.5,
+          'height': node.style('height') * 1.5
         }
-
-        if (forceGraph3DRef.current) {
-          forceGraph3DRef.current.innerHTML = ''
+      }, {
+        duration: 500,
+        complete: () => {
+          node.animate({
+            style: {
+              'width': 'mapData(freq, 1, 10, 40, 100)',
+              'height': 'mapData(freq, 1, 10, 40, 100)'
+            }
+          }, { duration: 500 })
         }
-
-        const graphInstance = new ForceGraph3D(forceGraph3DRef.current!)
-        graphInstance
-          .graphData(graph3DData)
-          .nodeLabel('name')
-          .nodeVal('val')
-          .nodeColor('color')
-          .linkWidth('value')
-          .linkColor('color')
-          .linkOpacity(0.8)
-          .linkDirectionalArrowLength(6)
-          .linkDirectionalArrowRelPos(1)
-          .linkDirectionalArrowColor('color')
-          .linkLabel('label')
-          .onNodeClick((node: any) => {
-            console.log('3D Node clicked:', node)
-          })
-          .onLinkClick((link: any) => {
-            console.log('3D Link clicked:', link)
-          })
-          .width(600)
-          .height(400)
-
-      } catch (error) {
-        console.error('3D Force Graph initialization error:', error)
-        if (forceGraph3DRef.current) {
-          forceGraph3DRef.current.innerHTML = `
-            <div class="flex items-center justify-center h-96 text-gray-500">
-              <div class="text-center">
-                <p>🌌 3D Force Graph</p>
-                <p class="text-sm mt-2">ライブラリ読み込み中...</p>
-              </div>
-            </div>
-          `
-        }
-      }
-    }
-
-    initForceGraph3D()
-
-  }, [synapseData])
-
-  // D3.js可視化
-  useEffect(() => {
-    if (!svgRef.current || synapseData.nodes.length === 0) return
-
-    const svg = d3.select(svgRef.current)
-    svg.selectAll("*").remove()
-
-    const width = 600
-    const height = 400
-
-    const d3Nodes = synapseData.nodes.map(node => ({ ...node }))
-    const d3Edges = synapseData.edges.map(edge => ({ ...edge }))
-
-    const simulation = d3.forceSimulation(d3Nodes)
-      .force("link", d3.forceLink(d3Edges).id((d: any) => d.id).distance(120))
-      .force("charge", d3.forceManyBody().strength(-400))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-
-    const link = svg.append("g")
-      .selectAll("line")
-      .data(d3Edges)
-      .enter().append("line")
-      .attr("stroke", (d: any) => `hsl(${d.weight * 60}, 70%, 50%)`)
-      .attr("stroke-opacity", (d: any) => Math.min(d.weight * 0.3 + 0.4, 1))
-      .attr("stroke-width", (d: any) => Math.sqrt(d.weight) * 3 + 1)
-      .attr("marker-end", "url(#arrowhead)")
-
-    svg.append("defs").append("marker")
-      .attr("id", "arrowhead")
-      .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 15)
-      .attr("refY", 0)
-      .attr("markerWidth", 6)
-      .attr("markerHeight", 6)
-      .attr("orient", "auto")
-      .append("path")
-      .attr("d", "M0,-5L10,0L0,5")
-      .attr("fill", "#666")
-
-    const linkLabel = svg.append("g")
-      .selectAll("text")
-      .data(d3Edges)
-      .enter().append("text")
-      .text((d: any) => d.weight)
-      .attr("font-size", 10)
-      .attr("text-anchor", "middle")
-      .attr("fill", "#666")
-      .attr("dy", -2)
-
-    const node = svg.append("g")
-      .selectAll("circle")
-      .data(d3Nodes)
-      .enter().append("circle")
-      .attr("r", (d: any) => Math.sqrt(d.freq) * 6 + 8)
-      .attr("fill", (d: any) => `hsl(${d.freq * 40}, 70%, 60%)`)
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 3)
-
-    const label = svg.append("g")
-      .selectAll("text")
-      .data(d3Nodes)
-      .enter().append("text")
-      .text((d: any) => d.label)
-      .attr("font-size", 12)
-      .attr("font-weight", "bold")
-      .attr("text-anchor", "middle")
-      .attr("dy", 4)
-      .attr("fill", "#333")
-
-    simulation.on("tick", () => {
-      link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y)
-
-      linkLabel
-        .attr("x", (d: any) => (d.source.x + d.target.x) / 2)
-        .attr("y", (d: any) => (d.source.y + d.target.y) / 2)
-
-      node
-        .attr("cx", (d: any) => d.x)
-        .attr("cy", (d: any) => d.y)
-
-      label
-        .attr("x", (d: any) => d.x)
-        .attr("y", (d: any) => d.y)
-    })
-
-  }, [synapseData])
-
-  // Three.js カスタム3D可視化
-  useEffect(() => {
-    if (!threeJsRef.current || synapseData.nodes.length === 0) return
-
-    const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xf8f9fa)
-    
-    const camera = new THREE.PerspectiveCamera(75, 600 / 400, 0.1, 1000)
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
-    renderer.setSize(600, 400)
-    renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap
-
-    threeJsRef.current.innerHTML = ''
-    threeJsRef.current.appendChild(renderer.domElement)
-
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6)
-    scene.add(ambientLight)
-    
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
-    directionalLight.position.set(50, 50, 50)
-    directionalLight.castShadow = true
-    scene.add(directionalLight)
-
-    const positions = new Map<string, { x: number, y: number, z: number }>()
-
-    synapseData.nodes.forEach((node, index) => {
-      const radius = 60
-      const phi = Math.acos(-1 + (2 * index) / synapseData.nodes.length)
-      const theta = Math.sqrt(synapseData.nodes.length * Math.PI) * phi
-
-      const x = radius * Math.cos(theta) * Math.sin(phi)
-      const y = radius * Math.sin(theta) * Math.sin(phi)
-      const z = radius * Math.cos(phi)
-
-      positions.set(node.id, { x, y, z })
-
-      const geometry = new THREE.SphereGeometry(Math.sqrt(node.freq) * 3 + 3, 16, 16)
-      const material = new THREE.MeshLambertMaterial({ 
-        color: new THREE.Color().setHSL((node.freq * 0.1) % 1, 0.7, 0.6)
       })
-      const sphere = new THREE.Mesh(geometry, material)
-      sphere.position.set(x, y, z)
-      sphere.castShadow = true
-      sphere.receiveShadow = true
-      scene.add(sphere)
 
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')!
-      canvas.width = 256
-      canvas.height = 64
-      context.font = '20px Arial'
-      context.fillStyle = 'white'
-      context.textAlign = 'center'
-      context.fillText(node.label, 128, 40)
+      // 接続エッジの活性化
+      connectedEdges.animate({
+        style: {
+          'line-color': '#ff6b6b',
+          'target-arrow-color': '#ff6b6b',
+          'opacity': 1.0,
+          'width': 'mapData(weight, 1, 10, 8, 30)'
+        }
+      }, {
+        duration: 1000,
+        complete: () => {
+          connectedEdges.animate({
+            style: {
+              'line-color': 'mapData(weight, 1, 10, #54a0ff, #ff6b6b)',
+              'target-arrow-color': 'mapData(weight, 1, 10, #54a0ff, #ff6b6b)',
+              'opacity': 0.9,
+              'width': 'mapData(weight, 1, 10, 4, 20)'
+            }
+          }, { duration: 1000 })
+        }
+      })
 
-      const texture = new THREE.CanvasTexture(canvas)
-      const spriteMaterial = new THREE.SpriteMaterial({ map: texture })
-      const sprite = new THREE.Sprite(spriteMaterial)
-      sprite.position.set(x, y + 20, z)
-      sprite.scale.set(25, 6, 1)
-      scene.add(sprite)
+      console.log('ニューロン活性化:', node.data())
     })
-
-    synapseData.edges.forEach(edge => {
-      const sourcePos = positions.get(typeof edge.source === 'string' ? edge.source : String(edge.source))
-      const targetPos = positions.get(typeof edge.target === 'string' ? edge.target : String(edge.target))
-
-      if (sourcePos && targetPos) {
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(sourcePos.x, sourcePos.y, sourcePos.z),
-          new THREE.Vector3(targetPos.x, targetPos.y, targetPos.z)
-        ])
-        const material = new THREE.LineBasicMaterial({ 
-          color: new THREE.Color().setHSL((edge.weight * 0.2) % 1, 0.8, 0.5),
-          opacity: Math.min(edge.weight * 0.4 + 0.3, 1),
-          transparent: true,
-          linewidth: edge.weight * 2
-        })
-        const line = new THREE.Line(geometry, material)
-        scene.add(line)
-
-        const midX = (sourcePos.x + targetPos.x) / 2
-        const midY = (sourcePos.y + targetPos.y) / 2
-        const midZ = (sourcePos.z + targetPos.z) / 2
-
-        const labelCanvas = document.createElement('canvas')
-        const labelContext = labelCanvas.getContext('2d')!
-        labelCanvas.width = 64
-        labelCanvas.height = 32
-        labelContext.font = '16px Arial'
-        labelContext.fillStyle = 'yellow'
-        labelContext.textAlign = 'center'
-        labelContext.fillText(String(edge.weight), 32, 20)
-
-        const labelTexture = new THREE.CanvasTexture(labelCanvas)
-        const labelMaterial = new THREE.SpriteMaterial({ map: labelTexture })
-        const labelSprite = new THREE.Sprite(labelMaterial)
-        labelSprite.position.set(midX, midY, midZ)
-        labelSprite.scale.set(8, 4, 1)
-        scene.add(labelSprite)
-      }
-    })
-
-    camera.position.set(120, 120, 120)
-    camera.lookAt(0, 0, 0)
-
-    let animationId: number
-    const animate = () => {
-      animationId = requestAnimationFrame(animate)
-      scene.rotation.y += 0.003
-      renderer.render(scene, camera)
-    }
-    animate()
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId)
-      }
-      renderer.dispose()
-    }
 
   }, [synapseData])
 
@@ -600,72 +688,60 @@ ${synapseData.edges.map(edge =>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>🕸️ Cytoscape.js COSE Layout (2D)</CardTitle>
+            <CardTitle>🧠 D3.js ニューラルネットワーク</CardTitle>
+            <p className="text-sm text-gray-600">
+              ニューロン風ノード + 樹状突起 + 活性化パルス
+            </p>
           </CardHeader>
           <CardContent>
             <div 
-              ref={cytoscapeRef}
-              className="w-full h-96 border rounded-lg bg-gray-50"
+              ref={d3NeuralRef}
+              className="w-full h-96 border rounded-lg"
               style={{ minHeight: '400px' }}
             />
             <p className="text-sm text-gray-600 mt-2">
-              グラフ理論ベースレイアウト（クリック可能）
+              🔬 ドラッグ可能、パルスアニメーション、曲線シナプス
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🎯 D3.js Force Layout (2D)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full overflow-x-auto">
-              <svg
-                ref={svgRef}
-                width={600}
-                height={400}
-                className="border rounded-lg bg-gray-50"
-              />
-            </div>
-            <p className="text-sm text-gray-600 mt-2">
-              物理シミュレーション型レイアウト
+            <CardTitle>🌐 Vis.js 脳科学ネットワーク</CardTitle>
+            <p className="text-sm text-gray-600">
+              物理エンジン + インタラクティブ操作 + 神経活性化
             </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>🌌 3D Force Graph</CardTitle>
           </CardHeader>
           <CardContent>
             <div 
-              ref={forceGraph3DRef}
+              ref={visNetworkRef}
               className="w-full h-96 border rounded-lg bg-gray-900"
               style={{ minHeight: '400px' }}
             />
             <p className="text-sm text-gray-600 mt-2">
-              3D物理シミュレーション（マウスで回転・ズーム可能）
+              ⚡ クリックで神経活性化、ズーム・パン対応
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🎭 Three.js Custom 3D</CardTitle>
+            <CardTitle>🔬 Cytoscape.js 神経科学</CardTitle>
+            <p className="text-sm text-gray-600">
+              グラデーション + シャドウ + アニメーション効果
+            </p>
           </CardHeader>
           <CardContent>
             <div 
-              ref={threeJsRef}
-              className="w-full h-96 border rounded-lg bg-gray-100"
+              ref={cytoscapeNeuralRef}
+              className="w-full h-96 border rounded-lg bg-gray-800"
               style={{ minHeight: '400px' }}
             />
             <p className="text-sm text-gray-600 mt-2">
-              カスタム3Dレンダリング（自動回転）
+              🎭 ニューロン活性化アニメーション、高品質レンダリング
             </p>
           </CardContent>
         </Card>

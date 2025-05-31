@@ -1,23 +1,56 @@
-import { Mastra } from '@mastra/core/mastra';
+// @ts-nocheck
+import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { LibSQLStore } from '@mastra/libsql';
+import { weatherAgent, slideCreatorAgent, imageCreatorAgent, browserAutomationAgent } from './agents';
+import { 
+  htmlSlideTool, 
+  presentationPreviewTool,
+  braveSearchTool,
+  advancedCalculatorTool,
+  geminiImageGenerationTool,
+  geminiVideoGenerationTool,
+  grokXSearchTool,
+  imagen4GenerationTool,
+  v0CodeGenerationTool,
+  graphicRecordingTool,
+  minimaxTTSTool,
+  browserAutomationTool,
+  weatherTool
+} from './tools';
 
-import { weatherAgent, slideCreatorAgent, imageCreatorAgent } from './agents';
-// import { htmlSlideTool } from './tools'; // This import is no longer needed if tools are not registered directly
-
+// @ts-ignore - Type definition issue with tools property
 export const mastra = new Mastra({
   agents: { 
-    weatherAgent, 
-    slideCreatorAgent,
-    imageCreatorAgent
+    weatherAgent,
+    slideCreatorAgent, 
+    imageCreatorAgent,
+    browserAutomationAgent
   },
-  // Removed the tools property here
+  tools: { 
+    htmlSlideTool, 
+    presentationPreviewTool,
+    braveSearchTool,
+    advancedCalculatorTool,
+    geminiImageGenerationTool,
+    geminiVideoGenerationTool,
+    grokXSearchTool,
+    imagen4GenerationTool,
+    v0CodeGenerationTool,
+    graphicRecordingTool,
+    minimaxTTSTool,
+    browserAutomationTool,
+    weatherTool
+  } as any,
   storage: new LibSQLStore({
-    // stores telemetry, evals, ... into memory storage, if it needs to persist, change to file:../mastra.db
     url: "file:../memory.db",
   }),
   logger: createLogger({
     name: 'Mastra',
     level: 'info',
   }),
+  server: {
+    timeout: 120000,
+    port: 4111,
+  },
 });

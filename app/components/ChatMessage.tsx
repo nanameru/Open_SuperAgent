@@ -479,7 +479,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               }
               
               // Browserbaseツールの結果データを保存
-              if (toolState.toolName === 'browserbase-automation' && tr.result?.sessionId) {
+              if ((toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool') && tr.result?.sessionId) {
                 setBrowserbaseTool(prev => ({
                   ...prev,
                   [tr.toolCallId]: {
@@ -490,6 +490,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     title: tr.result.pageTitle || 'ブラウザ自動化セッション'
                   }
                 }));
+                
+                // autoOpenPreviewが設定されていれば自動的にBrowserbaseプレビューを開く
+                if (tr.result.autoOpenPreview && onBrowserbasePreview) {
+                  onBrowserbasePreview({
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: tr.result.liveViewUrl,
+                    pageTitle: tr.result.pageTitle
+                  });
+                }
               }
             }
           });
@@ -1189,7 +1199,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           isLoading={isLoading}
           isPreviewTool={isPresentationTool}
           isImageTool={toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation'}
-          isBrowserbaseTool={toolState.toolName === 'browserbase-automation'}
+          isBrowserbaseTool={toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool'}
           onPreviewClick={() => {
             if (previewData) {
               openPreviewPanel(previewData.htmlContent, previewData.title);

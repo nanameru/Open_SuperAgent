@@ -3,7 +3,20 @@
  */
 const nextConfig = {
   experimental: {
-    instrumentationHook: true, // OpenTelemetryトレーシングを有効化
+    // instrumentationHook: true, // 非推奨のため削除
+    turbo: {
+      rules: {
+        // Turbopack用のルール設定
+        '*.md': {
+          loaders: ['raw-loader'],
+          as: '*.js',
+        },
+        '*.LICENSE': {
+          loaders: ['raw-loader'],
+          as: '*.js',
+        },
+      },
+    },
   },
   webpack: (config, { isServer }) => {
     // クライアントサイドでのNode.jsモジュールの使用を無効化
@@ -20,10 +33,28 @@ const nextConfig = {
         url: false,
         querystring: false,
         worker_threads: false,
+        net: false,
+        tls: false,
+        child_process: false,
       };
     }
+
+    // @libsql関連ファイルの処理
+    config.module.rules.push({
+      test: /\.(md|LICENSE)$/,
+      type: 'asset/source',
+    });
+
+    // Stagehandとの互換性のための設定（Playwrightは内部で使用されるため外部化不要）
+
     return config;
   },
+  // サーバー外部パッケージの設定
+  serverExternalPackages: [
+    // libsqlパッケージを外部化から除外
+    '!@libsql/client',
+    '!libsql',
+  ],
   // 静的ファイルの配信設定
   async headers() {
     return [
