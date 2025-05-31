@@ -1277,11 +1277,133 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             {(toolState.status === 'success' || toolState.status === 'error') && toolState.result !== undefined && (
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-1">ツール結果</h4>
-                <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto`}>
-                  {typeof toolState.result === 'string' 
-                    ? toolState.result 
-                    : JSON.stringify(toolState.result, null, 2)}
-                </pre>
+                
+                {/* browser-automation-toolの特別な処理 */}
+                {(toolState.toolName === 'browser-automation-tool' || toolState.toolName === 'browserbase-automation') && toolState.result?.markdownContent ? (
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+                    {/* Markdownコンテンツをレンダリング */}
+                    <div className="prose prose-sm max-w-none">
+                      {toolState.result.markdownContent.split('\n').map((line: string, i: number) => {
+                        // 画像の処理
+                        if (line.includes('![') && line.includes('](data:image')) {
+                          const altMatch = line.match(/!\[([^\]]*)\]/);
+                          const srcMatch = line.match(/\(data:image[^)]+\)/);
+                          if (altMatch && srcMatch) {
+                            const alt = altMatch[1];
+                            const src = srcMatch[0].slice(1, -1);
+                            return (
+                              <div key={i} className="my-3">
+                                <img 
+                                  src={src} 
+                                  alt={alt}
+                                  className="rounded-lg border border-gray-200 max-w-full"
+                                  style={{ maxHeight: '300px', objectFit: 'contain' }}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{alt}</p>
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // ヘッダーの処理
+                        if (line.startsWith('#')) {
+                          const level = line.match(/^#+/)?.[0].length || 1;
+                          const text = line.replace(/^#+\s*/, '');
+                          
+                          // レベルに応じたスタイルを適用
+                          if (level === 1) {
+                            return <h1 key={i} className="font-semibold text-lg mb-2">{text}</h1>;
+                          } else if (level === 2) {
+                            return <h2 key={i} className="font-semibold text-base mb-2">{text}</h2>;
+                          } else if (level === 3) {
+                            return <h3 key={i} className="font-semibold text-sm mb-2">{text}</h3>;
+                          } else if (level === 4) {
+                            return <h4 key={i} className="font-semibold text-sm mb-2">{text}</h4>;
+                          } else if (level === 5) {
+                            return <h5 key={i} className="font-semibold text-sm mb-2">{text}</h5>;
+                          } else {
+                            return <h6 key={i} className="font-semibold text-sm mb-2">{text}</h6>;
+                          }
+                        }
+                        
+                        // リストの処理
+                        if (line.match(/^[-*]\s/)) {
+                          return <li key={i} className="ml-4 list-disc">{line.replace(/^[-*]\s/, '')}</li>;
+                        }
+                        
+                        // コードブロックの処理
+                        if (line.startsWith('```')) {
+                          return null; // コードブロックは別途処理
+                        }
+                        
+                        // 通常のテキスト
+                        return line.trim() ? <p key={i} className="mb-2">{line}</p> : <br key={i} />;
+                      })}
+                    </div>
+                    
+                    {/* 実行ステップ情報がある場合は表示 */}
+                    {toolState.result.executionSteps && toolState.result.executionSteps.length > 0 && (
+                      <details className="bg-gray-50 rounded-lg p-3">
+                        <summary className="cursor-pointer text-sm font-medium text-gray-700">
+                          実行ステップ詳細 ({toolState.result.executionSteps.length}ステップ)
+                        </summary>
+                        <div className="mt-2 space-y-2">
+                          {toolState.result.executionSteps.map((step: any, index: number) => (
+                            <div key={index} className="text-xs space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block w-4 h-4 rounded-full ${
+                                  step.status === 'success' ? 'bg-green-500' : 
+                                  step.status === 'retried' ? 'bg-yellow-500' : 
+                                  'bg-red-500'
+                                }`} />
+                                <span className="font-medium">ステップ {step.step}: {step.action}</span>
+                              </div>
+                              {step.verificationResult && (
+                                <div className="ml-6 text-gray-600">{step.verificationResult}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    
+                    {/* Browserbaseプレビューボタン */}
+                    {toolState.result.sessionId && (
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            if (onBrowserbasePreview) {
+                              onBrowserbasePreview({
+                                sessionId: toolState.result.sessionId,
+                                replayUrl: toolState.result.replayUrl,
+                                liveViewUrl: toolState.result.liveViewUrl,
+                                pageTitle: toolState.result.pageTitle
+                              });
+                            }
+                          }}
+                          className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                        >
+                          <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          ブラウザセッションを表示
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto max-h-96`}>
+                    {typeof toolState.result === 'string' 
+                      ? toolState.result 
+                      : JSON.stringify(toolState.result, (key, value) => {
+                          // Base64データを省略
+                          if (key === 'b64Json' || key === 'screenshot' || (key === 'markdownContent' && value && value.length > 1000)) {
+                            return '[画像データ省略]';
+                          }
+                          return value;
+                        }, 2)}
+                  </pre>
+                )}
                 
                 {/* 画像生成ツールの結果表示 */}
                 {(toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation') && toolState.result?.images && toolState.result.images.length > 0 && (

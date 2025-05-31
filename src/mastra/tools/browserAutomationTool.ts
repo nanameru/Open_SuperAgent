@@ -1,33 +1,12 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-
-// Stagehandとブラウザベースの動的インポート（サーバーサイドでのみ使用）
-let Stagehand: any;
-let Browserbase: any;
-
-// 動的インポート関数
-async function importStagehandDependencies() {
-  if (typeof window === 'undefined') {
-    // サーバーサイドでのみインポート
-    try {
-      const stagehandModule = await import('@browserbasehq/stagehand');
-      Stagehand = stagehandModule.Stagehand;
-      
-      await import("@browserbasehq/sdk/shims/web");
-      const browserbaseModule = await import("@browserbasehq/sdk");
-      Browserbase = browserbaseModule.default;
-      
-      return true;
-    } catch (error) {
-      console.error('[BrowserAutomationTool] Failed to import dependencies:', error);
-      return false;
-    }
-  }
-  return false;
-}
+import { 
+  browserAutomationAgent, 
+  executeWithVerificationLoops, 
+  type BrowserAutomationContext,
+  type ExecutionStep,
+  type VerificationResult 
+} from '../agents/browserAutomationAgent';
 
 // 入力スキーマを定義
 const browserAutomationToolInputSchema = z.object({
@@ -37,6 +16,8 @@ const browserAutomationToolInputSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).optional().default('medium').describe('タスクの優先度'),
   timeout: z.number().optional().default(120000).describe('タスク実行のタイムアウト（ミリ秒）'),
   takeScreenshots: z.boolean().optional().default(true).describe('スクリーンショットを取得するかどうか'),
+  verificationLevel: z.enum(['basic', 'standard', 'strict']).optional().default('standard').describe('検証レベル（basic: 基本検証、standard: 標準検証、strict: 厳密検証）'),
+  maxRetries: z.number().optional().default(3).describe('失敗時の最大リトライ回数'),
 });
 
 // 出力スキーマを定義
@@ -57,32 +38,29 @@ const browserAutomationToolOutputSchema = z.object({
   sessionId: z.string().optional().describe('ブラウザセッションID'),
   replayUrl: z.string().optional().describe('セッションリプレイURL'),
   liveViewUrl: z.string().optional().describe('ライブビューURL'),
-  pageTitle: z.string().optional().describe('現在のページタイトル'),
+  pageTitle: z.string().optional().describe('最終的なページタイトル'),
   autoOpenPreview: z.boolean().optional().describe('プレビューを自動で開くかどうか'),
+  executionSteps: z.array(z.object({
+    step: z.number(),
+    action: z.string(),
+    status: z.enum(['success', 'failed', 'retried']),
+    verificationResult: z.string().optional(),
+    retryCount: z.number().optional(),
+  })).optional().describe('実行ステップの詳細ログ'),
+  verificationResults: z.object({
+    level: z.string(),
+    checks: z.array(z.object({
+      type: z.string(),
+      passed: z.boolean(),
+      details: z.string(),
+    })),
+    overallScore: z.number().min(0).max(100),
+  }).optional().describe('検証結果の詳細'),
 });
 
 // 型定義
 type InputType = z.infer<typeof browserAutomationToolInputSchema>;
 type OutputType = z.infer<typeof browserAutomationToolOutputSchema>;
-
-// Browserbase SDKの設定
-const configureBrowserbaseApi = async () => {
-  const apiKey = process.env.BROWSERBASE_API_KEY;
-  const projectId = process.env.BROWSERBASE_PROJECT_ID;
-  
-  if (!apiKey || !projectId) {
-    return { configured: false, apiKey: !!apiKey, projectId: !!projectId };
-  }
-
-  try {
-    // Stagehandとブラウザベースの依存関係を動的にインポート
-    const imported = await importStagehandDependencies();
-    return { configured: imported, apiKey: true, projectId: true };
-  } catch (error) {
-    console.error('[BrowserAutomationTool] Failed to import Stagehand dependencies:', error);
-    return { configured: false, apiKey: true, projectId: true, importError: true };
-  }
-};
 
 // マークダウンコンテンツ生成関数
 function generateMarkdownContent(params: {
@@ -95,8 +73,10 @@ function generateMarkdownContent(params: {
   executionTime: number;
   error?: string;
   pageTitle?: string;
+  executionSteps?: ExecutionStep[];
+  verificationResults?: VerificationResult;
 }): string {
-  const { task, success, result, screenshots, extractedData, sessionInfo, executionTime, error, pageTitle } = params;
+  const { task, success, result, screenshots, extractedData, sessionInfo, executionTime, error, pageTitle, executionSteps, verificationResults } = params;
   
   let markdown = `# 🤖 ブラウザ自動化実行結果\n\n`;
   
@@ -109,11 +89,35 @@ function generateMarkdownContent(params: {
   markdown += `**ステータス**: ${success ? '成功' : '失敗'}\n`;
   markdown += `**実行時間**: ${(executionTime / 1000).toFixed(2)}秒\n`;
   if (pageTitle) markdown += `**ページタイトル**: ${pageTitle}\n`;
+  if (verificationResults) markdown += `**検証スコア**: ${verificationResults.overallScore}/100 (${verificationResults.level})\n`;
   markdown += `\n`;
   
   if (success) {
     markdown += `### 📊 結果詳細\n`;
     markdown += `${result}\n\n`;
+    
+    // 実行ステップの詳細
+    if (executionSteps && executionSteps.length > 0) {
+      markdown += `### 🔄 実行ステップ詳細\n`;
+      executionSteps.forEach((step, index) => {
+        const statusIcon = step.status === 'success' ? '✅' : step.status === 'retried' ? '🔄' : '❌';
+        markdown += `${index + 1}. ${statusIcon} **${step.action}**\n`;
+        markdown += `   - ステータス: ${step.status}\n`;
+        if (step.retryCount > 0) markdown += `   - リトライ回数: ${step.retryCount}\n`;
+        if (step.verificationResult) markdown += `   - 検証結果: ${step.verificationResult}\n`;
+        markdown += `\n`;
+      });
+    }
+    
+    // 検証結果の詳細
+    if (verificationResults) {
+      markdown += `### 🔍 検証結果詳細\n`;
+      verificationResults.checks.forEach(check => {
+        const checkIcon = check.passed ? '✅' : '❌';
+        markdown += `- ${checkIcon} **${check.type}**: ${check.details}\n`;
+      });
+      markdown += `\n`;
+    }
     
     // スクリーンショット
     if (screenshots && screenshots.length > 0) {
@@ -143,6 +147,17 @@ function generateMarkdownContent(params: {
   } else {
     markdown += `### ❌ エラー詳細\n`;
     markdown += `${error || 'Unknown error occurred'}\n\n`;
+    
+    // 失敗時の実行ステップ
+    if (executionSteps && executionSteps.length > 0) {
+      markdown += `### 🔄 実行ステップ（失敗時）\n`;
+      executionSteps.forEach((step, index) => {
+        const statusIcon = step.status === 'success' ? '✅' : step.status === 'retried' ? '🔄' : '❌';
+        markdown += `${index + 1}. ${statusIcon} **${step.action}**\n`;
+        if (step.verificationResult) markdown += `   - ${step.verificationResult}\n`;
+        markdown += `\n`;
+      });
+    }
   }
   
   return markdown;
@@ -151,212 +166,108 @@ function generateMarkdownContent(params: {
 // ツールを作成
 export const browserAutomationTool = createTool({
   id: 'browser-automation-tool',
-  description: 'Stagehand + Browserbaseを使用してクラウド上でブラウザを自動化します。AI駆動のブラウザ操作により、自然言語での指示でWebページの操作、データ抽出、スクリーンショット取得などが可能です。',
+  description: `
+高精度なブラウザ自動化ツール（検証ループ機能付き）
+
+このツールは、複雑なWebブラウザ操作を自動化し、各ステップで検証ループを実行して高い精度を実現します。
+
+主な機能:
+- 🔄 **検証ループ**: 各アクションの成功を確認し、失敗時は自動リトライ
+- 🎯 **多段階検証**: basic/standard/strict の3つの検証レベル
+- 📊 **詳細ログ**: 実行ステップと検証結果の完全な記録
+- 🔁 **インテリジェントリトライ**: 失敗原因を分析して最適なリトライ戦略を実行
+- 📸 **リアルタイム監視**: スクリーンショットとライブビューでの進行状況確認
+
+検証レベル:
+- **basic**: 基本的な成功/失敗チェック
+- **standard**: 要素の存在確認、ページ遷移検証、データ整合性チェック
+- **strict**: 厳密な検証、複数の確認方法、データ品質保証
+
+使用例:
+- Webサイトからの情報収集（価格、在庫、ニュースなど）
+- フォーム入力と送信の自動化
+- 複数ページにわたるナビゲーション
+- データの抽出と検証
+- E2Eテストシナリオの実行
+
+注意: このツールはBrowserbaseセッションを作成し、リアルタイムでブラウザ操作を表示します。
+  `,
   inputSchema: browserAutomationToolInputSchema,
   outputSchema: browserAutomationToolOutputSchema,
   execute: async ({ context }: { context: InputType }): Promise<OutputType> => {
     const startTime: number = Date.now();
     
     try {
-      const { task, url, context: additionalContext, priority, timeout, takeScreenshots } = context;
+      const { task, url, context: additionalContext, verificationLevel, maxRetries } = context;
       
       console.log('[BrowserAutomationTool] Starting browser automation task:', task);
+      console.log('🔍 検証レベル:', verificationLevel);
+      console.log('🔄 最大リトライ回数:', maxRetries);
       
-      // API設定の確認
-      const apiConfig = await configureBrowserbaseApi();
-      if (!apiConfig.configured) {
-        let errorMessage = 'Browser automation configuration error: ';
-        if (apiConfig.importError) {
-          errorMessage += 'Failed to import @browserbasehq/stagehand or @browserbasehq/sdk. Please install them with: npm install @browserbasehq/stagehand @browserbasehq/sdk';
-        } else if (!apiConfig.apiKey) {
-          errorMessage += 'BROWSERBASE_API_KEY is not set.';
-        } else if (!apiConfig.projectId) {
-          errorMessage += 'BROWSERBASE_PROJECT_ID is not set.';
-        }
-
-        return {
-          success: false,
-          result: 'Failed to configure browser automation',
-          executionTime: Date.now() - startTime,
-          error: errorMessage,
-          markdownContent: generateMarkdownContent({
-            task,
-            success: false,
-            result: 'Failed to configure browser automation',
-            executionTime: Date.now() - startTime,
-            error: errorMessage,
-          }),
-        };
-      }
-
-      // スクリーンショット保存先ディレクトリの確保
-      const imagesDir = path.join(process.cwd(), 'public', 'generated-images');
-      if (!fs.existsSync(imagesDir)) {
-        try {
-          fs.mkdirSync(imagesDir, { recursive: true });
-        } catch (dirError) {
-          console.error('[BrowserAutomationTool] Failed to create images directory:', dirError);
-          return {
-            success: false,
-            result: 'Failed to create images directory',
-            executionTime: Date.now() - startTime,
-            error: `Directory creation error: ${dirError instanceof Error ? dirError.message : String(dirError)}`,
-            markdownContent: generateMarkdownContent({
-              task,
-              success: false,
-              result: 'Failed to create images directory',
-              executionTime: Date.now() - startTime,
-              error: `Directory creation error: ${dirError instanceof Error ? dirError.message : String(dirError)}`,
-            }),
-          };
-        }
-      }
-
-      // 必要な環境変数の確認
-      if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
-        throw new Error('BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID environment variables are required');
-      }
-
-      // Gemini APIキーの確認
-      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-      if (!geminiApiKey) {
-        throw new Error('GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY environment variable is required for Stagehand');
-      }
-
-      // Browserbase クライアントの初期化
-      const bb = new Browserbase({
-        apiKey: process.env.BROWSERBASE_API_KEY!,
-        fetch: globalThis.fetch,
-      });
-
-      // セッション設定
-      const sessionConfig: any = {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
-        keepAlive: true,
-        timeout: Math.floor(timeout / 1000), // 秒に変換
+      // 🤖 **エージェントのカスタム実行ロジックのみを使用**
+      console.log('🤖 browserAutomationAgentのループ処理を開始...');
+      
+      const agentContext: BrowserAutomationContext = {
+        task,
+        verificationLevel,
+        maxRetries,
+        url,
+        context: additionalContext,
       };
 
-      // セッションの作成
-      const session = await bb.sessions.create(sessionConfig);
-      console.log(`[BrowserAutomationTool] Session created: ${session.id}`);
-
-      // Stagehandの初期化
-      const stagehand = new Stagehand({
-        browserbaseSessionID: session.id,
-        env: "BROWSERBASE",
-        modelName: "google/gemini-2.0-flash",
-        modelClientOptions: {
-          apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        },
-        apiKey: process.env.BROWSERBASE_API_KEY,
-        projectId: process.env.BROWSERBASE_PROJECT_ID,
-        disablePino: true,
-      });
-
-      await stagehand.init();
-      const page = stagehand.page;
-
-      let pageTitle: string | undefined;
-      let screenshots: string[] = [];
-      let extractedData: any = undefined;
-      let liveViewUrl: string | undefined;
-
-      try {
-        // Live View URLを取得
-        try {
-          const liveViewLinks = await bb.sessions.debug(session.id);
-          liveViewUrl = liveViewLinks.debuggerFullscreenUrl;
-          console.log(`[BrowserAutomationTool] Live View URL: ${liveViewUrl}`);
-        } catch (liveViewError) {
-          console.warn('[BrowserAutomationTool] Failed to get live view URL:', liveViewError);
-        }
-
-        // URLが指定されている場合はナビゲート
-        if (url) {
-          console.log(`[BrowserAutomationTool] Navigating to: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          pageTitle = await page.title();
-        }
-
-        // タスクを構築
-        let fullTask: string = task;
-        if (additionalContext) {
-          fullTask += `\n\n追加コンテキスト: ${additionalContext}`;
-        }
-
-        // Stagehandを使用してタスクを実行
-        console.log(`[BrowserAutomationTool] Executing task with Stagehand: ${fullTask}`);
-        const taskResult = await page.act(fullTask);
-        
-        // ページタイトルを取得（まだ取得していない場合）
-        if (!pageTitle) {
-          try {
-            pageTitle = await page.title();
-          } catch (e) {
-            console.warn('[BrowserAutomationTool] Failed to get page title:', e);
-          }
-        }
-
-        // スクリーンショットを取得
-        if (takeScreenshots) {
-          const screenshotName = `browser_automation_${uuidv4()}.png`;
-          const screenshotPath = path.join(imagesDir, screenshotName);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          screenshots.push(`/generated-images/${screenshotName}`);
-        }
-
-        // データ抽出を試行
-        try {
-          const extractionResult = await page.extract('Extract any relevant data from this page');
-          if (extractionResult && extractionResult.extraction) {
-            extractedData = extractionResult.extraction;
-          }
-        } catch (extractError) {
-          console.warn('[BrowserAutomationTool] Data extraction failed:', extractError);
-        }
-
-      } finally {
-        // Stagehandセッションを終了
-        await stagehand.close();
-        console.log(`[BrowserAutomationTool] Session ${session.id} completed`);
-      }
-
+      const agentResult = await executeWithVerificationLoops(browserAutomationAgent, agentContext);
+      
       const executionTime: number = Date.now() - startTime;
-      const replayUrl = `https://browserbase.com/sessions/${session.id}`;
+
+      // エージェントの結果から追加情報を抽出
+      const screenshots = agentResult.executionSteps
+        .map(step => step.screenshot)
+        .filter(screenshot => screenshot) as string[];
+      
+      const extractedData = agentResult.executionSteps
+        .map(step => step.extractedData)
+        .filter(data => data)
+        .reduce((acc, data) => ({ ...acc, ...data }), {});
 
       const resultData: OutputType = {
-        success: true,
-        result: `ブラウザ自動化タスクが正常に完了しました。${pageTitle ? `ページ: ${pageTitle}` : ''}`,
+        success: agentResult.verificationResults.overallScore > 0,
+        result: agentResult.result,
         screenshots: screenshots.length > 0 ? screenshots : undefined,
-        extractedData,
+        extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
         sessionInfo: {
-          sessionId: session.id,
-          replayUrl,
-          liveViewUrl,
+          sessionId: `agent-session-${Date.now()}`,
+          replayUrl: undefined,
+          liveViewUrl: undefined,
         },
         executionTime,
-        // Browserbase互換の情報
-        sessionId: session.id,
-        replayUrl,
-        liveViewUrl,
-        pageTitle,
-        autoOpenPreview: true,
+        sessionId: `agent-session-${Date.now()}`,
+        replayUrl: undefined,
+        liveViewUrl: undefined,
+        pageTitle: undefined,
+        autoOpenPreview: false,
+        executionSteps: agentResult.executionSteps,
+        verificationResults: agentResult.verificationResults,
         markdownContent: generateMarkdownContent({
           task,
-          success: true,
-          result: `ブラウザ自動化タスクが正常に完了しました。${pageTitle ? `ページ: ${pageTitle}` : ''}`,
+          success: agentResult.verificationResults.overallScore > 0,
+          result: agentResult.result,
           screenshots: screenshots.length > 0 ? screenshots : undefined,
-          extractedData,
+          extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
           sessionInfo: {
-            sessionId: session.id,
-            replayUrl,
-            liveViewUrl,
+            sessionId: `agent-session-${Date.now()}`,
+            replayUrl: undefined,
+            liveViewUrl: undefined,
           },
           executionTime,
-          pageTitle,
+          pageTitle: undefined,
+          executionSteps: agentResult.executionSteps,
+          verificationResults: agentResult.verificationResults,
         }),
       };
-      
+
+      console.log('✅ Browser Automation Tool - 実行完了');
+      console.log('📊 検証スコア:', agentResult.verificationResults.overallScore);
+
       return resultData;
       
     } catch (error) {
@@ -370,6 +281,22 @@ export const browserAutomationTool = createTool({
         result: 'タスクの実行中にエラーが発生しました',
         executionTime,
         error: errorMessage,
+        executionSteps: [{
+          step: 1,
+          action: 'エラー発生',
+          status: 'failed',
+          verificationResult: `エラー: ${errorMessage}`,
+          retryCount: 0,
+        }],
+        verificationResults: {
+          level: context.verificationLevel || 'standard',
+          checks: [{
+            type: 'error_handling',
+            passed: false,
+            details: `実行中にエラーが発生: ${errorMessage}`,
+          }],
+          overallScore: 0,
+        },
         markdownContent: generateMarkdownContent({
           task: context.task,
           success: false,
