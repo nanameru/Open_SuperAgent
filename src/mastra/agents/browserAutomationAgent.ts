@@ -79,7 +79,7 @@ When extracting information:
 
 Remember: Your goal is to be a reliable, efficient browser automation assistant that can handle a wide variety of web-based tasks while maintaining transparency and providing excellent user experience.
   `,
-  model: anthropic('claude-3-5-sonnet-20241022'), // Use Claude 3.5 Sonnet
+  model: anthropic('claude-opus-4-20250514'), // Use Claude 3.5 Sonnet
   tools: { 
     // No tools registered - this agent will be used as a tool itself
   },

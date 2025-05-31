@@ -59,7 +59,29 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/generated-images/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
+      {
         source: '/generated-videos/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/generated-music/:path*',
         headers: [
           {
             key: 'Cache-Control',

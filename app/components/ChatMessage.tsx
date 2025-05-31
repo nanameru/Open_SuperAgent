@@ -806,41 +806,72 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         );
       } else {
         // 画像要素
+        // パスの正規化: /generated-images/ を確実に処理
+        const normalizedUrl = mediaUrl.startsWith('/generated-images/') 
+          ? mediaUrl 
+          : mediaUrl.startsWith('generated-images/') 
+            ? `/${mediaUrl}` 
+            : mediaUrl;
+            
         parts.push(
           <div key={`img-${match.index}`} className="my-3">
             <img
-              src={mediaUrl}
+              src={normalizedUrl}
               alt={altText}
               className="max-w-full h-auto rounded-lg shadow-md cursor-grab active:cursor-grabbing hover:scale-105 transition-transform duration-300"
               draggable={true}
               onDragStart={(e) => {
-                e.dataTransfer.setData('text/plain', mediaUrl);
+                e.dataTransfer.setData('text/plain', normalizedUrl);
                 e.dataTransfer.setData('application/json', JSON.stringify({
-                  url: mediaUrl,
+                  url: normalizedUrl,
                   type: 'markdown-image',
                   source: 'chat'
                 }));
-                console.log('Drag started for markdown image:', mediaUrl);
+                console.log('Drag started for markdown image:', normalizedUrl);
               }}
-              onClick={() => window.open(mediaUrl, '_blank')}
+              onClick={() => window.open(normalizedUrl, '_blank')}
               onError={(e) => {
                 console.warn('Image failed to load:', {
-                  url: mediaUrl,
+                  url: normalizedUrl,
+                  originalUrl: mediaUrl,
                   alt: altText,
                   error: e.type
                 });
-                // エラー時は画像を非表示にして、エラーメッセージを表示
+                
+                // 代替パスを試行
                 const target = e.target as HTMLImageElement;
+                const currentSrc = target.src;
+                
+                // まだ代替パスを試していない場合
+                if (!target.dataset.retried) {
+                  target.dataset.retried = 'true';
+                  
+                  // 異なるパス形式を試行
+                  let alternativeUrl = '';
+                  if (currentSrc.includes('/generated-images/')) {
+                    // 絶対パスから相対パスに変更
+                    alternativeUrl = currentSrc.replace(/^.*\/generated-images\//, './generated-images/');
+                  } else {
+                    // 相対パスから絶対パスに変更
+                    alternativeUrl = `/generated-images/${currentSrc.split('/').pop()}`;
+                  }
+                  
+                  console.log('Trying alternative URL:', alternativeUrl);
+                  target.src = alternativeUrl;
+                  return;
+                }
+                
+                // 全ての試行が失敗した場合のみエラー表示
                 target.style.display = 'none';
                 
                 // エラーメッセージ要素を作成
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm';
-                errorDiv.innerHTML = `⚠️ 画像の読み込みに失敗しました<br><small class="text-red-500">${mediaUrl}</small>`;
+                errorDiv.innerHTML = `⚠️ 画像の読み込みに失敗しました<br><small class="text-red-500">${normalizedUrl}</small><br><small class="text-gray-500">ファイルが存在しないか、パスが正しくない可能性があります</small>`;
                 target.parentNode?.insertBefore(errorDiv, target);
               }}
               onLoad={() => {
-                console.log('Image loaded successfully:', mediaUrl);
+                console.log('Image loaded successfully:', normalizedUrl);
               }}
             />
             {altText && (

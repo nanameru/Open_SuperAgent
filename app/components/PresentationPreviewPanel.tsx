@@ -229,7 +229,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
                   <Textarea
                     value={editedHtml}
                     onChange={(e) => setEditedHtml(e.target.value)}
-                    className="font-mono text-sm bg-muted/30 border-0 rounded-none h-full resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="font-mono text-sm bg-muted/30 border-0 rounded-none h-full resize-y overflow-y-auto focus-visible:ring-0 focus-visible:ring-offset-0"
                     placeholder="HTMLコードを編集..."
                   />
                 </CardContent>

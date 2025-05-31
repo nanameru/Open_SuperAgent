@@ -267,7 +267,7 @@ export function BrowserbaseTool({
                 )}
                 
                 {isLoading ? (
-                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-96'} flex items-center justify-center bg-gray-100`}>
+                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[32rem]'} flex items-center justify-center bg-gray-100`}>
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                       <p className="text-gray-600">ブラウザ自動化を実行中...</p>
@@ -275,7 +275,7 @@ export function BrowserbaseTool({
                     </div>
                   </div>
                 ) : connectionStatus === 'disconnected' ? (
-                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-96'} flex items-center justify-center bg-gray-100`}>
+                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[32rem]'} flex items-center justify-center bg-gray-100`}>
                     <div className="text-center">
                       <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center mx-auto mb-4">
                         <span className="text-gray-600 text-xl">⏹</span>
@@ -287,13 +287,13 @@ export function BrowserbaseTool({
                 ) : currentUrl ? (
                 <iframe
                   src={currentUrl}
-                  className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-96'}`}
+                  className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[32rem]'}`}
                   title={`Browserbase ${viewMode === 'live' ? 'Live View' : 'Session Replay'}`}
                   sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
                   allow="clipboard-read; clipboard-write; fullscreen"
                 />
                 ) : (
-                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-96'} flex items-center justify-center bg-gray-100`}>
+                  <div className={`w-full border-0 ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[32rem]'} flex items-center justify-center bg-gray-100`}>
                     <p className="text-gray-600">URLが利用できません</p>
                   </div>
                 )}
