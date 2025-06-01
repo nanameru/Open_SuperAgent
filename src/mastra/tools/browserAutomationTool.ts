@@ -234,8 +234,14 @@ export const browserAutomationTool = createTool({
       let liveViewUrl: string;
       try {
         const debugInfo = await bb.sessions.debug(sessionId);
-        liveViewUrl = debugInfo.debuggerFullscreenUrl;
-        console.log(`🔗 ライブビューURL取得: ${liveViewUrl}`);
+        // 🔧 **iframe表示に適したURLに変換**
+        if (debugInfo.debuggerFullscreenUrl) {
+          // DevToolsのURLをライブビューURLに変換
+          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
+          console.log(`🔗 ライブビューURL生成: ${liveViewUrl}`);
+        } else {
+          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
+        }
       } catch (error) {
         console.warn('⚠️ ライブビューURL取得失敗:', error);
         liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;

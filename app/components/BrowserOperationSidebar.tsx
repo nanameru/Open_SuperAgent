@@ -86,11 +86,21 @@ export function BrowserOperationSidebar({
   const currentUrl = viewMode === 'live' && liveViewUrl ? liveViewUrl : replayUrl;
   const isLoading = sessionId.includes('loading') || sessionId.includes('starting') || replayUrl.includes('#') || connectionStatus === 'loading';
   const isStarting = sessionId.includes('starting') || currentUrl?.includes('#starting');
+  
+  // 🔧 **実行完了の判定を追加**
+  const isCompleted = !isLoading && !isStarting && currentUrl && !currentUrl.includes('#');
 
-  // 🔧 デバッグログを追加
+  // 🔧 **デバッグログを追加**
   useEffect(() => {
-    console.log('[BrowserOperationSidebar] URL:', currentUrl);
-  }, [currentUrl]);
+    console.log('[BrowserOperationSidebar] State:', {
+      currentUrl,
+      isLoading,
+      isStarting,
+      isCompleted,
+      connectionStatus,
+      viewMode
+    });
+  }, [currentUrl, isLoading, isStarting, isCompleted, connectionStatus, viewMode]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -169,13 +179,21 @@ export function BrowserOperationSidebar({
               <p className="text-sm text-gray-600">セッションが終了しました</p>
             </div>
           </div>
-        ) : currentUrl ? (
+        ) : currentUrl && !currentUrl.includes('#') ? (
           <iframe
             src={currentUrl}
             className="w-full h-full border-0"
             title={`Browserbase ${viewMode === 'live' ? 'Live View' : 'Session Replay'}`}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             allow="clipboard-read; clipboard-write; fullscreen"
+            onLoad={() => {
+              console.log('[BrowserOperationSidebar] iframe loaded:', currentUrl);
+              setConnectionStatus('connected');
+            }}
+            onError={() => {
+              console.error('[BrowserOperationSidebar] iframe error:', currentUrl);
+              setConnectionStatus('disconnected');
+            }}
           />
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">

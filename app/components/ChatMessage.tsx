@@ -403,6 +403,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             if ((tc.toolName === 'browser-automation-tool' || tc.toolName === 'browserbase-automation') && tc.args) {
               // 🌐 **即座にセッションを作成してライブビューを表示**
               console.log('[ChatMessage] Browser Automation Tool実行開始を検知');
+              console.log('[ChatMessage] Tool call details:', {
+                toolName: tc.toolName,
+                toolCallId: tc.toolCallId,
+                args: tc.args,
+                timestamp: new Date().toISOString()
+              });
               
               // ツール実行開始時点でBrowserbaseToolデータを準備
               setBrowserbaseTool(prev => ({
@@ -418,6 +424,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               
               // 親コンポーネントに即座に通知（セッション作成中として）
               if (onBrowserAutomationDetected) {
+                console.log('[ChatMessage] Calling onBrowserAutomationDetected callback');
                 onBrowserAutomationDetected({
                   sessionId: 'starting-' + tc.toolCallId,
                   replayUrl: '#starting',
@@ -425,6 +432,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   pageTitle: `ブラウザ自動化を開始中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
                   elementText: 'セッション作成中...'
                 });
+              } else {
+                console.warn('[ChatMessage] onBrowserAutomationDetected callback is not defined!');
               }
             }
           });
@@ -675,12 +684,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           const result = invocation.result;
           console.log('[ChatMessage] Browser Automation Tool result detected:', result);
           
+          // 🔧 **実行完了時の適切な通知**
           onBrowserAutomationDetected({
             sessionId: result.sessionId || `session-${Date.now()}`,
             replayUrl: result.replayUrl || '#no-replay',
-            liveViewUrl: result.liveViewUrl,
+            liveViewUrl: result.liveViewUrl || `https://www.browserbase.com/sessions/${result.sessionId}/live`,
             pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
-            elementText: result.result || 'ブラウザ自動化が完了しました'
+            elementText: result.success ? 'ブラウザ自動化が完了しました' : 'ブラウザ自動化でエラーが発生しました'
           });
           break; // 一度検知したら終了
         }

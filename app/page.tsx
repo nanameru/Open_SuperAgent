@@ -457,7 +457,7 @@ export default function AppPage() {
             </button>
           )}
 
-          {error && (
+                          {error && (
               <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
                 <p>Error: {error.message}</p>
                 <p>Please check your API key and network connection.</p>
@@ -492,8 +492,8 @@ export default function AppPage() {
                 >
                   状態をリセット
                 </button>
-              </div>
-            )}
+            </div>
+          )}
         </div>
         <ChatInputArea
           input={input}
