@@ -6,7 +6,7 @@ import { ChevronDownIcon, ChevronUpIcon, CogIcon, CheckCircleIcon, ExclamationCi
 import { PuzzlePieceIcon } from '@heroicons/react/24/outline';
 import { PresentationPreviewPanel } from './PresentationPreviewPanel';
 import { ImagePreviewPanel } from './ImagePreviewPanel';
-import { BrowserbaseTool } from './BrowserbaseTool';
+import { BrowserOperationSidebar } from './BrowserOperationSidebar';
 import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 // 拡張メッセージパートの型
@@ -215,6 +215,7 @@ const CollapsibleToolSection = ({
              toolName === 'htmlSlideTool' ? 'HTMLスライド生成' : 
              toolName === 'graphicRecordingTool' ? 'グラフィックレコーディング' :
              toolName === 'browserbase-automation' ? 'ブラウザ自動化' :
+             toolName === 'browser-automation-tool' ? 'ブラウザ自動化' :
              toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
               <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
@@ -411,6 +412,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   title: 'ブラウザ自動化'
                 }
               }));
+              
+              // 親コンポーネントに即座に通知
+              if (onBrowserAutomationDetected) {
+                onBrowserAutomationDetected({
+                  sessionId: 'loading-' + tc.toolCallId,
+                  replayUrl: '#loading',
+                  liveViewUrl: '#loading',
+                  pageTitle: `ブラウザ自動化実行中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
+                  elementText: 'ツール実行開始'
+                });
+              }
             }
           });
           return newStates;
@@ -1177,7 +1189,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               )}
               
               {/* BrowserbaseToolコンポーネントを表示 */}
-              <BrowserbaseTool
+              <BrowserOperationSidebar
                 sessionId={result.sessionId}
                 replayUrl={result.replayUrl}
                 liveViewUrl={result.liveViewUrl}
@@ -1488,7 +1500,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     {toolState.result.sessionId && (
                       <div className="pt-2">
                         {/* BrowserbaseToolコンポーネントを表示 */}
-                        <BrowserbaseTool
+                        <BrowserOperationSidebar
                           sessionId={toolState.result.sessionId}
                           replayUrl={toolState.result.replayUrl}
                           liveViewUrl={toolState.result.liveViewUrl}
@@ -1610,6 +1622,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               </div>
             )}
           </div>
+          
+          {/* 🔧 **browser-automation-toolの即座表示** */}
+          {(toolState.toolName === 'browser-automation-tool' || toolState.toolName === 'browserbase-automation') && (
+            <div className="mt-3">
+              <BrowserOperationSidebar
+                sessionId={`loading-${toolState.id}`}
+                replayUrl="#loading"
+                liveViewUrl="#loading"
+                pageTitle="ブラウザ自動化実行中..."
+                autoOpenPreview={false}
+                forcePanelOpen={false}
+                onPreviewOpen={onPreviewOpen}
+                onPreviewClose={onPreviewClose}
+                onPreviewWidthChange={onPreviewWidthChange}
+              />
+            </div>
+          )}
         </CollapsibleToolSection>
       );
     });
@@ -1764,6 +1793,28 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         {toolCallUiElements.length > 0 && (
           <div className="w-full max-w-3xl mb-6">
             {toolCallUiElements}
+          </div>
+        )}
+        
+        {/* 🔧 **browser-automation-toolの無条件表示** */}
+        {Object.values(toolCallStates).some(tool => 
+          tool.toolName === 'browser-automation-tool' || tool.toolName === 'browserbase-automation'
+        ) && (
+          <div className="w-full max-w-3xl mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-blue-800 mb-3">🌐 ブラウザ操作サイドバー</h3>
+              <BrowserOperationSidebar
+                sessionId="browser-automation-active"
+                replayUrl="#active"
+                liveViewUrl="#active"
+                pageTitle="ブラウザ自動化実行中..."
+                autoOpenPreview={true}
+                forcePanelOpen={true}
+                onPreviewOpen={onPreviewOpen}
+                onPreviewClose={onPreviewClose}
+                onPreviewWidthChange={onPreviewWidthChange}
+              />
+            </div>
           </div>
         )}
         

@@ -7,7 +7,7 @@ import { ChatInputArea } from '@/app/components/ChatInputArea';
 import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
-import { BrowserbaseTool } from './components/BrowserbaseTool';
+import { BrowserOperationSidebar } from './components/BrowserOperationSidebar';
 import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -345,7 +345,7 @@ export default function AppPage() {
     });
     setIsPreviewOpen(true);
     
-    console.log('[Page] BrowserbaseTool should now be visible in sidebar');
+    console.log('[Page] BrowserOperationSidebar should now be visible in sidebar');
   }, []);
 
   return (
@@ -354,11 +354,9 @@ export default function AppPage() {
       <SidebarInset>
         <MainHeader />
         <div className="flex-1 flex overflow-hidden">
-          {/* メインチャットエリア */}
-          <main className={`flex-1 flex flex-col overflow-y-auto bg-white pb-24 transition-all duration-300 ${
-            browserbaseToolState.isActive && browserbaseToolState.sessionId ? 'mr-96' : ''
-          }`}>
-            <div className="w-full flex-1 flex flex-col px-6 py-6 max-w-4xl mx-auto">
+          {/* チャットエリア - 50% */}
+          <main className="w-1/2 flex flex-col overflow-y-auto bg-white pb-24 border-r border-gray-200">
+            <div className="w-full flex-1 flex flex-col px-6 py-6">
               {/* スライドツールがアクティブな場合に表示 */}
               {slideToolState.isActive && (
                 <PresentationTool 
@@ -413,8 +411,25 @@ export default function AppPage() {
                 </div>
               </div>
             </div>
+          </main>
 
-                          {error && (
+          {/* ブラウザ操作サイドバー - 50% */}
+          <div className="w-1/2 bg-gray-50 border-l border-gray-200">
+            <BrowserOperationSidebar 
+              sessionId="default-session"
+              replayUrl="https://example.com/replay"
+              liveViewUrl="https://example.com/live"
+              pageTitle="ブラウザ自動化パネル"
+              elementText="常時表示中"
+              autoOpenPreview={true}
+              forcePanelOpen={true}
+              onPreviewOpen={() => setIsPreviewOpen(true)}
+              onPreviewClose={() => setIsPreviewOpen(false)}
+              onPreviewWidthChange={handlePreviewPanelWidthChange}
+            />
+          </div>
+
+          {error && (
               <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
                 <p>Error: {error.message}</p>
                 <p>Please check your API key and network connection.</p>
@@ -451,30 +466,6 @@ export default function AppPage() {
                 </button>
               </div>
             )}
-
-
-          </main>
-
-          {/* Browserbaseツールサイドパネル - ツール実行時のみ表示 */}
-          {browserbaseToolState.isActive && browserbaseToolState.sessionId && (
-            <div className="w-96 bg-gray-50 border-l border-gray-200 overflow-y-auto">
-              <div className="p-4">
-                <BrowserbaseTool 
-                  sessionId={browserbaseToolState.sessionId}
-                  replayUrl={browserbaseToolState.replayUrl}
-                  liveViewUrl={browserbaseToolState.liveViewUrl}
-                  screenshot={browserbaseToolState.screenshot}
-                  pageTitle={browserbaseToolState.pageTitle}
-                  elementText={browserbaseToolState.elementText}
-                  autoOpenPreview={true}
-                  forcePanelOpen={browserbaseToolState.forcePanelOpen}
-                  onPreviewOpen={() => setIsPreviewOpen(true)}
-                  onPreviewClose={() => setIsPreviewOpen(false)}
-                  onPreviewWidthChange={handlePreviewPanelWidthChange}
-                />
-              </div>
-            </div>
-          )}
         </div>
         <ChatInputArea
           input={input}
