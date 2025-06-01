@@ -64,6 +64,8 @@ export default function AppPage() {
   const [toolMessages, setToolMessages] = useState<ToolMessage[]>([]);
   // 現在の会話ID（ストリームの再接続用）
   const [conversationId, setConversationId] = useState<string>(`conv-${Date.now()}`);
+  // ブラウザ自動化パネルの表示状態
+  const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(true);
   // スライドツール関連の状態
   const [slideToolState, setSlideToolState] = useState<SlideToolState>({
     isActive: false,
@@ -354,8 +356,8 @@ export default function AppPage() {
       <SidebarInset>
         <MainHeader />
         <div className="flex-1 flex overflow-hidden">
-          {/* チャットエリア - 50% */}
-          <main className="w-1/2 flex flex-col overflow-y-auto bg-white pb-24 border-r border-gray-200">
+          {/* チャットエリア - 動的幅 */}
+          <main className={`${showBrowserPanel ? 'w-1/2 border-r' : 'w-full'} flex flex-col overflow-y-auto bg-white pb-24 border-gray-200 transition-all duration-300`}>
             <div className="w-full flex-1 flex flex-col px-6 py-6">
               {/* スライドツールがアクティブな場合に表示 */}
               {slideToolState.isActive && (
@@ -414,20 +416,46 @@ export default function AppPage() {
           </main>
 
           {/* ブラウザ操作サイドバー - 50% */}
-          <div className="w-1/2 bg-gray-50 border-l border-gray-200">
-            <BrowserOperationSidebar 
-              sessionId={browserbaseToolState.sessionId || "default-session"}
-              replayUrl={browserbaseToolState.replayUrl || ""}
-              liveViewUrl={browserbaseToolState.liveViewUrl || ""}
-              pageTitle={browserbaseToolState.pageTitle || "ブラウザ自動化パネル"}
-              elementText={browserbaseToolState.elementText || "待機中"}
-              autoOpenPreview={true}
-              forcePanelOpen={true}
-              onPreviewOpen={() => setIsPreviewOpen(true)}
-              onPreviewClose={() => setIsPreviewOpen(false)}
-              onPreviewWidthChange={handlePreviewPanelWidthChange}
-            />
-          </div>
+          {showBrowserPanel && (
+            <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative">
+              {/* 非表示ボタン */}
+              <button
+                onClick={() => setShowBrowserPanel(false)}
+                className="absolute top-2 right-2 z-10 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors"
+                title="ブラウザ自動化パネルを非表示"
+              >
+                <svg className="h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              <BrowserOperationSidebar 
+                sessionId={browserbaseToolState.sessionId || "default-session"}
+                replayUrl={browserbaseToolState.replayUrl || ""}
+                liveViewUrl={browserbaseToolState.liveViewUrl || ""}
+                pageTitle={browserbaseToolState.pageTitle || "ブラウザ自動化パネル"}
+                elementText={browserbaseToolState.elementText || "待機中"}
+                autoOpenPreview={true}
+                forcePanelOpen={true}
+                onPreviewOpen={() => setIsPreviewOpen(true)}
+                onPreviewClose={() => setIsPreviewOpen(false)}
+                onPreviewWidthChange={handlePreviewPanelWidthChange}
+              />
+            </div>
+          )}
+
+          {/* パネルが非表示の時の再表示ボタン */}
+          {!showBrowserPanel && (
+            <button
+              onClick={() => setShowBrowserPanel(true)}
+              className="fixed right-4 top-20 z-10 p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
+              title="ブラウザ自動化パネルを表示"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m0 4v10m0 4v2m3-2v-2m0-4V7m0-4v2m3 2v2m0 4v10m0 4v2M4 7h16" />
+              </svg>
+            </button>
+          )}
 
           {error && (
               <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">

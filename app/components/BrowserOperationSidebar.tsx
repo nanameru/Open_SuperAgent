@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,23 @@ export function BrowserOperationSidebar({
   const [viewMode, setViewMode] = useState<'live' | 'replay'>('live');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
 
+  // 🔧 デバッグログを追加
+  useEffect(() => {
+    console.log('[BrowserOperationSidebar] Component rendered with props:', {
+      sessionId,
+      replayUrl,
+      liveViewUrl,
+      screenshot,
+      pageTitle,
+      elementText,
+      autoOpenPreview,
+      forcePanelOpen,
+      onPreviewOpen,
+      onPreviewClose,
+      onPreviewWidthChange
+    });
+  }, [sessionId, replayUrl, liveViewUrl, screenshot, pageTitle, elementText, autoOpenPreview, forcePanelOpen, onPreviewOpen, onPreviewClose, onPreviewWidthChange]);
+
   // 自動プレビュー開始
   useEffect(() => {
     setIsPreviewOpen(true);
@@ -69,6 +86,11 @@ export function BrowserOperationSidebar({
   const currentUrl = viewMode === 'live' && liveViewUrl ? liveViewUrl : replayUrl;
   const isLoading = sessionId.includes('loading') || sessionId.includes('starting') || replayUrl.includes('#') || connectionStatus === 'loading';
   const isStarting = sessionId.includes('starting') || currentUrl?.includes('#starting');
+
+  // 🔧 デバッグログを追加
+  useEffect(() => {
+    console.log('[BrowserOperationSidebar] URL:', currentUrl);
+  }, [currentUrl]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
