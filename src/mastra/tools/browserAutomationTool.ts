@@ -230,9 +230,29 @@ export const browserAutomationTool = createTool({
         .reduce((acc, data) => ({ ...acc, ...data }), {});
 
       // 🔧 **実際のBrowserbaseセッション情報を生成**
-      const actualSessionId = `browserbase-${Date.now()}`;
+      // 実際のBrowserbaseセッションを作成してライブビューURLを取得
+      const { Browserbase } = await import('@browserbasehq/sdk');
+      const bb = new Browserbase({
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+      });
+      
+      const session = await bb.sessions.create({
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      });
+      
+      // デバッグURLを取得してライブビューURLを設定
+      let liveViewUrl: string;
+      try {
+        const debugInfo = await bb.sessions.debug(session.id);
+        liveViewUrl = debugInfo.debuggerFullscreenUrl;
+        console.log(`[BrowserAutomationTool] Live View URL: ${liveViewUrl}`);
+      } catch (error) {
+        console.warn('[BrowserAutomationTool] Failed to get live view URL:', error);
+        liveViewUrl = `https://www.browserbase.com/sessions/${session.id}/live`;
+      }
+      
+      const actualSessionId = session.id;
       const replayUrl = `https://www.browserbase.com/sessions/${actualSessionId}`;
-      const liveViewUrl = `https://www.browserbase.com/sessions/${actualSessionId}/live`;
       
       // 最後に成功したステップからページタイトルを取得
       const lastSuccessfulStep = agentResult.executionSteps

@@ -416,11 +416,11 @@ export default function AppPage() {
           {/* ブラウザ操作サイドバー - 50% */}
           <div className="w-1/2 bg-gray-50 border-l border-gray-200">
             <BrowserOperationSidebar 
-              sessionId="default-session"
-              replayUrl="https://example.com/replay"
-              liveViewUrl="https://example.com/live"
-              pageTitle="ブラウザ自動化パネル"
-              elementText="常時表示中"
+              sessionId={browserbaseToolState.sessionId || "default-session"}
+              replayUrl={browserbaseToolState.replayUrl || "https://example.com/replay"}
+              liveViewUrl={browserbaseToolState.liveViewUrl || "https://example.com/live"}
+              pageTitle={browserbaseToolState.pageTitle || "ブラウザ自動化パネル"}
+              elementText={browserbaseToolState.elementText || "待機中"}
               autoOpenPreview={true}
               forcePanelOpen={true}
               onPreviewOpen={() => setIsPreviewOpen(true)}
