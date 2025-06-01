@@ -204,7 +204,36 @@ export const browserAutomationTool = createTool({
       console.log('🔍 検証レベル:', verificationLevel);
       console.log('🔄 最大リトライ回数:', maxRetries);
       
-      // 🤖 **エージェントのカスタム実行ロジックのみを使用**
+      // 🌐 **最初にBrowserbaseセッションを作成（参考実装と同じ）**
+      console.log('🌐 Browserbaseセッションを作成中...');
+      const { Browserbase } = await import('@browserbasehq/sdk');
+      const bb = new Browserbase({
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+      });
+      
+      const session = await bb.sessions.create({
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        keepAlive: true,
+        timeout: 600, // 10分
+      });
+      
+      const sessionId = session.id;
+      console.log(`✅ セッション作成完了: ${sessionId}`);
+      
+      // 🔗 **ライブビューURLを即座に取得**
+      let liveViewUrl: string;
+      try {
+        const debugInfo = await bb.sessions.debug(sessionId);
+        liveViewUrl = debugInfo.debuggerFullscreenUrl;
+        console.log(`🔗 ライブビューURL取得: ${liveViewUrl}`);
+      } catch (error) {
+        console.warn('⚠️ ライブビューURL取得失敗:', error);
+        liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
+      }
+      
+      const replayUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+      
+      // 🤖 **エージェントのカスタム実行ロジックを使用（セッションIDを渡す）**
       console.log('🤖 browserAutomationAgentのループ処理を開始...');
       
       const agentContext: BrowserAutomationContext = {
@@ -213,6 +242,7 @@ export const browserAutomationTool = createTool({
         maxRetries,
         url,
         context: additionalContext,
+        sessionId, // 🔧 作成済みのセッションIDを渡す
       };
 
       const agentResult = await executeWithVerificationLoops(browserAutomationAgent, agentContext);
@@ -229,65 +259,6 @@ export const browserAutomationTool = createTool({
         .filter(data => data)
         .reduce((acc, data) => ({ ...acc, ...data }), {});
 
-      // 🔧 **エージェント実行結果からセッション情報を抽出**
-      // エージェントの実行ステップからセッション情報を取得
-      let actualSessionId = '';
-      let liveViewUrl = '';
-      let replayUrl = '';
-      
-      // 実行ステップからセッション情報を検索
-      for (const step of agentResult.executionSteps) {
-        if (step.verificationResult && step.verificationResult.includes('Session created:')) {
-          const sessionMatch = step.verificationResult.match(/Session created: ([a-f0-9-]+)/);
-          if (sessionMatch) {
-            actualSessionId = sessionMatch[1];
-            break;
-          }
-        }
-      }
-      
-      // セッションIDが見つからない場合は、新しいセッションを作成（フォールバック）
-      if (!actualSessionId) {
-        console.warn('[BrowserAutomationTool] No session ID found in agent results, creating fallback session');
-        const { Browserbase } = await import('@browserbasehq/sdk');
-        const bb = new Browserbase({
-          apiKey: process.env.BROWSERBASE_API_KEY!,
-        });
-        
-        const session = await bb.sessions.create({
-          projectId: process.env.BROWSERBASE_PROJECT_ID!,
-        });
-        
-        actualSessionId = session.id;
-        
-        // デバッグURLを取得してライブビューURLを設定
-        try {
-          const debugInfo = await bb.sessions.debug(session.id);
-          liveViewUrl = debugInfo.debuggerFullscreenUrl;
-          console.log(`[BrowserAutomationTool] Fallback Live View URL: ${liveViewUrl}`);
-        } catch (error) {
-          console.warn('[BrowserAutomationTool] Failed to get fallback live view URL:', error);
-          liveViewUrl = `https://www.browserbase.com/sessions/${session.id}/live`;
-        }
-      } else {
-        // 既存のセッションのライブビューURLを取得
-        try {
-          const { Browserbase } = await import('@browserbasehq/sdk');
-          const bb = new Browserbase({
-            apiKey: process.env.BROWSERBASE_API_KEY!,
-          });
-          
-          const debugInfo = await bb.sessions.debug(actualSessionId);
-          liveViewUrl = debugInfo.debuggerFullscreenUrl;
-          console.log(`[BrowserAutomationTool] Existing Session Live View URL: ${liveViewUrl}`);
-        } catch (error) {
-          console.warn('[BrowserAutomationTool] Failed to get existing session live view URL:', error);
-          liveViewUrl = `https://www.browserbase.com/sessions/${actualSessionId}/live`;
-        }
-      }
-      
-      replayUrl = `https://www.browserbase.com/sessions/${actualSessionId}`;
-      
       // 最後に成功したステップからページタイトルを取得
       const lastSuccessfulStep = agentResult.executionSteps
         .filter(step => step.status === 'success' && step.verificationResult)
@@ -296,20 +267,21 @@ export const browserAutomationTool = createTool({
       const pageTitle = lastSuccessfulStep?.verificationResult?.match(/Page title: ([^.]+)/)?.[1] || 
                        'ブラウザ自動化実行結果';
 
+      // 🎯 **セッション情報を早期に含める（参考実装と同じ）**
       const resultData: OutputType = {
         success: agentResult.verificationResults.overallScore > 0,
         result: agentResult.result,
         screenshots: screenshots.length > 0 ? screenshots : undefined,
         extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
         sessionInfo: {
-          sessionId: actualSessionId,
+          sessionId: sessionId,  // 最初に作成したセッションIDを使用
           replayUrl: replayUrl,
           liveViewUrl: liveViewUrl,
         },
         executionTime,
-        sessionId: actualSessionId,
+        sessionId: sessionId,    // 最初に作成したセッションIDを使用
         replayUrl: replayUrl,
-        liveViewUrl: liveViewUrl,
+        liveViewUrl: liveViewUrl, // 🔧 即座に表示するためのライブビューURL
         pageTitle: pageTitle,
         autoOpenPreview: true, // 🔧 自動的にプレビューを開く
         executionSteps: agentResult.executionSteps,
@@ -321,7 +293,7 @@ export const browserAutomationTool = createTool({
           screenshots: screenshots.length > 0 ? screenshots : undefined,
           extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
           sessionInfo: {
-            sessionId: actualSessionId,
+            sessionId: sessionId,  // 最初に作成したセッションIDを使用
             replayUrl: replayUrl,
             liveViewUrl: liveViewUrl,
           },

@@ -68,6 +68,7 @@ export function BrowserOperationSidebar({
 
   const currentUrl = viewMode === 'live' && liveViewUrl ? liveViewUrl : replayUrl;
   const isLoading = sessionId.includes('loading') || sessionId.includes('starting') || replayUrl.includes('#') || connectionStatus === 'loading';
+  const isStarting = sessionId.includes('starting') || currentUrl?.includes('#starting');
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -119,7 +120,20 @@ export function BrowserOperationSidebar({
 
       {/* メインプレビューエリア - 画面いっぱい */}
       <div className="flex-1 min-h-0 bg-white">
-        {isLoading ? (
+        {isStarting ? (
+          <div className="h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
+                <div className="absolute inset-0 rounded-full h-12 w-12 border-2 border-blue-200 mx-auto" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-lg font-semibold text-gray-800">セッション作成中...</p>
+                <p className="text-sm text-gray-600">ブラウザ環境を準備しています</p>
+              </div>
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="h-full flex items-center justify-center bg-gray-50">
             <div className="text-center space-y-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />

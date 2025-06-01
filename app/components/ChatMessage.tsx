@@ -399,28 +399,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               }));
             }
             
-            // 🔧 **browser-automation-toolの即座表示**
+            // 🔧 **browser-automation-toolの即座表示（参考実装と同じ）**
             if ((tc.toolName === 'browser-automation-tool' || tc.toolName === 'browserbase-automation') && tc.args) {
+              // 🌐 **即座にセッションを作成してライブビューを表示**
+              console.log('[ChatMessage] Browser Automation Tool実行開始を検知');
+              
               // ツール実行開始時点でBrowserbaseToolデータを準備
               setBrowserbaseTool(prev => ({
                 ...prev,
                 [tc.toolCallId]: {
-                  sessionId: 'loading-' + tc.toolCallId, // ローディング状態のセッションID
-                  replayUrl: '#loading',
-                  liveViewUrl: '#loading',
-                  pageTitle: `ブラウザ自動化実行中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
+                  sessionId: 'starting-' + tc.toolCallId, // 開始状態のセッションID
+                  replayUrl: '#starting',
+                  liveViewUrl: '#starting',
+                  pageTitle: `ブラウザ自動化を開始中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
                   title: 'ブラウザ自動化'
                 }
               }));
               
-              // 親コンポーネントに即座に通知
+              // 親コンポーネントに即座に通知（セッション作成中として）
               if (onBrowserAutomationDetected) {
                 onBrowserAutomationDetected({
-                  sessionId: 'loading-' + tc.toolCallId,
-                  replayUrl: '#loading',
-                  liveViewUrl: '#loading',
-                  pageTitle: `ブラウザ自動化実行中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
-                  elementText: 'ツール実行開始'
+                  sessionId: 'starting-' + tc.toolCallId,
+                  replayUrl: '#starting',
+                  liveViewUrl: '#starting',
+                  pageTitle: `ブラウザ自動化を開始中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
+                  elementText: 'セッション作成中...'
                 });
               }
             }
@@ -1516,8 +1519,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   </div>
                 ) : (
                   <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto max-h-96`}>
-                    {typeof toolState.result === 'string' 
-                      ? toolState.result 
+                  {typeof toolState.result === 'string' 
+                    ? toolState.result 
                       : JSON.stringify(toolState.result, (key, value) => {
                           // Base64データを省略
                           if (key === 'b64Json' || key === 'screenshot' || (key === 'markdownContent' && value && value.length > 1000)) {
@@ -1525,7 +1528,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                           }
                           return value;
                         }, 2)}
-                  </pre>
+                </pre>
                 )}
                 
                 {/* 画像生成ツールの結果表示 */}

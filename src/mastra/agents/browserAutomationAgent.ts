@@ -66,6 +66,7 @@ interface BrowserAutomationContext {
   maxRetries?: number;
   url?: string;
   context?: string;
+  sessionId?: string; // 🔧 既存のセッションIDを受け取るオプション
 }
 
 interface ExecutionStep {
@@ -98,7 +99,7 @@ async function executeWithVerificationLoops(
   executionSteps: ExecutionStep[];
   verificationResults: VerificationResult;
 }> {
-  const { task, verificationLevel = 'standard', maxRetries = 3, url } = context;
+  const { task, verificationLevel = 'standard', maxRetries = 3, url, sessionId: existingSessionId } = context;
   const executionSteps: ExecutionStep[] = [];
   let stepCounter = 0;
 
@@ -108,7 +109,7 @@ async function executeWithVerificationLoops(
   // タスクを段階的に実行
   const taskSteps = await planTaskSteps(agent, task);
   
-  // 🌐 **ブラウザセッションを一度だけ作成**
+  // 🌐 **ブラウザセッションを使用（既存または新規）**
   let stagehand: any = null;
   let page: any = null;
   let sessionId: string = '';
@@ -130,34 +131,40 @@ async function executeWithVerificationLoops(
       throw new Error('Missing Gemini API key');
     }
 
-    // Browserbaseセッションの作成（地域最適化）
-    const bb = new Browserbase({
-      apiKey: process.env.BROWSERBASE_API_KEY!,
-      fetch: globalThis.fetch,
-    });
+    // 🔧 **既存のセッションIDがある場合はそれを使用、なければ新規作成**
+    if (existingSessionId) {
+      sessionId = existingSessionId;
+      console.log(`🔄 既存のセッションを使用: ${sessionId}`);
+    } else {
+      // Browserbaseセッションの作成（地域最適化）
+      const bb = new Browserbase({
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+        fetch: globalThis.fetch,
+      });
 
-    const session = await bb.sessions.create({
-      projectId: process.env.BROWSERBASE_PROJECT_ID!,
-      keepAlive: true,
-      timeout: 600, // 🔧 タイムアウトを10分に延長（長時間タスク対応）
-    });
+      const session = await bb.sessions.create({
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        keepAlive: true,
+        timeout: 600, // 🔧 タイムアウトを10分に延長（長時間タスク対応）
+      });
 
-    sessionId = session.id;
-    console.log(`🌐 ブラウザセッション作成完了: ${sessionId}`);
-    
-    // セッション情報をステップに記録（ツールで検索できるように）
-    executionSteps.push({
-      step: 0,
-      action: 'Session Creation',
-      status: 'success',
-      verificationResult: `Session created: ${sessionId}`,
-      retryCount: 0,
-      timestamp: Date.now(),
-    });
+      sessionId = session.id;
+      console.log(`🌐 新規ブラウザセッション作成完了: ${sessionId}`);
+      
+      // セッション情報をステップに記録（ツールで検索できるように）
+      executionSteps.push({
+        step: 0,
+        action: 'Session Creation',
+        status: 'success',
+        verificationResult: `Session created: ${sessionId}`,
+        retryCount: 0,
+        timestamp: Date.now(),
+      });
+    }
 
     // Stagehandの初期化（最適化設定）
     stagehand = new Stagehand({
-      browserbaseSessionID: session.id,
+      browserbaseSessionID: sessionId,
       env: "BROWSERBASE",
       modelName: "google/gemini-2.0-flash",
       modelClientOptions: {
