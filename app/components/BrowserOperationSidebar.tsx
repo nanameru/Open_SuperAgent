@@ -143,7 +143,20 @@ export function BrowserOperationSidebar({
           />
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">
-            <p className="text-sm text-gray-600">URLが利用できません</p>
+            <div className="text-center space-y-4 p-6">
+              <Monitor className="h-12 w-12 text-gray-400 mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium text-gray-800">ライブビューを開始</h3>
+                <p className="text-sm text-gray-600 max-w-md">
+                  ブラウザ自動化ツールを実行すると、リアルタイムでブラウザ操作の様子をここに表示します。
+                </p>
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-700">
+                    💡 チャットで「Webサイトを開いて」や「情報を検索して」などのタスクを入力してください
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

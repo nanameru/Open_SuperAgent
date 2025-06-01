@@ -417,8 +417,8 @@ export default function AppPage() {
           <div className="w-1/2 bg-gray-50 border-l border-gray-200">
             <BrowserOperationSidebar 
               sessionId={browserbaseToolState.sessionId || "default-session"}
-              replayUrl={browserbaseToolState.replayUrl || "https://example.com/replay"}
-              liveViewUrl={browserbaseToolState.liveViewUrl || "https://example.com/live"}
+              replayUrl={browserbaseToolState.replayUrl || ""}
+              liveViewUrl={browserbaseToolState.liveViewUrl || ""}
               pageTitle={browserbaseToolState.pageTitle || "ブラウザ自動化パネル"}
               elementText={browserbaseToolState.elementText || "待機中"}
               autoOpenPreview={true}

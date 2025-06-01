@@ -144,6 +144,16 @@ async function executeWithVerificationLoops(
 
     sessionId = session.id;
     console.log(`🌐 ブラウザセッション作成完了: ${sessionId}`);
+    
+    // セッション情報をステップに記録（ツールで検索できるように）
+    executionSteps.push({
+      step: 0,
+      action: 'Session Creation',
+      status: 'success',
+      verificationResult: `Session created: ${sessionId}`,
+      retryCount: 0,
+      timestamp: Date.now(),
+    });
 
     // Stagehandの初期化（最適化設定）
     stagehand = new Stagehand({
