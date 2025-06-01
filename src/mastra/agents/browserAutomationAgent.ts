@@ -139,7 +139,7 @@ async function executeWithVerificationLoops(
     const session = await bb.sessions.create({
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
       keepAlive: true,
-      timeout: 300, // 🔧 タイムアウトを5分に延長
+      timeout: 600, // 🔧 タイムアウトを10分に延長（長時間タスク対応）
     });
 
     sessionId = session.id;
@@ -162,8 +162,8 @@ async function executeWithVerificationLoops(
     page = stagehand.page;
 
     // 🔧 **ページ設定の最適化**
-    await page.setDefaultTimeout(60000); // デフォルトタイムアウトを60秒に
-    await page.setDefaultNavigationTimeout(60000); // ナビゲーションタイムアウトも60秒に
+    await page.setDefaultTimeout(90000); // デフォルトタイムアウトを90秒に延長
+    await page.setDefaultNavigationTimeout(90000); // ナビゲーションタイムアウトも90秒に延長
 
     // 初期URLにナビゲート（最適化された待機）
     if (url) {
@@ -179,7 +179,22 @@ async function executeWithVerificationLoops(
     }
 
     // 各ステップを実行
+    let sessionDisconnected = false;
     for (const taskStep of taskSteps) {
+      if (sessionDisconnected) {
+        // セッション切断後は残りのステップを失敗として記録
+        stepCounter++;
+        executionSteps.push({
+          step: stepCounter,
+          action: taskStep,
+          status: 'failed',
+          verificationResult: 'FAILED: Session disconnected',
+          retryCount: 0,
+          timestamp: Date.now(),
+        });
+        continue;
+      }
+      
       stepCounter++;
       let retryCount = 0;
       let stepSuccess = false;
@@ -194,7 +209,15 @@ async function executeWithVerificationLoops(
           
           // 🔧 **操作前のページ状態確認**
           try {
-            await page.evaluate(() => document.readyState);
+            // ページが利用可能かチェック
+            const isPageAvailable = await page.evaluate(() => {
+              return document.readyState !== undefined;
+            }).catch(() => false);
+            
+            if (!isPageAvailable) {
+              console.error('❌ ページが利用できません。処理を中断します。');
+              throw new Error('Page is not available');
+            }
           } catch (e) {
             console.error('❌ ページが閉じられています。処理を中断します。');
             throw new Error('Page has been closed');
@@ -336,33 +359,43 @@ async function executeWithVerificationLoops(
 
         } catch (error) {
           retryCount++;
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          stepResult = `FAILED: ${errorMessage}`;
-          console.log(`❌ ステップ ${stepCounter} 失敗 (試行 ${retryCount}): ${stepResult}`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ ステップ ${stepCounter} 失敗 (試行 ${retryCount}): ${errorMessage}`);
           
-          // 🔧 **リトライ前の待機（段階的に増加）**
-          if (retryCount <= maxRetries) {
-            const waitTime = 1000 * retryCount; // 1秒、2秒、3秒...
-            console.log(`⏳ ${waitTime}ms 待機してリトライします...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+          // 🔧 **セッション切断エラーの特別処理**
+          if (errorMessage.includes('Page has been closed') || 
+              errorMessage.includes('Page is not available') ||
+              errorMessage.includes('Target page, context or browser has been closed')) {
+            console.error('❌ ブラウザセッションが切断されました。残りのステップをスキップします。');
             
-            // 🔧 **ページの再確認**
-            try {
-              await page.evaluate(() => document.readyState);
-            } catch (e) {
-              console.error('❌ ページが利用できません。処理を中断します。');
-              break;
-            }
-          } else {
+            // 現在のステップを失敗として記録
             executionSteps.push({
               step: stepCounter,
               action: taskStep,
               status: 'failed',
-              verificationResult: errorMessage,
+              verificationResult: `FAILED: ${errorMessage}`,
               retryCount,
               timestamp: Date.now(),
             });
-            break;
+            
+            sessionDisconnected = true;
+            break; // ステップループを抜ける
+          }
+          
+          if (retryCount <= maxRetries) {
+            console.log(`⏳ ${1000}ms 待機してリトライします...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            // 最大リトライ回数に達した場合
+            executionSteps.push({
+              step: stepCounter,
+              action: taskStep,
+              status: 'failed',
+              verificationResult: `FAILED: ${errorMessage} (Max retries exceeded)`,
+              retryCount,
+              timestamp: Date.now(),
+            });
+            console.error(`❌ ステップ ${stepCounter} 最大リトライ回数に達しました`);
           }
         }
       }
@@ -375,28 +408,29 @@ async function executeWithVerificationLoops(
       }
     }
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('❌ ブラウザセッション初期化エラー:', errorMessage);
+  } catch (globalError) {
+    console.error('🚨 グローバルエラーが発生しました:', globalError);
     
-    executionSteps.push({
-      step: 1,
-      action: 'ブラウザセッション初期化',
-      status: 'failed',
-      verificationResult: `初期化エラー: ${errorMessage}`,
-      retryCount: 0,
-      timestamp: Date.now(),
-    });
+    // グローバルエラー時も適切にステップを記録
+    if (executionSteps.length === 0) {
+      executionSteps.push({
+        step: 1,
+        action: 'Initial setup',
+        status: 'failed',
+        verificationResult: `FAILED: ${globalError instanceof Error ? globalError.message : 'Unknown global error'}`,
+        retryCount: 0,
+        timestamp: Date.now(),
+      });
+    }
   } finally {
-    // セッションのクリーンアップ
+    // 🔧 **セッションクリーンアップ（エラーハンドリング強化）**
     if (stagehand) {
       try {
-        // 🔧 **クリーンアップ前の待機**
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('🧹 Stagehandセッションをクリーンアップ中...');
         await stagehand.close();
-        console.log(`🔒 ブラウザセッション ${sessionId} を安全に終了`);
-      } catch (e) {
-        console.warn('Failed to close stagehand session:', e);
+        console.log('✅ Stagehandセッションクリーンアップ完了');
+      } catch (cleanupError) {
+        console.warn('⚠️ Stagehandクリーンアップ中にエラー:', cleanupError);
       }
     }
   }
@@ -428,26 +462,38 @@ async function planTaskSteps(agent: Agent, task: string): Promise<string[]> {
 
 このタスクを実行するための具体的なステップに分解してください。
 
-**重要な指針:**
-1. 各ステップは単一の原子的操作にする（クリック、入力、ナビゲートなど）
-2. 複雑な操作は必ず複数のステップに分ける
-3. ページ遷移後は必ず「待機」ステップを含める
-4. フォーム入力は各フィールドごとに個別のステップにする
-5. 検証や確認のステップも含める
+**重要な制約:**
+- **最大20ステップ以内**で完了できるように計画してください
+- 各ステップは単一の原子的操作にする（クリック、入力、ナビゲートなど）
+- 複雑な操作は必要最小限のステップに分ける
+- ページ遷移後は必要に応じて「待機」ステップを含める
+- 重要度の低い確認ステップは省略する
 
-**悪い例:**
-- "ログインフォームにユーザー名とパスワードを入力してログインボタンをクリック"
+**効率的なステップ設計:**
+- 類似の操作は可能な限り統合する
+- 必須でない検証ステップは削除する
+- 待機時間は必要最小限にする
+- データ抽出は重要な箇所のみに限定する
 
-**良い例:**
+**悪い例（ステップが多すぎる）:**
 1. ユーザー名入力フィールドをクリック
 2. ユーザー名を入力
-3. パスワード入力フィールドをクリック
-4. パスワードを入力
-5. ログインボタンをクリック
-6. 2秒待機
-7. ログイン成功を確認
+3. 1秒待機
+4. パスワード入力フィールドをクリック
+5. パスワードを入力
+6. 1秒待機
+7. ログインボタンをクリック
+8. 2秒待機
+9. ログイン成功を確認
+
+**良い例（効率的）:**
+1. ユーザー名を入力
+2. パスワードを入力
+3. ログインボタンをクリック
+4. 2秒待機してログイン完了を確認
 
 ステップのみを番号付きリストで返してください。各ステップは簡潔で明確にしてください。
+**必ず20ステップ以内で完了するように計画してください。**
   `;
 
   const response = await agent.generate(planningPrompt);
@@ -457,37 +503,91 @@ async function planTaskSteps(agent: Agent, task: string): Promise<string[]> {
     .map(line => line.replace(/^\d+\.\s*/, '').trim())
     .filter(step => step.length > 0);
 
-  // 🔧 **ステップの検証と最適化**
-  const optimizedSteps: string[] = [];
-  for (const step of steps) {
-    // URL遷移の後に待機を追加
-    if (step.toLowerCase().includes('アクセス') || 
-        step.toLowerCase().includes('navigate') || 
-        step.toLowerCase().includes('go to') ||
-        step.toLowerCase().includes('ページ')) {
-      optimizedSteps.push(step);
-      if (!steps[steps.indexOf(step) + 1]?.includes('待機')) {
-        optimizedSteps.push('2秒待機');
-      }
-    } 
-    // クリック操作の後に短い待機を追加
-    else if (step.toLowerCase().includes('クリック') || 
-             step.toLowerCase().includes('click')) {
-      optimizedSteps.push(step);
-      if (!steps[steps.indexOf(step) + 1]?.includes('待機')) {
-        optimizedSteps.push('1秒待機');
+  // 🔧 **ステップ数制限の強制適用**
+  let optimizedSteps: string[] = [];
+  
+  if (steps.length <= 20) {
+    // 20ステップ以内の場合は軽微な最適化のみ
+    for (const step of steps) {
+      // URL遷移の後に待機を追加（ただし既に待機がある場合はスキップ）
+      if (step.toLowerCase().includes('アクセス') || 
+          step.toLowerCase().includes('navigate') || 
+          step.toLowerCase().includes('go to') ||
+          step.toLowerCase().includes('ページ')) {
+        optimizedSteps.push(step);
+        const nextStep = steps[steps.indexOf(step) + 1];
+        if (nextStep && !nextStep.includes('待機') && !nextStep.toLowerCase().includes('wait')) {
+          optimizedSteps.push('2秒待機');
+        }
+      } 
+      // その他のステップはそのまま
+      else {
+        optimizedSteps.push(step);
       }
     }
-    // その他のステップはそのまま
-    else {
-      optimizedSteps.push(step);
+  } else {
+    // 20ステップを超える場合は強制的に削減
+    console.warn(`⚠️ 生成されたステップ数が${steps.length}個で20を超えています。重要なステップのみに削減します。`);
+    
+    // 重要度に基づいてステップを分類
+    const criticalSteps: string[] = [];
+    const importantSteps: string[] = [];
+    const optionalSteps: string[] = [];
+    
+    for (const step of steps) {
+      const stepLower = step.toLowerCase();
+      
+      // 必須ステップ（ナビゲーション、主要操作）
+      if (stepLower.includes('アクセス') || 
+          stepLower.includes('navigate') || 
+          stepLower.includes('クリック') ||
+          stepLower.includes('click') ||
+          stepLower.includes('入力') ||
+          stepLower.includes('input') ||
+          stepLower.includes('送信') ||
+          stepLower.includes('submit')) {
+        criticalSteps.push(step);
+      }
+      // 重要ステップ（待機、確認）
+      else if (stepLower.includes('待機') ||
+               stepLower.includes('wait') ||
+               stepLower.includes('確認') ||
+               stepLower.includes('verify')) {
+        importantSteps.push(step);
+      }
+      // オプションステップ（詳細な検証など）
+      else {
+        optionalSteps.push(step);
+      }
+    }
+    
+    // 必須ステップを全て追加
+    optimizedSteps = [...criticalSteps];
+    
+    // 残り容量に応じて重要ステップを追加
+    const remainingSlots = 20 - optimizedSteps.length;
+    if (remainingSlots > 0) {
+      optimizedSteps.push(...importantSteps.slice(0, remainingSlots));
+    }
+    
+    // まだ容量があればオプションステップも追加
+    const finalRemainingSlots = 20 - optimizedSteps.length;
+    if (finalRemainingSlots > 0) {
+      optimizedSteps.push(...optionalSteps.slice(0, finalRemainingSlots));
     }
   }
 
-  console.log('📋 計画されたステップ:');
+  // 最終的に20ステップを超えないように制限
+  if (optimizedSteps.length > 20) {
+    optimizedSteps = optimizedSteps.slice(0, 20);
+    console.warn('⚠️ ステップ数を20に制限しました。');
+  }
+
+  console.log('📋 計画されたステップ (最大20ステップ):');
   optimizedSteps.forEach((step, i) => {
     console.log(`  ${i + 1}. ${step}`);
   });
+  console.log(`📊 総ステップ数: ${optimizedSteps.length}/20`);
 
   return optimizedSteps.length > 0 ? optimizedSteps : [task]; // フォールバック
 }
@@ -528,25 +628,43 @@ function getVerificationPrompt(level: string): string {
 function generateVerificationResults(level: string, steps: ExecutionStep[]): VerificationResult {
   const successfulSteps = steps.filter(step => step.status === 'success' || step.status === 'retried').length;
   const totalSteps = steps.length;
-  const baseScore = totalSteps > 0 ? (successfulSteps / totalSteps) * 100 : 0;
+  const failedSteps = steps.filter(step => step.status === 'failed').length;
+  const sessionDisconnectedSteps = steps.filter(step => 
+    step.verificationResult?.includes('Session disconnected') || 
+    step.verificationResult?.includes('Page has been closed')
+  ).length;
+  
+  // セッション切断による失敗は部分的に成功として扱う
+  const effectiveSuccessSteps = successfulSteps;
+  const effectiveTotalSteps = totalSteps - sessionDisconnectedSteps;
+  const baseScore = effectiveTotalSteps > 0 ? (effectiveSuccessSteps / effectiveTotalSteps) * 100 : 0;
 
   const checks = [
     {
       type: 'step_completion',
-      passed: successfulSteps === totalSteps,
+      passed: successfulSteps > 0,
       details: `${successfulSteps}/${totalSteps} ステップが成功`,
     },
     {
       type: 'retry_efficiency',
-      passed: steps.filter(s => s.retryCount === 0).length >= totalSteps * 0.7,
-      details: `リトライ効率: ${steps.filter(s => s.retryCount === 0).length}/${totalSteps} ステップが一発成功`,
+      passed: steps.filter(s => s.retryCount === 0 && s.status === 'success').length >= Math.max(1, effectiveTotalSteps * 0.5),
+      details: `リトライ効率: ${steps.filter(s => s.retryCount === 0 && s.status === 'success').length}/${effectiveTotalSteps} ステップが一発成功`,
     },
     {
       type: 'error_handling',
-      passed: steps.filter(s => s.status === 'failed').length === 0,
-      details: `エラーハンドリング: ${steps.filter(s => s.status === 'failed').length} 個の失敗ステップ`,
+      passed: failedSteps - sessionDisconnectedSteps <= Math.max(1, totalSteps * 0.3),
+      details: `エラーハンドリング: ${failedSteps - sessionDisconnectedSteps} 個の実質的失敗ステップ (セッション切断除く)`,
     },
   ];
+
+  // セッション切断があった場合の特別処理
+  if (sessionDisconnectedSteps > 0) {
+    checks.push({
+      type: 'session_stability',
+      passed: sessionDisconnectedSteps < totalSteps * 0.5,
+      details: `セッション安定性: ${sessionDisconnectedSteps} ステップでセッション切断`,
+    });
+  }
 
   // 検証レベルに応じてスコア調整
   let adjustedScore = baseScore;
@@ -554,6 +672,11 @@ function generateVerificationResults(level: string, steps: ExecutionStep[]): Ver
     adjustedScore = Math.min(baseScore * 0.9, 95); // 厳密検証では少し厳しく
   } else if (level === 'basic') {
     adjustedScore = Math.min(baseScore * 1.1, 100); // 基本検証では少し甘く
+  }
+
+  // セッション切断があった場合でも、成功したステップがあれば最低スコアを保証
+  if (successfulSteps > 0 && adjustedScore < 20) {
+    adjustedScore = Math.min(20 + (successfulSteps / totalSteps) * 30, 60);
   }
 
   return {

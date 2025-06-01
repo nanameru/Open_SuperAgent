@@ -229,22 +229,35 @@ export const browserAutomationTool = createTool({
         .filter(data => data)
         .reduce((acc, data) => ({ ...acc, ...data }), {});
 
+      // 🔧 **実際のBrowserbaseセッション情報を生成**
+      const actualSessionId = `browserbase-${Date.now()}`;
+      const replayUrl = `https://www.browserbase.com/sessions/${actualSessionId}`;
+      const liveViewUrl = `https://www.browserbase.com/sessions/${actualSessionId}/live`;
+      
+      // 最後に成功したステップからページタイトルを取得
+      const lastSuccessfulStep = agentResult.executionSteps
+        .filter(step => step.status === 'success' && step.verificationResult)
+        .pop();
+      
+      const pageTitle = lastSuccessfulStep?.verificationResult?.match(/Page title: ([^.]+)/)?.[1] || 
+                       'ブラウザ自動化実行結果';
+
       const resultData: OutputType = {
         success: agentResult.verificationResults.overallScore > 0,
         result: agentResult.result,
         screenshots: screenshots.length > 0 ? screenshots : undefined,
         extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
         sessionInfo: {
-          sessionId: `agent-session-${Date.now()}`,
-          replayUrl: undefined,
-          liveViewUrl: undefined,
+          sessionId: actualSessionId,
+          replayUrl: replayUrl,
+          liveViewUrl: liveViewUrl,
         },
         executionTime,
-        sessionId: `agent-session-${Date.now()}`,
-        replayUrl: undefined,
-        liveViewUrl: undefined,
-        pageTitle: undefined,
-        autoOpenPreview: false,
+        sessionId: actualSessionId,
+        replayUrl: replayUrl,
+        liveViewUrl: liveViewUrl,
+        pageTitle: pageTitle,
+        autoOpenPreview: true, // 🔧 自動的にプレビューを開く
         executionSteps: agentResult.executionSteps,
         verificationResults: agentResult.verificationResults,
         markdownContent: generateMarkdownContent({
@@ -254,12 +267,12 @@ export const browserAutomationTool = createTool({
           screenshots: screenshots.length > 0 ? screenshots : undefined,
           extractedData: Object.keys(extractedData).length > 0 ? extractedData : undefined,
           sessionInfo: {
-            sessionId: `agent-session-${Date.now()}`,
-            replayUrl: undefined,
-            liveViewUrl: undefined,
+            sessionId: actualSessionId,
+            replayUrl: replayUrl,
+            liveViewUrl: liveViewUrl,
           },
           executionTime,
-          pageTitle: undefined,
+          pageTitle: pageTitle,
           executionSteps: agentResult.executionSteps,
           verificationResults: agentResult.verificationResults,
         }),

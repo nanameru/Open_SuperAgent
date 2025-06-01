@@ -207,10 +207,6 @@ export default function AppPage() {
     originalHandleSubmit(e);
   };
 
-
-
-
-
   // メッセージからツール情報を抽出して処理
   useEffect(() => {
     // 全メッセージからツール呼び出し情報を抽出（アシスタントメッセージ以外も含む）
@@ -225,80 +221,8 @@ export default function AppPage() {
       toolInvocations: (m as any).toolInvocations
     })));
     
-    // 🎯 browserAutomationTool実行検出
-    if (messages.length > 0 && !browserbaseToolState.isActive) {
-      const lastMessage = messages[messages.length - 1];
-      console.log("[Page] 🔍 Checking last message for browser automation:", lastMessage);
-      
-      // メッセージ内容からbrowserAutomationTool実行を検出
-      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content) {
-        const messageContent = typeof lastMessage.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage.content);
-        
-        // ブラウザ自動化関連のキーワードを検出
-        const browserAutomationKeywords = [
-          'browser-automation-tool',
-          'browserAutomationTool',
-          'BrowserAutomationTool',
-          'ブラウザ自動化',
-          'browser automation',
-          'Stagehand',
-          'Browserbase',
-          'セッション作成',
-          'Session created',
-          'Live View URL'
-        ];
-        
-        const containsBrowserAutomation = browserAutomationKeywords.some(keyword => 
-          messageContent.toLowerCase().includes(keyword.toLowerCase())
-        );
-        
-        if (containsBrowserAutomation) {
-          console.log("[Page] 🎯 Browser Automation Tool detected in message - ACTIVATING PANEL");
-          
-          // セッションIDを抽出（可能であれば）
-          const sessionIdMatch = messageContent.match(/(?:セッション|session|Session)[:\s]*([a-f0-9-]{8,})/i);
-          const replayUrlMatch = messageContent.match(/(https:\/\/browserbase\.com\/sessions\/[a-f0-9-]+)/i);
-          const liveViewUrlMatch = messageContent.match(/(https:\/\/[^\\s]+devtools-fullscreen[^\\s]*)/i);
-          
-          setBrowserbaseToolState(prev => ({
-            ...prev,
-            isActive: true,
-            sessionId: sessionIdMatch ? sessionIdMatch[1] : `detected-${Date.now()}`,
-            replayUrl: replayUrlMatch ? replayUrlMatch[1] : 'https://browserbase.com/sessions/detected',
-            liveViewUrl: liveViewUrlMatch ? liveViewUrlMatch[1] : undefined,
-            pageTitle: 'ブラウザ自動化実行中',
-            elementText: 'ブラウザ自動化ツールが実行されました',
-            forcePanelOpen: true
-          }));
-          setIsPreviewOpen(true);
-        }
-      }
-    }
-
-    // デバッグ: browser-automation-toolを含むメッセージを特別にログ出力
-    const browserToolMessages = messages.filter(m => 
-      (m.content && typeof m.content === 'string' && m.content.includes('browser-automation-tool')) ||
-      ((m as any).toolInvocations && Array.isArray((m as any).toolInvocations) && 
-       (m as any).toolInvocations.some((inv: any) => inv.toolName === 'browser-automation-tool'))
-    );
-    if (browserToolMessages.length > 0) {
-      console.log("[Page] Browser Automation Tool関連メッセージ:", browserToolMessages);
-      
-      // 強制表示: browser-automation-toolが検出されたら即座に表示
-      if (!browserbaseToolState.isActive) {
-        console.log("[Page] 強制表示: Browser Automation Tool detected, activating panel");
-        setBrowserbaseToolState(prev => ({
-          ...prev,
-          isActive: true,
-          sessionId: `forced-${Date.now()}`,
-          replayUrl: '#forced-activation',
-          pageTitle: 'ブラウザ自動化ツール実行中...',
-          elementText: 'ツールが実行されました',
-          forcePanelOpen: true
-        }));
-        setIsPreviewOpen(true);
-      }
-    }
+    // 🎯 browserAutomationTool実行検出は ChatMessage コンポーネントで処理されるため、
+    // ここでは他のツールの処理のみを行う
     
     for (const msg of allMessages) {
       console.log("[Page] メッセージ詳細:", {
@@ -309,591 +233,22 @@ export default function AppPage() {
         toolInvocations: (msg as any).toolInvocations
       });
       
-      // ツール開始の即座検出（toolInvocationsから）
-      if ((msg as any).toolInvocations && Array.isArray((msg as any).toolInvocations)) {
-        for (const invocation of (msg as any).toolInvocations) {
-          if (invocation.toolName === 'browser-automation-tool') {
-            console.log("[Page] ✅ Browser Automation Tool invocation detected - ACTIVATING PANEL:", invocation);
-            
-            // ツール開始時に即座に表示（必ず表示）
-            setBrowserbaseToolState(prev => ({
-              ...prev,
-              isActive: true,
-              sessionId: `starting-${Date.now()}`,
-              replayUrl: '#starting',
-              pageTitle: 'ブラウザ自動化開始中...',
-              elementText: invocation.args?.task?.substring(0, 100) + '...' || 'ブラウザ自動化タスクを実行中...',
-              forcePanelOpen: true
-            }));
-            setIsPreviewOpen(true);
-            
-            console.log("[Page] ✅ Panel activated for browser automation tool");
-            
-            // 結果がある場合は詳細情報を更新
-            if (invocation.result) {
-              const result = invocation.result;
-              console.log("[Page] Browser Automation Tool result:", result);
-              setBrowserbaseToolState(prev => ({
-                ...prev,
-                sessionId: result.sessionId || prev.sessionId,
-                replayUrl: result.replayUrl || prev.replayUrl,
-                liveViewUrl: result.liveViewUrl || prev.liveViewUrl,
-                screenshot: result.screenshot || prev.screenshot,
-                pageTitle: result.pageTitle || prev.pageTitle,
-                elementText: result.elementText || prev.elementText,
-              }));
-            }
-          }
-        }
-      }
-      
-      // Stagehandエージェントの実行を検出
-      if (msg.content && typeof msg.content === 'string') {
-        // ブラウザ操作に関連するキーワードを検出
-        const browserKeywords = [
-          'ブラウザ', 'browser', 'ウェブサイト', 'website', 'ページ', 'page',
-          '検索', 'search', 'クリック', 'click', '入力', 'type', 'input',
-          'スクリーンショット', 'screenshot', '自動化', 'automation',
-          'ナビゲート', 'navigate', '操作', 'operate', 'アクセス', 'access'
-        ];
-        
-        const containsBrowserKeywords = browserKeywords.some(keyword => 
-          msg.content.toLowerCase().includes(keyword.toLowerCase())
-        );
-        
-        if (containsBrowserKeywords && !browserbaseToolState.isActive) {
-          console.log("[Page] Browser operation detected");
-          // 注意: executeStagehandAgent関数は削除されました
-          // 現在はMastraのbrowser-automation-toolを使用しています
-        }
-      }
-      
-
-      
       // ツール呼び出しを含むメッセージを処理
       if (msg.content && typeof msg.content === 'string') {
         try {
-          // Browser Automation Toolの結果を直接検出（マークダウンコンテンツから）
-          if (msg.content.includes('ブラウザ自動化実行結果') || 
-              msg.content.includes('browser-automation-tool')) {
-            console.log("[Page] Browser Automation Tool result detected in message content");
-            
-            // セッションIDを抽出（より柔軟なパターン）
-            const sessionIdMatch = msg.content.match(/(?:セッション|session|Session)[:\s]*([a-f0-9-]{8,})/i);
-            const replayUrlMatch = msg.content.match(/(?:\[セッションリプレイを表示\]|replayUrl|replay)\(?(https:\/\/[^)\s]+)/i);
-            const liveViewUrlMatch = msg.content.match(/(?:\[ライブビューを表示\]|liveViewUrl|live)\(?(https:\/\/[^)\s]+)/i);
-            
-            // セッション情報があってもなくても表示
-            const sessionId = sessionIdMatch ? sessionIdMatch[1] : `extracted-${Date.now()}`;
-            const replayUrl = replayUrlMatch ? replayUrlMatch[1] : `#replay-${Date.now()}`;
-            const liveViewUrl = liveViewUrlMatch ? liveViewUrlMatch[1] : undefined;
-            
-            console.log("[Page] Extracted Browser Automation session info:", { sessionId, replayUrl, liveViewUrl });
-            
-            setBrowserbaseToolState(prev => ({
-              ...prev,
-              isActive: true,
-              sessionId: sessionId,
-              replayUrl: replayUrl,
-              liveViewUrl: liveViewUrl,
-              pageTitle: 'ブラウザ自動化結果',
-              elementText: 'マークダウンコンテンツから検出',
-              forcePanelOpen: true
-            }));
-            
-            setIsPreviewOpen(true);
+          // Brave検索ツールの結果を検出した場合
+          if (msg.content.includes('brave-search') || msg.content.includes('braveSearchTool')) {
+            console.log("[Page] Brave search tool result detected");
           }
           
-          // Browser Automation Toolの実行開始を直接検出（メッセージ内容から）
-          if (msg.content.includes('browser-automation-tool')) {
-            console.log("[Page] Browser Automation Tool execution started - detected in message content");
-            setBrowserbaseToolState(prev => ({
-              ...prev,
-              isActive: true,
-              sessionId: `content-starting-${Date.now()}`,
-              replayUrl: '#content-starting',
-              pageTitle: 'ブラウザ自動化開始中...',
-              elementText: 'ツール実行を開始しました...',
-              forcePanelOpen: true
-            }));
-            
-            // プレビューパネルも自動的に開く
-            setIsPreviewOpen(true);
-          }
+          // その他のツール処理...
           
-          // さらに強力な検出: Browser Automation関連のキーワードを検出
-          const browserAutomationKeywords = [
-            'BrowserAutomationTool',
-            'browser automation',
-            'ブラウザ自動化',
-            'Stagehand',
-            'Browserbase'
-          ];
-          
-          const containsBrowserAutomation = browserAutomationKeywords.some(keyword => 
-            msg.content.toLowerCase().includes(keyword.toLowerCase())
-          );
-          
-          if (containsBrowserAutomation && !browserbaseToolState.isActive) {
-            console.log("[Page] Browser Automation keywords detected, activating panel");
-            setBrowserbaseToolState(prev => ({
-              ...prev,
-              isActive: true,
-              sessionId: `keyword-${Date.now()}`,
-              replayUrl: '#keyword-activation',
-              pageTitle: 'ブラウザ自動化実行中...',
-              elementText: 'ブラウザ自動化が検出されました',
-              forcePanelOpen: true
-            }));
-            setIsPreviewOpen(true);
-          }
-          
-          // ツール呼び出しの検出（JSONパース）- ツール実行開始時点で表示
-          if (msg.content.includes('toolName') || msg.content.includes('toolCallId')) {
-            try {
-              const parsed = JSON.parse(msg.content);
-              if (parsed.toolName || parsed.tool) {
-                const toolName = parsed.toolName || parsed.tool;
-                
-                // Browser Automation Toolの呼び出し開始を検出
-                if (toolName === 'browser-automation-tool') {
-                  console.log("[Page] Browser Automation Tool call started:", toolName, parsed);
-                  
-                  // タスク内容を抽出
-                  const taskArg = parsed.args?.task || parsed.arguments?.task || 'ブラウザ自動化タスク';
-                  
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: `starting-${Date.now()}`,
-                    replayUrl: '#starting',
-                    pageTitle: 'ブラウザ自動化開始中...',
-                    elementText: `実行中: ${taskArg}`,
-                    forcePanelOpen: true
-                  }));
-                  
-                  // プレビューパネルも自動的に開く
-                  setIsPreviewOpen(true);
-                }
-                
-                // Brave検索ツールの呼び出しを検出
-                if (toolName === 'brave-web-search') {
-                  console.log("[Page] Brave search tool call detected - preparing Browserbase tool");
-                  // Brave検索が実行されたら、Browserbaseツールを準備状態にする
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: false, // まだアクティブにはしない
-                    sessionId: '',
-                    replayUrl: '',
-                    liveViewUrl: undefined,
-                    forcePanelOpen: false
-                  }));
-                }
-                
-                // htmlSlideToolの呼び出しを検出
-                if (toolName === 'htmlSlideTool') {
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    title: parsed.args?.topic || prev.title
-                  }));
-                }
-                
-                // presentationPreviewToolの呼び出しを検出
-                if (toolName === 'presentationPreviewTool' && parsed.args?.htmlContent) {
-                  console.log("[Page] presentationPreviewTool call detected with HTML content");
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    htmlContent: parsed.args.htmlContent,
-                    title: parsed.args.title || prev.title,
-                    forcePanelOpen: true // 強制的にパネルを開くフラグをセット
-                  }));
-                }
-                
-                // 画像生成ツールの呼び出しを検出
-                if (toolName === 'gemini-image-generation' || toolName === 'geminiImageGenerationTool' || toolName === 'imagen4-generation') {
-                  console.log("[Page] Image generation tool call detected");
-                  setImageToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    prompt: parsed.args?.prompt || '生成された画像'
-                  }));
-                }
-                
-                // 既に同じツール名のメッセージがなければ追加
-                setToolMessages(prev => {
-                  if (!prev.some(m => m.toolName === toolName)) {
-                    const toolMessage: ToolMessage = {
-                      id: parsed.toolCallId || `tool-msg-${Date.now()}`,
-                      role: 'tool',
-                      content: `Using Tool: ${toolName}`,
-                      toolName: toolName,
-                      createdAt: new Date(),
-                    };
-                    console.log("[Page] メッセージからツール情報を抽出:", toolMessage);
-                    return [...prev, toolMessage];
-                  }
-                  return prev;
-                });
-              }
-              
-              // ツール結果の処理
-              if (parsed.type === 'tool-result' && parsed.toolName) {
-                // HTMLスライドツールの結果を検出した場合
-                if (parsed.toolName === 'htmlSlideTool' && parsed.result?.htmlContent) {
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    htmlContent: parsed.result.htmlContent
-                  }));
-                }
-                
-                // プレゼンテーションプレビューツールの結果を検出した場合
-                if (parsed.toolName === 'presentationPreviewTool' && parsed.result?.htmlContent) {
-                  console.log("[Page] presentationPreviewTool result received with HTML content");
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    htmlContent: parsed.result.htmlContent,
-                    title: parsed.result.title || prev.title,
-                    forcePanelOpen: true // 強制的にパネルを開くフラグをセット
-                  }));
-                }
-                
-                // 画像生成ツールの結果を検出した場合
-                if ((parsed.toolName === 'gemini-image-generation' || parsed.toolName === 'geminiImageGenerationTool' || parsed.toolName === 'imagen4-generation') && parsed.result?.images) {
-                  console.log("[Page] Image generation tool result received");
-                  const images = parsed.result.images || [];
-                  const success = parsed.result.success || false;
-                  const prompt = parsed.result.prompt || '生成された画像';
-                  const title = parsed.result.title || prompt;
-                  const autoOpenPreview = parsed.result.autoOpenPreview ?? true;
-                  
-                  if (success && images.length > 0) {
-                    setImageToolState(prev => ({
-                      ...prev,
-                      isActive: true,
-                      images: images,
-                      prompt: title,
-                      forcePanelOpen: autoOpenPreview // 自動オープンフラグに基づいてパネルを開く
-                    }));
-                  }
-                }
-                
-                // Brave検索ツールの結果を検出した場合
-                if (parsed.toolName === 'brave-web-search' && parsed.result?.results) {
-                  console.log("[Page] Brave search tool result received - activating Browserbase tool");
-                  const results = parsed.result.results || [];
-                  
-                  if (results.length > 0) {
-                    // 検索結果の最初のURLを使用してBrowserbaseツールを自動起動
-                    const firstResult = results[0];
-                    const targetUrl = firstResult.url;
-                    
-                    console.log("[Page] Auto-triggering Browserbase tool for URL:", targetUrl);
-                    
-                    // Browserbaseツールを自動的にアクティブにし、検索結果のURLに移動
-                    // 実際のBrowserbase APIを呼び出すのではなく、プレースホルダーとして表示
-                    setBrowserbaseToolState(prev => ({
-                      ...prev,
-                      isActive: true,
-                      sessionId: `brave-search-${Date.now()}`,
-                      replayUrl: `#brave-search-replay-${Date.now()}`,
-                      liveViewUrl: `#brave-search-live-${Date.now()}`,
-                      pageTitle: `検索結果: ${firstResult.title}`,
-                      elementText: `検索クエリの結果として ${targetUrl} を表示中`,
-                      forcePanelOpen: true
-                    }));
-                  }
-                }
-                
-                // Browser Automation Toolの結果を検出した場合（JSON処理）
-                if (parsed.toolName === 'browser-automation-tool' && parsed.result) {
-                  console.log("[Page] Browser Automation Tool result received", parsed.result);
-                  const result = parsed.result;
-                  const success = result.success || false;
-                  const autoOpenPreview = result.autoOpenPreview ?? true;
-                  
-                  // 成功・失敗に関わらず必ず表示
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: result.sessionId || `result-${Date.now()}`,
-                    replayUrl: result.replayUrl || '#result',
-                    liveViewUrl: result.liveViewUrl,
-                    screenshot: result.screenshot,
-                    pageTitle: result.pageTitle || 'ブラウザ自動化完了',
-                    elementText: result.elementText || (success ? '実行完了' : '実行エラー'),
-                    forcePanelOpen: true
-                  }));
-                  
-                  // プレビューパネルも自動的に開く
-                  setIsPreviewOpen(true);
-                }
-                
-                // ツール結果をツールメッセージに反映
-                setToolMessages(prev => prev.map(m => 
-                  m.toolName === parsed.toolName 
-                    ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(parsed.result)}`, result: parsed.result } 
-                    : m
-                ));
-              }
-            } catch (e) {
-              // JSON解析に失敗した場合、正規表現でツール名を抽出
-              const toolNameMatch = msg.content.match(/"toolName"\s*:\s*"([^"]+)"/);
-              if (toolNameMatch && toolNameMatch[1]) {
-                const toolName = toolNameMatch[1];
-                
-                // Browser Automation Toolの呼び出し開始を検出（正規表現）
-                if (toolName === 'browser-automation-tool') {
-                  console.log("[Page] Browser Automation Tool call started (regex):", toolName);
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: `regex-starting-${Date.now()}`,
-                    replayUrl: '#regex-starting',
-                    pageTitle: 'ブラウザ自動化開始中...',
-                    elementText: `${toolName} を実行しています...`,
-                    forcePanelOpen: true
-                  }));
-                  
-                  // プレビューパネルも自動的に開く
-                  setIsPreviewOpen(true);
-                }
-                
-                // より広範囲なツール名検出
-                const browserToolNames = [
-                  'browser-automation-tool',
-                  'browserAutomationTool',
-                  'BrowserAutomationTool',
-                  'browser_automation_tool'
-                ];
-                
-                if (browserToolNames.includes(toolName) && !browserbaseToolState.isActive) {
-                  console.log("[Page] Browser tool variant detected:", toolName);
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: `variant-${Date.now()}`,
-                    replayUrl: '#variant-activation',
-                    pageTitle: 'ブラウザ自動化開始中...',
-                    elementText: `${toolName} を実行しています...`,
-                    forcePanelOpen: true
-                  }));
-                  setIsPreviewOpen(true);
-                }
-                
-                // 既に同じツール名のメッセージがなければ追加
-                setToolMessages(prev => {
-                  if (!prev.some(m => m.toolName === toolName)) {
-                    const toolMessage: ToolMessage = {
-                      id: `tool-regex-${Date.now()}`,
-                      role: 'tool',
-                      content: `Using Tool: ${toolName}`,
-                      toolName: toolName,
-                      createdAt: new Date(),
-                    };
-                    console.log("[Page] 正規表現でツール情報を抽出:", toolMessage);
-                    return [...prev, toolMessage];
-                  }
-                  return prev;
-                });
-              }
-            }
-          }
-          
-          // アノテーションからツール情報を抽出
-          if (msg.annotations && Array.isArray(msg.annotations)) {
-            msg.annotations.forEach((annotation: any) => {
-              if (annotation.type === 'tool-call' && annotation.toolName) {
-                const toolName = annotation.toolName;
-                
-                // htmlSlideToolの呼び出しを検出
-                if (toolName === 'htmlSlideTool') {
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    title: annotation.args?.topic || prev.title
-                  }));
-                }
-                
-                // presentationPreviewToolの呼び出しを検出
-                if (toolName === 'presentationPreviewTool' && annotation.args?.htmlContent) {
-                  console.log("[Page] presentationPreviewTool annotation detected with HTML content");
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    htmlContent: annotation.args.htmlContent,
-                    title: annotation.args.title || prev.title,
-                    forcePanelOpen: true
-                  }));
-                }
-                
-                // 画像生成ツールの呼び出しを検出
-                if (toolName === 'gemini-image-generation' || toolName === 'geminiImageGenerationTool' || toolName === 'imagen4-generation') {
-                  console.log("[Page] Image generation tool annotation detected");
-                  setImageToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    prompt: annotation.args?.prompt || '生成された画像'
-                  }));
-                }
-                
-                // Browser Automation Toolの呼び出し開始を検出
-                if (toolName === 'browser-automation-tool') {
-                  console.log("[Page] Browser Automation Tool annotation call started:", toolName);
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: `annotation-starting-${Date.now()}`,
-                    replayUrl: '#annotation-starting',
-                    pageTitle: 'ブラウザ自動化開始中...',
-                    elementText: `${toolName} を実行しています...`,
-                    forcePanelOpen: true
-                  }));
-                  
-                  // プレビューパネルも自動的に開く
-                  setIsPreviewOpen(true);
-                }
-                
-                // Brave検索ツールの呼び出しを検出
-                if (toolName === 'brave-web-search') {
-                  console.log("[Page] Brave search tool annotation call detected - preparing Browserbase tool");
-                  // Brave検索が実行されたら、Browserbaseツールを準備状態にする
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: false, // まだアクティブにはしない
-                    sessionId: '',
-                    replayUrl: '',
-                    liveViewUrl: undefined,
-                    forcePanelOpen: false
-                  }));
-                }
-                
-                // ツールメッセージを追加
-                setToolMessages(prev => {
-                  if (!prev.some(m => m.toolName === toolName)) {
-                    const toolMessage: ToolMessage = {
-                      id: annotation.toolCallId || `tool-anno-${Date.now()}`,
-                      role: 'tool',
-                      content: `Using Tool: ${toolName}`,
-                      toolName: toolName,
-                      createdAt: new Date(),
-                    };
-                    console.log("[Page] アノテーションからツール情報を抽出:", toolMessage);
-                    return [...prev, toolMessage];
-                  }
-                  return prev;
-                });
-              }
-              
-              // ツール結果のアノテーション処理
-              if (annotation.type === 'tool-result' && annotation.toolName) {
-                // HTMLスライドツールの結果を検出した場合
-                if (annotation.toolName === 'htmlSlideTool' && annotation.result?.htmlContent) {
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    htmlContent: annotation.result.htmlContent
-                  }));
-                }
-                
-                // プレゼンテーションプレビューツールの結果を検出した場合
-                if (annotation.toolName === 'presentationPreviewTool' && annotation.result?.htmlContent) {
-                  setSlideToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    htmlContent: annotation.result.htmlContent,
-                    title: annotation.result.title || prev.title,
-                    forcePanelOpen: true
-                  }));
-                }
-                
-                // 画像生成ツールの結果を検出した場合
-                if ((annotation.toolName === 'gemini-image-generation' || annotation.toolName === 'geminiImageGenerationTool' || annotation.toolName === 'imagen4-generation') && annotation.result?.images) {
-                  console.log("[Page] Image generation tool annotation result received");
-                  const images = annotation.result.images || [];
-                  const success = annotation.result.success || false;
-                  const prompt = annotation.result.prompt || '生成された画像';
-                  const title = annotation.result.title || prompt;
-                  const autoOpenPreview = annotation.result.autoOpenPreview ?? true;
-                  
-                  if (success && images.length > 0) {
-                    setImageToolState(prev => ({
-                      ...prev,
-                      isActive: true,
-                      images: images,
-                      prompt: title,
-                      forcePanelOpen: autoOpenPreview // 自動オープンフラグに基づいてパネルを開く
-                    }));
-                  }
-                }
-                
-                // Browser Automation Toolの結果を検出した場合
-                if (annotation.toolName === 'browser-automation-tool' && annotation.result) {
-                  console.log("[Page] Browser Automation Tool annotation result received", annotation.result);
-                  const result = annotation.result;
-                  const success = result.success || false;
-                  
-                  // 成功・失敗に関わらず必ず表示
-                  setBrowserbaseToolState(prev => ({
-                    ...prev,
-                    isActive: true,
-                    sessionId: result.sessionId || `annotation-${Date.now()}`,
-                    replayUrl: result.replayUrl || '#annotation',
-                    liveViewUrl: result.liveViewUrl,
-                    screenshot: result.screenshot,
-                    pageTitle: result.pageTitle || 'ブラウザ自動化完了',
-                    elementText: result.elementText || (success ? '実行完了' : '実行エラー'),
-                    forcePanelOpen: true
-                  }));
-                  
-                  setIsPreviewOpen(true);
-                }
-                
-
-                
-                // Brave検索ツールの結果を検出した場合
-                if (annotation.toolName === 'brave-web-search' && annotation.result?.results) {
-                  console.log("[Page] Brave search tool annotation result received - activating Browserbase tool");
-                  const results = annotation.result.results || [];
-                  
-                  if (results.length > 0) {
-                    // 検索結果の最初のURLを使用してBrowserbaseツールを自動起動
-                    const firstResult = results[0];
-                    const targetUrl = firstResult.url;
-                    
-                    console.log("[Page] Auto-triggering Browserbase tool for URL:", targetUrl);
-                    
-                    // Browserbaseツールを自動的にアクティブにし、検索結果のURLに移動
-                    setBrowserbaseToolState(prev => ({
-                      ...prev,
-                      isActive: true,
-                      sessionId: `brave-search-${Date.now()}`,
-                      replayUrl: `#brave-search-replay-${Date.now()}`,
-                      liveViewUrl: `#brave-search-live-${Date.now()}`,
-                      pageTitle: `検索結果: ${firstResult.title}`,
-                      elementText: `検索クエリの結果として ${targetUrl} を表示中`,
-                      forcePanelOpen: true
-                    }));
-                  }
-                }
-                
-                // ツール結果をツールメッセージに反映
-                setToolMessages(prev => prev.map(m => 
-                  m.toolName === annotation.toolName 
-                    ? { ...m, content: `ツール結果 (${m.toolName}): ${JSON.stringify(annotation.result)}`, result: annotation.result } 
-                    : m
-                ));
-              }
-            });
-          }
-        } catch (e) {
-          // 解析エラーは無視
-          console.error("[Page] ツール情報抽出エラー:", e);
+        } catch (error) {
+          console.error("[Page] メッセージ処理エラー:", error);
         }
       }
     }
-  }, [messages, browserbaseToolState.isActive]);
+  }, [messages]);
 
   // デバッグ情報（開発モードのみ）
   useEffect(() => {
@@ -917,10 +272,6 @@ export default function AppPage() {
       }));
     }
   }, [browserbaseToolState.forcePanelOpen, browserbaseToolState.isActive]);
-
-
-
-
 
   // useChatのメッセージとツールメッセージを結合して時系列順に表示
   const combinedMessages = [...messages];
@@ -972,7 +323,30 @@ export default function AppPage() {
     setIsPreviewOpen(true);
   }, []);
 
-
+  // Browser Automation Tool実行検知時の処理
+  const handleBrowserAutomationDetected = useCallback((data: {
+    sessionId: string;
+    replayUrl: string;
+    liveViewUrl?: string;
+    pageTitle?: string;
+    elementText?: string;
+  }) => {
+    console.log('[Page] Browser Automation Tool detected:', data);
+    console.log('[Page] Setting browserbaseToolState to active...');
+    
+    setBrowserbaseToolState({
+      isActive: true,
+      sessionId: data.sessionId,
+      replayUrl: data.replayUrl,
+      liveViewUrl: data.liveViewUrl,
+      pageTitle: data.pageTitle,
+      elementText: data.elementText,
+      forcePanelOpen: true
+    });
+    setIsPreviewOpen(true);
+    
+    console.log('[Page] BrowserbaseTool should now be visible in sidebar');
+  }, []);
 
   return (
     <SidebarProvider>
@@ -1033,6 +407,7 @@ export default function AppPage() {
                       onPreviewClose={() => setIsPreviewOpen(false)}
                       onPreviewWidthChange={handlePreviewPanelWidthChange}
                       onBrowserbasePreview={handleBrowserbasePreview}
+                      onBrowserAutomationDetected={handleBrowserAutomationDetected}
                     />
                   ))}
                 </div>
