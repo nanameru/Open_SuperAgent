@@ -8,6 +8,9 @@ import {
   type VerificationResult 
 } from '../agents/browserAutomationAgent';
 
+// 🔧 **グローバルフラグ：shimsが既にインポートされたかどうか**
+let shimsImported = false;
+
 // 入力スキーマを定義
 const browserAutomationToolInputSchema = z.object({
   task: z.string().describe('ブラウザ自動化で実行したいタスクの詳細な説明'),
@@ -206,6 +209,13 @@ export const browserAutomationTool = createTool({
       
       // 🌐 **最初にBrowserbaseセッションを作成（参考実装と同じ）**
       console.log('🌐 Browserbaseセッションを作成中...');
+      
+      // 🔧 **shimsを最初にインポート（一度だけ）**
+      if (!shimsImported && typeof window === 'undefined') {
+        await import('@browserbasehq/sdk/shims/web');
+        shimsImported = true;
+      }
+      
       const { Browserbase } = await import('@browserbasehq/sdk');
       const bb = new Browserbase({
         apiKey: process.env.BROWSERBASE_API_KEY!,

@@ -8,16 +8,29 @@ import * as path from 'path';
 let Stagehand: any;
 let Browserbase: any;
 
+// 🔧 **グローバルフラグ：shimsが既にインポートされたかどうか**
+let shimsImported = false;
+
 // 動的インポート関数
 async function importStagehandDependencies() {
   if (typeof window === 'undefined') {
     try {
-      const stagehandModule = await import('@browserbasehq/stagehand');
-      Stagehand = stagehandModule.Stagehand;
+      // 🔧 **shimsを最初にインポート（一度だけ）**
+      if (!shimsImported) {
+        await import("@browserbasehq/sdk/shims/web");
+        shimsImported = true;
+      }
       
-      await import("@browserbasehq/sdk/shims/web");
-      const browserbaseModule = await import("@browserbasehq/sdk");
-      Browserbase = browserbaseModule.default;
+      // その後、他のモジュールをインポート
+      if (!Stagehand) {
+        const stagehandModule = await import('@browserbasehq/stagehand');
+        Stagehand = stagehandModule.Stagehand;
+      }
+      
+      if (!Browserbase) {
+        const browserbaseModule = await import("@browserbasehq/sdk");
+        Browserbase = browserbaseModule.default || browserbaseModule.Browserbase;
+      }
       
       return true;
     } catch (error) {
@@ -137,6 +150,10 @@ async function executeWithVerificationLoops(
       console.log(`🔄 既存のセッションを使用: ${sessionId}`);
     } else {
       // Browserbaseセッションの作成（地域最適化）
+      if (!Browserbase) {
+        throw new Error('Browserbase SDK not properly imported');
+      }
+      
       const bb = new Browserbase({
         apiKey: process.env.BROWSERBASE_API_KEY!,
         fetch: globalThis.fetch,
