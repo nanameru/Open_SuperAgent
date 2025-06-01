@@ -3,6 +3,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUp, Mic, MicOff } from 'lucide-react';
 
+// Web Speech API の型定義
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 interface ChatInputAreaProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
