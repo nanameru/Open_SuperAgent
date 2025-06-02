@@ -136,7 +136,7 @@ export function BrowserOperationSidebar({
   }, [currentUrl, isLoading, isStarting, isCompleted, connectionStatus, viewMode]);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* ヘッダー - URL入力機能付き */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 py-2 space-y-2">
         <div className="flex items-center justify-between">

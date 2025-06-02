@@ -64,8 +64,8 @@ export default function AppPage() {
   const [toolMessages, setToolMessages] = useState<ToolMessage[]>([]);
   // 現在の会話ID（ストリームの再接続用）
   const [conversationId, setConversationId] = useState<string>(`conv-${Date.now()}`);
-  // ブラウザ自動化パネルの表示状態（デフォルトで表示）
-  const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(true);
+  // ブラウザ自動化パネルの表示状態（デフォルトで非表示）
+  const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(false);
   
 
   // スライドツール関連の状態
@@ -325,6 +325,8 @@ export default function AppPage() {
       forcePanelOpen: true
     });
     setIsPreviewOpen(true);
+    // ブラウザパネルを表示
+    setShowBrowserPanel(true);
   }, []);
 
   // Browser Automation Tool実行検知時の処理
@@ -361,8 +363,7 @@ export default function AppPage() {
       };
     });
     
-    // 🔧 **即座にブラウザパネルを表示（参考実装と同じ）**
-    setShowBrowserPanel(true);
+    // 🔧 **プレビューパネルのみ設定（ブラウザパネルは手動で開く）**
     setIsPreviewOpen(true);
     
     console.log('[Page] ✅ Browser panel activated:', {
@@ -410,8 +411,7 @@ export default function AppPage() {
         return prev;
       });
       
-      // パネルを確実に表示
-      setShowBrowserPanel(true);
+      // プレビューパネルのみ設定（ブラウザパネルは手動で開く）
       setIsPreviewOpen(true);
     };
 
@@ -438,14 +438,14 @@ export default function AppPage() {
   // }, [showBrowserPanel, browserbaseToolState]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-screen">
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col h-full">
         <MainHeader />
         <div className="flex-1 flex overflow-hidden">
           {/* チャットエリア - 動的幅 */}
-          <main className={`${showBrowserPanel ? 'w-1/2 border-r' : 'w-full'} flex flex-col overflow-y-auto bg-white pb-24 border-gray-200 transition-all duration-300`}>
-            <div className="w-full flex-1 flex flex-col px-6 py-6">
+          <main className={`${showBrowserPanel ? 'w-1/2 border-r' : 'w-full'} flex flex-col overflow-hidden bg-white border-gray-200 transition-all duration-300`}>
+            <div className="w-full flex-1 flex flex-col px-6 py-6 overflow-y-auto pb-32">
               {/* スライドツールがアクティブな場合に表示 */}
               {slideToolState.isActive && (
                 <PresentationTool 
@@ -476,8 +476,8 @@ export default function AppPage() {
               )}
               
               {/* メッセージコンテナ - 常に同じ構造 */}
-              <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-end'}`}>
-                <div className="space-y-0">
+              <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-start'} min-h-0`}>
+                <div className="space-y-0 pb-24">
                   {combinedMessages.length === 0 && !isLoading && !error && (
                     <div className="flex flex-col items-center justify-center">
                       <div className="text-center space-y-4">
@@ -504,7 +504,7 @@ export default function AppPage() {
 
           {/* ブラウザ操作サイドバー - 50% */}
           {showBrowserPanel && (
-            <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative">
+            <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative h-full overflow-hidden">
               {/* 🔧 **デバッグ情報を表示** */}
               <div className="absolute top-2 left-2 z-10 bg-blue-100 text-blue-800 text-xs p-2 rounded max-w-md">
                 <div>Panel: {showBrowserPanel ? 'ON' : 'OFF'}</div>
@@ -549,18 +549,7 @@ export default function AppPage() {
             </div>
           )}
 
-          {/* パネルが非表示の時の再表示ボタン */}
-          {!showBrowserPanel && (
-            <button
-              onClick={() => setShowBrowserPanel(true)}
-              className="fixed right-4 top-20 z-10 p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
-              title="ブラウザ自動化パネルを表示"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m0 4v10m0 4v2m3-2v-2m0-4V7m0-4v2m3 2v2m0 4v10m0 4v2M4 7h16" />
-              </svg>
-            </button>
-          )}
+
 
                           {error && (
               <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
@@ -600,12 +589,14 @@ export default function AppPage() {
             </div>
           )}
         </div>
-        <ChatInputArea
-          input={input}
-          handleInputChange={handleInputChange}
-          handleSubmit={handleCustomSubmit}
-          isLoading={isLoading}
-        />
+        <div className="flex-shrink-0">
+          <ChatInputArea
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={handleCustomSubmit}
+            isLoading={isLoading}
+          />
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

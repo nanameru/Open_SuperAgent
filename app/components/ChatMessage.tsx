@@ -435,26 +435,30 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                       timestamp: new Date().toISOString()
                     });
                     
-                    // 即座にライブビューURLを通知
-                    onBrowserAutomationDetected({
-                      sessionId: sessionData.sessionId,
-                      replayUrl: sessionData.replayUrl,
-                      liveViewUrl: sessionData.sessionUrl,
-                      pageTitle: `ブラウザ自動化: ${task.substring(0, 50)}...`,
-                      elementText: 'ライブビュー準備完了'
-                    });
+                    // 非同期でライブビューURLを通知
+                    setTimeout(() => {
+                      onBrowserAutomationDetected({
+                        sessionId: sessionData.sessionId,
+                        replayUrl: sessionData.replayUrl,
+                        liveViewUrl: sessionData.sessionUrl,
+                        pageTitle: `ブラウザ自動化: ${task.substring(0, 50)}...`,
+                        elementText: 'ライブビュー準備完了'
+                      });
+                    }, 0);
                   }
                 } catch (error) {
                   console.error('[ChatMessage] セッション作成エラー:', error);
                   // エラー時は従来の通知
                   if (onBrowserAutomationDetected) {
-                    onBrowserAutomationDetected({
-                      sessionId: 'starting-' + tc.toolCallId,
-                      replayUrl: '#starting',
-                      liveViewUrl: undefined,
-                      pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
-                      elementText: 'セッション作成中...'
-                    });
+                    setTimeout(() => {
+                      onBrowserAutomationDetected({
+                        sessionId: 'starting-' + tc.toolCallId,
+                        replayUrl: '#starting',
+                        liveViewUrl: undefined,
+                        pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
+                        elementText: 'セッション作成中...'
+                      });
+                    }, 0);
                   }
                 }
               })();
@@ -462,13 +466,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               // 従来の通知も送信（フォールバック）
               if (onBrowserAutomationDetected) {
                 console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected callback for start state');
-                onBrowserAutomationDetected({
-                  sessionId: 'starting-' + tc.toolCallId,
-                  replayUrl: '#starting',
-                  liveViewUrl: undefined,
-                  pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
-                  elementText: 'セッション作成中...'
-                });
+                setTimeout(() => {
+                  onBrowserAutomationDetected({
+                    sessionId: 'starting-' + tc.toolCallId,
+                    replayUrl: '#starting',
+                    liveViewUrl: undefined,
+                    pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
+                    elementText: 'セッション作成中...'
+                  });
+                }, 0);
               }
             }
             
@@ -476,14 +482,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             if ((tc.toolName === 'browser-session' || tc.toolName === 'browserSessionTool') && tc.args && onBrowserAutomationDetected) {
               console.log('[ChatMessage] 🌐 Browser session Tool実行開始を検知:', tc.toolName);
               
-              // 即座にパネルを表示（セッション作成中）
-              onBrowserAutomationDetected({
-                sessionId: 'starting-' + tc.toolCallId,
-                replayUrl: '#starting',
-                liveViewUrl: undefined,
-                pageTitle: 'ブラウザセッション作成中',
-                elementText: 'セッションを初期化しています...'
-              });
+              // 非同期でパネルを表示（セッション作成中）
+              setTimeout(() => {
+                onBrowserAutomationDetected({
+                  sessionId: 'starting-' + tc.toolCallId,
+                  replayUrl: '#starting',
+                  liveViewUrl: undefined,
+                  pageTitle: 'ブラウザセッション作成中',
+                  elementText: 'セッションを初期化しています...'
+                });
+              }, 0);
             }
           });
           return newStates;
@@ -658,13 +666,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   isLiveViewReady
                 });
                 
-                onBrowserAutomationDetected({
-                  sessionId: tr.result.sessionId,
-                  replayUrl: tr.result.replayUrl,
-                  liveViewUrl: processedLiveViewUrl,
-                  pageTitle: tr.result.pageTitle || 'ブラウザ自動化セッション',
-                  elementText: tr.result.result || 'ブラウザ自動化が完了しました'
-                });
+                setTimeout(() => {
+                  onBrowserAutomationDetected({
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: processedLiveViewUrl,
+                    pageTitle: tr.result.pageTitle || 'ブラウザ自動化セッション',
+                    elementText: tr.result.result || 'ブラウザ自動化が完了しました'
+                  });
+                }, 0);
               }
                 
                 // autoOpenPreviewが設定されていれば自動的にBrowserbaseプレビューを開く
@@ -844,14 +854,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 createdAt: result.createdAt
               });
               
-              // 即座に親コンポーネントに通知
-              onBrowserAutomationDetected({
-                sessionId: result.sessionId,
-                replayUrl: result.replayUrl || `https://www.browserbase.com/sessions/${result.sessionId}`,
-                liveViewUrl: result.liveViewUrl,
-                pageTitle: 'ブラウザセッション',
-                elementText: result.message || 'セッション作成完了'
-              });
+              // 非同期で親コンポーネントに通知（レンダリング中の状態更新を避ける）
+              setTimeout(() => {
+                onBrowserAutomationDetected({
+                  sessionId: result.sessionId,
+                  replayUrl: result.replayUrl || `https://www.browserbase.com/sessions/${result.sessionId}`,
+                  liveViewUrl: result.liveViewUrl,
+                  pageTitle: 'ブラウザセッション',
+                  elementText: result.message || 'セッション作成完了'
+                });
+              }, 0);
             }
           });
           return updatedStates;
@@ -880,13 +892,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             );
           }
           
-          onBrowserAutomationDetected({
-            sessionId: result.sessionId || `session-${Date.now()}`,
-            replayUrl: result.replayUrl || '#no-replay',
-            liveViewUrl: processedLiveViewUrl,
-            pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
-            elementText: result.success ? 'ブラウザ自動化が完了しました' : 'ブラウザ自動化でエラーが発生しました'
-          });
+          setTimeout(() => {
+            onBrowserAutomationDetected({
+              sessionId: result.sessionId || `session-${Date.now()}`,
+              replayUrl: result.replayUrl || '#no-replay',
+              liveViewUrl: processedLiveViewUrl,
+              pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
+              elementText: result.success ? 'ブラウザ自動化が完了しました' : 'ブラウザ自動化でエラーが発生しました'
+            });
+          }, 0);
           break; // 一度検知したら終了
         }
       }
@@ -910,13 +924,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               );
             }
             
-            onBrowserAutomationDetected({
-              sessionId: result.sessionId || `session-${Date.now()}`,
-              replayUrl: result.replayUrl || '#no-replay',
-              liveViewUrl: processedLiveViewUrl,
-              pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
-              elementText: result.result || 'ブラウザ自動化が完了しました'
-            });
+            setTimeout(() => {
+              onBrowserAutomationDetected({
+                sessionId: result.sessionId || `session-${Date.now()}`,
+                replayUrl: result.replayUrl || '#no-replay',
+                liveViewUrl: processedLiveViewUrl,
+                pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
+                elementText: result.result || 'ブラウザ自動化が完了しました'
+              });
+            }, 0);
             break; // 一度検知したら終了
           }
         }
@@ -943,13 +959,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             );
           }
           
-          onBrowserAutomationDetected({
-            sessionId: result.sessionId || `session-${Date.now()}`,
-            replayUrl: result.replayUrl || '#no-replay',
-            liveViewUrl: processedLiveViewUrl,
-            pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
-            elementText: result.result || 'ブラウザ自動化が完了しました'
-          });
+          setTimeout(() => {
+            onBrowserAutomationDetected({
+              sessionId: result.sessionId || `session-${Date.now()}`,
+              replayUrl: result.replayUrl || '#no-replay',
+              liveViewUrl: processedLiveViewUrl,
+              pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
+              elementText: result.result || 'ブラウザ自動化が完了しました'
+            });
+          }, 0);
           break; // 一度検知したら終了
         }
       }
@@ -972,14 +990,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         
         const sessionId = sessionIdMatch ? sessionIdMatch[1] : `live-${Date.now()}`;
         
-        // 即座に通知
-        onBrowserAutomationDetected({
-          sessionId: sessionId,
-          replayUrl: `https://www.browserbase.com/sessions/${sessionId}`,
-          liveViewUrl: liveViewUrlMatch[0],
-          pageTitle: 'ブラウザ自動化セッション',
-          elementText: 'ライブビューURL検知'
-        });
+        // 非同期で通知
+        setTimeout(() => {
+          onBrowserAutomationDetected({
+            sessionId: sessionId,
+            replayUrl: `https://www.browserbase.com/sessions/${sessionId}`,
+            liveViewUrl: liveViewUrlMatch[0],
+            pageTitle: 'ブラウザ自動化セッション',
+            elementText: 'ライブビューURL検知'
+          });
+        }, 0);
         
         return; // 早期リターン
       }
@@ -1010,13 +1030,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                               content.match(/browserbase-(\d+)/i);
         const replayUrlMatch = content.match(/(https:\/\/www\.browserbase\.com\/sessions\/[^\s)]+)/);
         
-        onBrowserAutomationDetected({
-          sessionId: sessionIdMatch ? sessionIdMatch[1] : `content-${Date.now()}`,
-          replayUrl: replayUrlMatch ? replayUrlMatch[1] : '#content-detected',
-          liveViewUrl: undefined,
-          pageTitle: 'ブラウザ自動化実行結果',
-          elementText: 'メッセージ内容から検知されました'
-        });
+        setTimeout(() => {
+          onBrowserAutomationDetected({
+            sessionId: sessionIdMatch ? sessionIdMatch[1] : `content-${Date.now()}`,
+            replayUrl: replayUrlMatch ? replayUrlMatch[1] : '#content-detected',
+            liveViewUrl: undefined,
+            pageTitle: 'ブラウザ自動化実行結果',
+            elementText: 'メッセージ内容から検知されました'
+          });
+        }, 0);
       }
     }
   }, [message, onBrowserAutomationDetected]);
