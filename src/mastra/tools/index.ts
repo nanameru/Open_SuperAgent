@@ -112,4 +112,12 @@ export { imagen4GenerationTool } from './imagen4GenerationTool';
 export { v0CodeGenerationTool } from './v0CodeGenerationTool';
 export { graphicRecordingTool } from './graphicRecordingTool';
 export { minimaxTTSTool } from './minimaxTTSTool';
-export { browserAutomationTool } from './browserAutomationTool';
+// Browser automation tools
+export { browserSessionTool } from './browserSessionTool';
+export { browserGotoTool } from './browserGotoTool';
+export { browserActTool } from './browserActTool';
+export { browserExtractTool } from './browserExtractTool';
+export { browserObserveTool } from './browserObserveTool';
+export { browserWaitTool } from './browserWaitTool';
+export { browserScreenshotTool } from './browserScreenshotTool';
+export { browserCloseTool } from './browserCloseTool';

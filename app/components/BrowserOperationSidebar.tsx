@@ -45,29 +45,29 @@ export function BrowserOperationSidebar({
 
   // 🔧 デバッグログを追加
   useEffect(() => {
-    console.log('[BrowserOperationSidebar] Component rendered with props:', {
-      sessionId,
-      replayUrl,
-      liveViewUrl,
-      screenshot,
-      pageTitle,
-      elementText,
-      autoOpenPreview,
-      forcePanelOpen,
-      onPreviewOpen,
-      onPreviewClose,
-      onPreviewWidthChange
-    });
+    // console.log('[BrowserOperationSidebar] Component rendered with props:', {
+    //   sessionId,
+    //   replayUrl,
+    //   liveViewUrl,
+    //   screenshot,
+    //   pageTitle,
+    //   elementText,
+    //   autoOpenPreview,
+    //   forcePanelOpen,
+    //   onPreviewOpen,
+    //   onPreviewClose,
+    //   onPreviewWidthChange
+    // });
     
     // 🔧 **URL形式の詳細ログ**
     if (liveViewUrl) {
-      console.log('[BrowserOperationSidebar] 🔗 Live View URL details:', {
-        url: liveViewUrl,
-        isValidUrl: liveViewUrl.startsWith('https://'),
-        containsDevtools: liveViewUrl.includes('devtools'),
-        containsHash: liveViewUrl.includes('#'),
-        containsStarting: liveViewUrl.includes('starting')
-      });
+      // console.log('[BrowserOperationSidebar] 🔗 Live View URL details:', {
+      //   url: liveViewUrl,
+      //   isValidUrl: liveViewUrl.startsWith('https://'),
+      //   containsDevtools: liveViewUrl.includes('devtools'),
+      //   containsHash: liveViewUrl.includes('#'),
+      //   containsStarting: liveViewUrl.includes('starting')
+      // });
     }
   }, [sessionId, replayUrl, liveViewUrl, screenshot, pageTitle, elementText, autoOpenPreview, forcePanelOpen, onPreviewOpen, onPreviewClose, onPreviewWidthChange]);
 
@@ -81,18 +81,25 @@ export function BrowserOperationSidebar({
   useEffect(() => {
     // 🌐 **有効なURLがあれば即座に表示（参考実装と同じ）**
     if (liveViewUrl && liveViewUrl.startsWith('https://') && !liveViewUrl.includes('#')) {
-      console.log('[BrowserOperationSidebar] ✅ Valid live view URL detected:', liveViewUrl);
+      // console.log('[BrowserOperationSidebar] ✅ Valid live view URL detected:', liveViewUrl);
       setConnectionStatus('connected');
       setViewMode('live');
+      
+      // 🚀 **ライブビューURL発行の瞬間をログ出力**
+      // console.log('[BrowserOperationSidebar] 🌐 ライブビューURL即座表示:', {
+      //   url: liveViewUrl,
+      //   sessionId,
+      //   timestamp: new Date().toISOString()
+      // });
     } else if (replayUrl && replayUrl.startsWith('https://') && !replayUrl.includes('#')) {
-      console.log('[BrowserOperationSidebar] ✅ Valid replay URL detected:', replayUrl);
+      // console.log('[BrowserOperationSidebar] ✅ Valid replay URL detected:', replayUrl);
       setConnectionStatus('connected'); // replayも接続済みとして扱う
       setViewMode('replay');
     } else {
-      console.log('[BrowserOperationSidebar] ⏳ Waiting for valid URL...', { liveViewUrl, replayUrl });
+      // console.log('[BrowserOperationSidebar] ⏳ Waiting for valid URL...', { liveViewUrl, replayUrl });
       setConnectionStatus('loading');
     }
-  }, [liveViewUrl, replayUrl]);
+  }, [liveViewUrl, replayUrl, sessionId]);
 
   const handlePreviewToggle = useCallback(() => {
     const newState = !isPreviewOpen;
@@ -118,14 +125,14 @@ export function BrowserOperationSidebar({
 
   // 🔧 **デバッグログを追加**
   useEffect(() => {
-    console.log('[BrowserOperationSidebar] State:', {
-      currentUrl,
-      isLoading,
-      isStarting,
-      isCompleted,
-      connectionStatus,
-      viewMode
-    });
+    // console.log('[BrowserOperationSidebar] State:', {
+    //   currentUrl,
+    //   isLoading,
+    //   isStarting,
+    //   isCompleted,
+    //   connectionStatus,
+    //   viewMode
+    // });
   }, [currentUrl, isLoading, isStarting, isCompleted, connectionStatus, viewMode]);
 
   return (
@@ -255,11 +262,11 @@ export function BrowserOperationSidebar({
             {/* 🔧 **シンプルなiframe表示（手動URL対応）** */}
             <iframe
               src={currentUrl}
-              className="w-full h-full border-0"
-              title={useManualUrl ? 'Manual URL View' : `Browserbase ${viewMode === 'live' ? 'Live View' : 'Session Replay'}`}
+              className="w-full h-full"
               sandbox="allow-same-origin allow-scripts allow-forms"
               loading="lazy"
               referrerPolicy="no-referrer"
+              title="Browser Session"
               onLoad={() => {
                 console.log('[BrowserOperationSidebar] ✅ iframe loaded successfully:', currentUrl);
                 setConnectionStatus('connected');
@@ -278,7 +285,12 @@ export function BrowserOperationSidebar({
             <div className="absolute bottom-2 right-2 z-10 bg-black/70 text-white text-xs p-2 rounded max-w-xs">
               <div className="font-semibold">{useManualUrl ? 'Manual URL' : 'Auto URL'}:</div>
               <div className="break-all text-xs">{currentUrl}</div>
-              <div className="mt-1">Mode: {useManualUrl ? 'manual' : viewMode} | Status: {connectionStatus}</div>
+              <div className="mt-1">
+                <div>Mode: {useManualUrl ? 'manual' : viewMode}</div>
+                <div>Status: {connectionStatus}</div>
+                <div>Session: {sessionId?.substring(0, 8)}...</div>
+                <div className="text-green-400">✅ Live View Active</div>
+              </div>
             </div>
           </div>
         ) : (

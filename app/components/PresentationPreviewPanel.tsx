@@ -224,13 +224,14 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
                   HTMLをダウンロード
                 </Button>
               </div>
-              <Card className="flex-1 overflow-hidden">
-                <CardContent className="p-0 h-full">
+              <Card className="flex-1 overflow-hidden flex flex-col">
+                <CardContent className="p-0 flex-1 overflow-hidden">
                   <Textarea
                     value={editedHtml}
                     onChange={(e) => setEditedHtml(e.target.value)}
-                    className="font-mono text-sm bg-muted/30 border-0 rounded-none h-full resize-y overflow-y-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="font-mono text-sm bg-muted/30 border-0 rounded-none w-full h-full resize-none overflow-y-auto focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
                     placeholder="HTMLコードを編集..."
+                    style={{ minHeight: '100%' }}
                   />
                 </CardContent>
               </Card>

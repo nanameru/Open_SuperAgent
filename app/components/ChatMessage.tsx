@@ -377,6 +377,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 tc.toolName === 'geminiImageGenerationTool' || 
                 tc.toolName === 'imagen4-generation';
                 
+              // 🔧 **browser-sessionツール/browserSessionToolの検出のみログ**
+              if (tc.toolName === 'browser-session' || tc.toolName === 'browserSessionTool') {
+                console.log('🔴 browser-session/browserSessionTool呼び出し検出!', tc.toolName);
+              }
+                
               newStates[tc.toolCallId] = {
                 id: tc.toolCallId,
                 toolName: tc.toolName,
@@ -409,19 +414,76 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 timestamp: new Date().toISOString()
               });
               
-              // 🔧 **参考実装と同じ即座通知**
+              // 🚀 **参考実装と同じ：即座にセッションAPIを呼び出してライブビューURLを取得**
+              const task = (tc.args as any).task || 'ブラウザ自動化タスク';
+              
+              // 非同期でセッション作成とライブビューURL取得
+              (async () => {
+                try {
+                  const sessionResponse = await fetch('/api/browser-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task })
+                  });
+                  
+                  const sessionData = await sessionResponse.json();
+                  
+                  if (sessionData.success && sessionData.sessionUrl && onBrowserAutomationDetected) {
+                    console.log('[ChatMessage] 🌐 セッション作成成功 - ライブビューURL即座配信:', {
+                      sessionId: sessionData.sessionId,
+                      liveViewUrl: sessionData.sessionUrl,
+                      timestamp: new Date().toISOString()
+                    });
+                    
+                    // 即座にライブビューURLを通知
+                    onBrowserAutomationDetected({
+                      sessionId: sessionData.sessionId,
+                      replayUrl: sessionData.replayUrl,
+                      liveViewUrl: sessionData.sessionUrl,
+                      pageTitle: `ブラウザ自動化: ${task.substring(0, 50)}...`,
+                      elementText: 'ライブビュー準備完了'
+                    });
+                  }
+                } catch (error) {
+                  console.error('[ChatMessage] セッション作成エラー:', error);
+                  // エラー時は従来の通知
+                  if (onBrowserAutomationDetected) {
+                    onBrowserAutomationDetected({
+                      sessionId: 'starting-' + tc.toolCallId,
+                      replayUrl: '#starting',
+                      liveViewUrl: undefined,
+                      pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
+                      elementText: 'セッション作成中...'
+                    });
+                  }
+                }
+              })();
+              
+              // 従来の通知も送信（フォールバック）
               if (onBrowserAutomationDetected) {
-                console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected callback immediately');
+                console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected callback for start state');
                 onBrowserAutomationDetected({
                   sessionId: 'starting-' + tc.toolCallId,
                   replayUrl: '#starting',
-                  liveViewUrl: '#starting',
-                  pageTitle: `ブラウザ自動化開始: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
+                  liveViewUrl: undefined,
+                  pageTitle: `ブラウザ自動化開始: ${task.substring(0, 50)}...`,
                   elementText: 'セッション作成中...'
                 });
-              } else {
-                console.error('[ChatMessage] ❌ onBrowserAutomationDetected callback is not defined!');
               }
+            }
+            
+            // 🔧 **browser-sessionツール/browserSessionToolの即座表示**
+            if ((tc.toolName === 'browser-session' || tc.toolName === 'browserSessionTool') && tc.args && onBrowserAutomationDetected) {
+              console.log('[ChatMessage] 🌐 Browser session Tool実行開始を検知:', tc.toolName);
+              
+              // 即座にパネルを表示（セッション作成中）
+              onBrowserAutomationDetected({
+                sessionId: 'starting-' + tc.toolCallId,
+                replayUrl: '#starting',
+                liveViewUrl: undefined,
+                pageTitle: 'ブラウザセッション作成中',
+                elementText: 'セッションを初期化しています...'
+              });
             }
           });
           return newStates;
@@ -433,6 +495,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         setToolCallStates(prevStates => {
           const updatedStates = { ...prevStates };
           message.tool_results?.forEach(tr => {
+            // 🔧 **デバッグ：すべてのツール結果をログ**
+            console.log('[ChatMessage] 📊 Tool result received:', {
+              toolCallId: tr.toolCallId,
+              toolName: updatedStates[tr.toolCallId]?.toolName,
+              result: tr.result,
+              isError: tr.isError,
+              timestamp: new Date().toISOString()
+            });
+            
+            // 🔧 **browser-sessionツールの結果のみログ**
+            const toolName = updatedStates[tr.toolCallId]?.toolName;
+            if (toolName === 'browser-session') {
+              console.log('🟢 browser-session結果受信!', {
+                sessionId: tr.result?.sessionId,
+                liveViewUrl: tr.result?.liveViewUrl
+              });
+            }
+            
             if (updatedStates[tr.toolCallId]) {
               // 特定のツールタイプの場合は、デフォルトで展開表示
               const shouldExpandByDefault = 
@@ -512,6 +592,27 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 }
               }
               
+              // 🔧 **browser-sessionツール/browserSessionToolの結果を親コンポーネントに通知**
+              if ((toolState.toolName === 'browser-session' || toolState.toolName === 'browserSessionTool') && tr.result?.sessionId && onBrowserAutomationDetected) {
+                console.log('[ChatMessage] 🌐 Browser session created, notifying parent:', {
+                  toolName: toolState.toolName,
+                  sessionId: tr.result.sessionId,
+                  liveViewUrl: tr.result.liveViewUrl,
+                  replayUrl: tr.result.replayUrl
+                });
+                
+                // 即座に親コンポーネントに通知
+                setTimeout(() => {
+                  onBrowserAutomationDetected({
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: tr.result.liveViewUrl,
+                    pageTitle: 'ブラウザセッション開始',
+                    elementText: `セッションID: ${tr.result.sessionId}`
+                  });
+                }, 0);
+              }
+              
               // Browserbaseツールの結果データを保存
               if ((toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool') && tr.result?.sessionId) {
                 console.log('[ChatMessage] Browser Automation Tool result received:', tr.result);
@@ -527,35 +628,44 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                   }
                 }));
                 
-                // 🔧 **ツール結果受信時の即座通知（参考実装と同じ）**
-                if (onBrowserAutomationDetected && tr.result.sessionId) {
-                  console.log('[ChatMessage] 🎯 Browser automation result received, calling callback immediately');
-                  
-                  // 🌐 **URL変換処理を適用**
-                  let processedLiveViewUrl = tr.result.liveViewUrl;
-                  if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
-                    processedLiveViewUrl = processedLiveViewUrl.replace(
-                      "https://www.browserbase.com/devtools-fullscreen/inspector.html",
-                      "https://www.browserbase.com/devtools-internal-compiled/index.html"
-                    );
-                    console.log('[ChatMessage] 🔗 URL変換適用:', tr.result.liveViewUrl, '->', processedLiveViewUrl);
-                  }
-                  
-                  console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected with processed data:', {
-                    sessionId: tr.result.sessionId,
-                    replayUrl: tr.result.replayUrl,
-                    liveViewUrl: processedLiveViewUrl,
-                    pageTitle: tr.result.pageTitle
-                  });
-                  
-                  onBrowserAutomationDetected({
-                    sessionId: tr.result.sessionId,
-                    replayUrl: tr.result.replayUrl,
-                    liveViewUrl: processedLiveViewUrl,
-                    pageTitle: tr.result.pageTitle || 'ブラウザ自動化セッション',
-                    elementText: tr.result.result || 'ブラウザ自動化が完了しました'
-                  });
+                              // 🔧 **ツール結果受信時の即座通知（参考実装と同じ）**
+              if (onBrowserAutomationDetected && tr.result.sessionId) {
+                console.log('[ChatMessage] 🎯 Browser automation result received, calling callback immediately');
+                
+                // 🌐 **URL変換処理を適用**
+                let processedLiveViewUrl = tr.result.liveViewUrl;
+                if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
+                  processedLiveViewUrl = processedLiveViewUrl.replace(
+                    "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+                    "https://www.browserbase.com/devtools-internal-compiled/index.html"
+                  );
+                  console.log('[ChatMessage] 🔗 URL変換適用:', tr.result.liveViewUrl, '->', processedLiveViewUrl);
                 }
+                
+                // 🚀 **ライブビューURL発行の瞬間を検知**
+                const isLiveViewReady = tr.result.status === 'live_view_ready' || 
+                                       (tr.result.liveViewUrl && tr.result.liveViewUrl.startsWith('https://'));
+                
+                if (isLiveViewReady) {
+                  console.log('[ChatMessage] 🌐 ライブビューURL発行検知 - 即座通知');
+                }
+                
+                console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected with processed data:', {
+                  sessionId: tr.result.sessionId,
+                  replayUrl: tr.result.replayUrl,
+                  liveViewUrl: processedLiveViewUrl,
+                  pageTitle: tr.result.pageTitle,
+                  isLiveViewReady
+                });
+                
+                onBrowserAutomationDetected({
+                  sessionId: tr.result.sessionId,
+                  replayUrl: tr.result.replayUrl,
+                  liveViewUrl: processedLiveViewUrl,
+                  pageTitle: tr.result.pageTitle || 'ブラウザ自動化セッション',
+                  elementText: tr.result.result || 'ブラウザ自動化が完了しました'
+                });
+              }
                 
                 // autoOpenPreviewが設定されていれば自動的にBrowserbaseプレビューを開く
                 if (tr.result.autoOpenPreview && onBrowserbasePreview) {
@@ -634,10 +744,45 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       
       // toolInvocationsから情報を抽出（代替フォーマット）
       if (message.toolInvocations && message.toolInvocations.length > 0) {
+        // 🔧 **デバッグ：toolInvocationsの内容をログ**
+        console.log('[ChatMessage] 🔍 toolInvocations detected:', {
+          count: message.toolInvocations.length,
+          tools: message.toolInvocations.map((inv: any) => ({
+            toolName: inv.toolName || (inv.function ? inv.function.name : 'unknown'),
+            state: inv.state,
+            hasResult: !!inv.result,
+            // より詳細な情報を追加
+            fullToolName: inv.toolName,
+            functionName: inv.function?.name,
+            resultSessionId: inv.result?.sessionId,
+            resultLiveViewUrl: inv.result?.liveViewUrl
+          })),
+          timestamp: new Date().toISOString()
+        });
+        
         setToolCallStates(prev => {
           const updatedStates = { ...prev };
-          message.toolInvocations?.forEach(inv => {
+          message.toolInvocations?.forEach((inv, index) => {
             const genericInv = inv as any;
+            
+            // 🔧 **最初のツールのみ詳細ログ出力**
+            if (index === 0) {
+              console.log('[ChatMessage] 📋 First toolInvocation detail:', {
+                toolName: genericInv.toolName,
+                functionName: genericInv.function?.name,
+                state: genericInv.state,
+                hasResult: !!genericInv.result,
+                resultKeys: genericInv.result ? Object.keys(genericInv.result) : [],
+                // browser-sessionツールかどうかチェック
+                isBrowserSession: genericInv.toolName === 'browser-session' || genericInv.toolName === 'browserSessionTool' || genericInv.function?.name === 'browser-session'
+              });
+              
+              // browserSessionToolの場合は結果を詳細に表示
+              if ((genericInv.toolName === 'browserSessionTool' || genericInv.toolName === 'browser-session') && genericInv.result) {
+                console.log('[ChatMessage] 🎯 BrowserSessionTool result detail:', genericInv.result);
+              }
+            }
+            
             const toolName = genericInv.toolName || (genericInv.function ? genericInv.function.name : 'unknown_tool');
             const toolCallId = genericInv.toolCallId || genericInv.id || `fallback-id-${Math.random()}`;
             const args = genericInv.args || (genericInv.function ? genericInv.function.arguments : undefined);
@@ -687,6 +832,27 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 }));
               }
             }
+            
+            // 🔧 **browserSessionToolの結果を処理**
+            if ((toolName === 'browser-session' || toolName === 'browserSessionTool') && result && result.sessionId && onBrowserAutomationDetected) {
+              console.log('[ChatMessage] 🌐 Browser session result detected in toolInvocations:', {
+                toolName,
+                sessionId: result.sessionId,
+                liveViewUrl: result.liveViewUrl,
+                replayUrl: result.replayUrl,
+                message: result.message,
+                createdAt: result.createdAt
+              });
+              
+              // 即座に親コンポーネントに通知
+              onBrowserAutomationDetected({
+                sessionId: result.sessionId,
+                replayUrl: result.replayUrl || `https://www.browserbase.com/sessions/${result.sessionId}`,
+                liveViewUrl: result.liveViewUrl,
+                pageTitle: 'ブラウザセッション',
+                elementText: result.message || 'セッション作成完了'
+              });
+            }
           });
           return updatedStates;
         });
@@ -699,9 +865,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     // ツール実行の検知（toolInvocationsから）
     if ((message as any).toolInvocations && Array.isArray((message as any).toolInvocations)) {
       for (const invocation of (message as any).toolInvocations) {
-        if (invocation.toolName === 'browser-automation-tool' && invocation.result && onBrowserAutomationDetected) {
+        // 🔧 browser-sessionツール/browserSessionToolも検出対象に追加
+        if ((invocation.toolName === 'browser-automation-tool' || invocation.toolName === 'browser-session' || invocation.toolName === 'browserSessionTool') && invocation.result && onBrowserAutomationDetected) {
           const result = invocation.result;
-          console.log('[ChatMessage] Browser Automation Tool result detected:', result);
+          console.log('[ChatMessage] Browser tool result detected:', result);
           
           // 🔧 **実行完了時の適切な通知**
           // 🌐 **URL変換処理を適用**
@@ -730,8 +897,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       for (const part of message.parts) {
         if (part.type === 'tool-invocation' && part.toolInvocation) {
           const { toolName, result } = part.toolInvocation;
-          if (toolName === 'browser-automation-tool' && result && onBrowserAutomationDetected) {
-            console.log('[ChatMessage] Browser Automation Tool result detected from parts:', result);
+          // 🔧 browser-sessionツールも検出対象に追加
+          if ((toolName === 'browser-automation-tool' || toolName === 'browser-session') && result && onBrowserAutomationDetected) {
+            console.log('[ChatMessage] Browser tool result detected from parts:', result);
             
             // 🌐 **URL変換処理を適用**
             let processedLiveViewUrl = result.liveViewUrl;
@@ -761,9 +929,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         // ツール名を特定するために対応するtool_callを探す
         const correspondingCall = message.tool_calls?.find(call => call.toolCallId === toolResult.toolCallId);
         
-        if (correspondingCall?.toolName === 'browser-automation-tool' && toolResult.result && onBrowserAutomationDetected) {
+        // 🔧 browser-sessionツールも検出対象に追加
+        if ((correspondingCall?.toolName === 'browser-automation-tool' || correspondingCall?.toolName === 'browser-session') && toolResult.result && onBrowserAutomationDetected) {
           const result = toolResult.result;
-          console.log('[ChatMessage] Browser Automation Tool result detected from tool_results:', result);
+          console.log('[ChatMessage] Browser tool result detected from tool_results:', result);
           
           // 🌐 **URL変換処理を適用**
           let processedLiveViewUrl = result.liveViewUrl;
@@ -790,6 +959,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     if (message.role === 'assistant' && message.content && typeof message.content === 'string') {
       const content = message.content;
       
+      // 🚀 **ライブビューURLの直接検知**
+      const liveViewUrlPattern = /https:\/\/www\.browserbase\.com\/devtools-internal-compiled\/index\.html[^)\s]*/g;
+      const liveViewUrlMatch = content.match(liveViewUrlPattern);
+      
+      if (liveViewUrlMatch && liveViewUrlMatch[0] && onBrowserAutomationDetected) {
+        console.log('[ChatMessage] 🌐 ライブビューURL直接検知:', liveViewUrlMatch[0]);
+        
+        // セッションIDを抽出
+        const sessionIdMatch = liveViewUrlMatch[0].match(/sessionId=([a-f0-9-]{8,})/i) ||
+                              content.match(/セッションID[:\s]*([a-f0-9-]{8,})/i);
+        
+        const sessionId = sessionIdMatch ? sessionIdMatch[1] : `live-${Date.now()}`;
+        
+        // 即座に通知
+        onBrowserAutomationDetected({
+          sessionId: sessionId,
+          replayUrl: `https://www.browserbase.com/sessions/${sessionId}`,
+          liveViewUrl: liveViewUrlMatch[0],
+          pageTitle: 'ブラウザ自動化セッション',
+          elementText: 'ライブビューURL検知'
+        });
+        
+        return; // 早期リターン
+      }
+      
       // Browser Automation Tool関連のキーワードを検知
       const browserAutomationKeywords = [
         'browser-automation-tool',
@@ -797,7 +991,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         'Browser Automation Tool',
         'セッションID:',
         'Session ID:',
-        'browserbase-'
+        'browserbase-',
+        'ブラウザ自動化セッション開始',
+        'browser-session',
+        'ブラウザセッション作成完了',
+        '🌐 ライブビューURL:'
       ];
       
       const containsBrowserAutomation = browserAutomationKeywords.some(keyword => 
@@ -810,7 +1008,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
         // セッション情報を抽出
         const sessionIdMatch = content.match(/(?:セッション|Session)\s*ID[:\s]*([a-f0-9-]{8,})/i) ||
                               content.match(/browserbase-(\d+)/i);
-        const replayUrlMatch = content.match(/(https:\/\/[^\s)]+)/);
+        const replayUrlMatch = content.match(/(https:\/\/www\.browserbase\.com\/sessions\/[^\s)]+)/);
         
         onBrowserAutomationDetected({
           sessionId: sessionIdMatch ? sessionIdMatch[1] : `content-${Date.now()}`,
@@ -1235,7 +1433,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       case 'browserbase-automation':
       case 'browser-automation-tool':
         if (result?.sessionId) {
-          const browserbaseData = browserbaseTool[toolState.id];
+          // 🔧 **この処理は既にuseEffect内で実行されているため、ここでは削除**
+          // renderToolResult内では表示のみを行い、コールバック呼び出しはuseEffect内で処理
+          
           return (
             <div className="mt-2">
               <div className="text-sm text-gray-700 mb-2">
@@ -1247,18 +1447,66 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 </div>
               )}
               
-              {/* BrowserbaseToolコンポーネントを表示 */}
-              <BrowserOperationSidebar
-                sessionId={result.sessionId}
-                replayUrl={result.replayUrl}
-                liveViewUrl={result.liveViewUrl}
-                pageTitle={result.pageTitle}
-                autoOpenPreview={false}
-                forcePanelOpen={false}
-                onPreviewOpen={onPreviewOpen}
-                onPreviewClose={onPreviewClose}
-                onPreviewWidthChange={onPreviewWidthChange}
-              />
+              {/* セッション情報の表示 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <span className="font-medium">🌐 ブラウザセッション</span>
+                  <span>•</span>
+                  <span>ID: {result.sessionId.substring(0, 8)}...</span>
+                  {result.liveViewUrl && (
+                    <>
+                      <span>•</span>
+                      <span className="text-green-600">ライブビュー利用可能</span>
+                    </>
+                  )}
+                </div>
+                <div className="text-xs text-blue-600 mt-1">
+                  右側のブラウザ自動化パネルでリアルタイム表示を確認できます
+                </div>
+              </div>
+              
+              {/* 検証結果の表示 */}
+              {result.verificationResults && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                  <div className="flex items-center gap-2 text-sm text-green-800">
+                    <span className="font-medium">✅ 検証結果</span>
+                    <span>•</span>
+                    <span>スコア: {result.verificationResults.overallScore}/100</span>
+                    <span>•</span>
+                    <span>レベル: {result.verificationResults.level}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* 外部リンク */}
+              <div className="flex gap-2 mt-3">
+                {result.liveViewUrl && (
+                  <a
+                    href={result.liveViewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700 transition-colors"
+                  >
+                    <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    ライブビューを開く
+                  </a>
+                )}
+                {result.replayUrl && (
+                  <a
+                    href={result.replayUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-1 bg-gray-600 text-white rounded-md text-xs hover:bg-gray-700 transition-colors"
+                  >
+                    <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 00-3-3H6a3 3 0 00-3 3v10a3 3 0 003 3h7M13 21h6a2 2 0 002-2V9a2 2 0 00-2-2h-6v14z" />
+                    </svg>
+                    セッションリプレイ
+                  </a>
+                )}
+              </div>
             </div>
           );
         } else if (result?.error) {
@@ -1402,6 +1650,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
       // このツールの画像データを取得
       const imageData = imageTool[toolState.id];
       
+      // 🔧 **browser-sessionツール/browserSessionToolの検出と処理**
+      const isBrowserSessionTool = toolState.toolName === 'browser-session' || toolState.toolName === 'browserSessionTool';
+      const isBrowserGotoTool = toolState.toolName === 'browser-goto' || toolState.toolName === 'browserGotoTool';
+      const isBrowserActTool = toolState.toolName === 'browser-act';
+      const isBrowserScreenshotTool = toolState.toolName === 'browser-screenshot';
+      const isBrowserExtractTool = toolState.toolName === 'browser-extract';
+      
+      // 新しいブラウザツールかどうか
+      const isNewBrowserTool = isBrowserSessionTool || isBrowserGotoTool || isBrowserActTool || isBrowserScreenshotTool || isBrowserExtractTool;
+      
       // このツールのBrowserbaseデータを取得
       const browserbaseData = toolState.result?.sessionId ? {
         sessionId: toolState.result.sessionId,
@@ -1418,7 +1676,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           isLoading={isLoading}
           isPreviewTool={isPresentationTool}
           isImageTool={toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation'}
-          isBrowserbaseTool={toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool'}
+          isBrowserbaseTool={toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool' || isBrowserSessionTool}
           onPreviewClick={() => {
             if (previewData) {
               openPreviewPanel(previewData.htmlContent, previewData.title);
@@ -1466,8 +1724,29 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-1">ツール結果</h4>
                 
-                {/* browser-automation-toolの特別な処理 */}
-                {(toolState.toolName === 'browser-automation-tool' || toolState.toolName === 'browserbase-automation') && toolState.result?.markdownContent ? (
+                {/* 🔧 **browser-sessionツールの特別な処理** */}
+                {isBrowserSessionTool && toolState.result?.sessionId ? (
+                  <div className="space-y-3">
+                    <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto max-h-96`}>
+                      {JSON.stringify(toolState.result, null, 2)}
+                    </pre>
+                    
+                    {/* ライブビューを即座に表示 */}
+                    <div className="pt-2">
+                      <BrowserOperationSidebar
+                        sessionId={toolState.result.sessionId}
+                        replayUrl={toolState.result.replayUrl}
+                        liveViewUrl={toolState.result.liveViewUrl}
+                        pageTitle="ブラウザセッション"
+                        autoOpenPreview={true}
+                        forcePanelOpen={false}
+                        onPreviewOpen={onPreviewOpen}
+                        onPreviewClose={onPreviewClose}
+                        onPreviewWidthChange={onPreviewWidthChange}
+                      />
+                    </div>
+                  </div>
+                ) : (toolState.toolName === 'browser-automation-tool' || toolState.toolName === 'browserbase-automation') && toolState.result?.markdownContent ? (
                   <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
                     {/* Markdownコンテンツをレンダリング */}
                     <div className="prose prose-sm max-w-none">

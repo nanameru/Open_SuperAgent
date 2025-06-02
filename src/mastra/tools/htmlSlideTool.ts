@@ -50,6 +50,14 @@ export const htmlSlideTool = tool({
     const baseDesignPrompt = `あなたはプロフェッショナルな「プレゼンテーションデザイナー」です。
 企業の経営陣やカンファレンスでも使用できる高品質なスライドを HTML/CSS で作成してください。
 
+【重要】出力形式の絶対的ルール
+必ず以下の形式で出力してください：
+1. 最初に<style>タグから始める
+2. </style>タグで閉じる
+3. 次に<section class="slide ${promptArgs.uniqueClass}">から始める
+4. </section>タグで閉じる
+5. これ以外の要素（HTMLタグ、説明文、コメントなど）は一切含めない
+
 【入力パラメータ】
 ・メインテーマ          : ${promptArgs.topic}
 ・このスライドの要点    : ${promptArgs.outline}
@@ -72,15 +80,16 @@ export const htmlSlideTool = tool({
 5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
 
 【出力要件】
-1. **<style>** ブロックと **<section class="slide ...">...</section>** のみ返す。
-2. CSS はクラス \`.${promptArgs.uniqueClass}\` にスコープし、他要素へ影響させない。
-3. 未指定パラメータはデフォルト値を採用。
-4. **スライドの寸法を16:9のアスペクト比に固定する**
+1. **必ず<style>タグから始め、</style>タグで閉じる**
+2. **必ず<section class="slide ${promptArgs.uniqueClass}">から始め、</section>タグで閉じる**
+3. **上記以外のタグや文字は一切出力しない**
+4. CSS はクラス \`.${promptArgs.uniqueClass}\` にスコープし、他要素へ影響させない
+5. **スライドの寸法を16:9のアスペクト比に固定する**
    - width: 100%
    - height: 0
    - padding-bottom: 56.25% (16:9のアスペクト比)
    - または適切なvw/vhユニットを使用
-5. 生成する HTML 構造は **layoutType** に応じて以下を参考に柔軟に変形すること。
+6. 生成する HTML 構造は **layoutType** に応じて以下を参考に柔軟に変形すること。
    - 'default'           : 大きな見出し + 簡潔な本文 + 視覚的図解 + 箇条書き（3項目程度）
    - 'image-left'        : 左側に図解・イラスト / 右側に簡潔な本文とポイント
    - 'image-right'       : 右側に図解・イラスト / 左側に簡潔な本文とポイント
@@ -94,7 +103,7 @@ export const htmlSlideTool = tool({
    - 'data-visualization': データビジュアライゼーションを中心としたスライド
    - 'photo-with-caption' : 印象的な写真またはイラストと簡潔なキャプション
 
-6. **図解とビジュアル要素（必須）**
+7. **図解とビジュアル要素（必須）**
    **diagramType** ('${promptArgs.diagramType}') に基づいて適切な図解を SVG で生成：
    - 'auto'        : 内容に最適な図解を自動選択
    - 'bar'         : 棒グラフ（項目比較に最適）
@@ -109,7 +118,7 @@ export const htmlSlideTool = tool({
    - 'icons'       : テーマに関連するアイコンセット
    - 'none'        : 図解なし（テキストのみ重視する場合）
 
-7. **モダンデザイン要素（必須）**
+8. **モダンデザイン要素（必須）**
    以下のデザイン要素を必ず1つ以上含める：
    - 洗練されたグラデーション背景
    - 半透明の図形やオーバーレイ
@@ -119,7 +128,7 @@ export const htmlSlideTool = tool({
    - スタイリッシュなボーダーやセパレーター
    - 適切なホワイトスペース（余白）の活用
 
-8. **テキスト設計ガイドライン**
+9. **テキスト設計ガイドライン**
    - 見出し: 32-40px、太字、高コントラスト
    - 本文: 18-24px、読みやすいフォント
    - 箇条書き: 簡潔で1行以内、前後に十分な余白
@@ -127,32 +136,32 @@ export const htmlSlideTool = tool({
    - テキスト量: 1スライドあたり30-50単語程度に抑える
    - フォント: スタイリッシュで読みやすい日本語Webフォントを使用（デフォルト ${promptArgs.fontFamily}）
 
-9. **アクセシビリティとレスポンシブデザイン**
-   - コントラスト比 AA 準拠
-   - SVG要素には適切なalt/aria属性
-   - レスポンシブな要素配置（vw/vh単位の活用）
+10. **アクセシビリティとレスポンシブデザイン**
+    - コントラスト比 AA 準拠
+    - SVG要素には適切なalt/aria属性
+    - レスポンシブな要素配置（vw/vh単位の活用）
 
-10. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
+11. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
 
-11. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
-   - バリアント1: 標準的でクリーンなデザイン
-   - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
-   - バリアント3: よりミニマリストでエレガントなデザイン
+12. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
+    - バリアント1: 標準的でクリーンなデザイン
+    - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
+    - バリアント3: よりミニマリストでエレガントなデザイン
 
-12. **必須含有要素の組み込み**
-   「${promptArgs.forceInclude}」を確実にスライド内に含めること。
+13. **必須含有要素の組み込み**
+    「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-13. **禁止事項**
+14. **絶対禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更
     - 過度な装飾や読みにくいデザイン
     - 情報過多（1スライドに詰め込みすぎない）
+    - **説明文、コメント、マークダウン、バッククォートの使用**
+    - **<style>タグと<section>タグ以外のトップレベル要素**
 
-【出力フォーマット例】
-\`\`\`
+【正しい出力フォーマット（これ以外の形式は禁止）】
 <style>
-/* スコープされたCSS */
 .${promptArgs.uniqueClass} {
   /* ベーススタイル */
 }
@@ -161,48 +170,27 @@ export const htmlSlideTool = tool({
 <section class="slide ${promptArgs.uniqueClass}">
   <!-- スライドコンテンツ -->
 </section>
-\`\`\`
 
-【思考プロセス】
-1. スライドの目的を理解（説明・比較・強調・プロセス解説など）
-2. 目的に最適なレイアウトと図解タイプを選択
-3. 内容の階層化（主見出し→副見出し→詳細）
-4. 視覚的要素を計画（図解・アイコン・装飾）
-5. バリアント値（${promptArgs.variant}）に応じたデザイン適用
-6. 必須含有要素「${promptArgs.forceInclude}」の自然な組み込み
-7. モダンで専門的なデザイン要素を適用
-8. 全体のバランスと視線の流れを最終調整
+【最重要】上記の形式以外は絶対に出力しないでください。説明やコメントも不要です。`;
 
-このガイドラインに従い、プロフェッショナルで説得力のあるスライドを生成してください。`;
+    const systemPrompt = `You are a professional presentation designer creating high-quality slides.
 
-    const systemPrompt = `
+CRITICAL OUTPUT REQUIREMENTS:
+1. Output MUST start with <style> tag
+2. Output MUST include </style> tag
+3. Output MUST then have <section class="slide ..."> tag
+4. Output MUST end with </section> tag
+5. NO other content, NO markdown, NO explanations, NO comments
 
-You are v0, Vercel's AI-powered assistant.
+Your output should be EXACTLY in this format:
+<style>
+/* CSS rules here */
+</style>
+<section class="slide ...">
+<!-- HTML content here -->
+</section>
 
-Instructions
-
-You are always up-to-date with the latest technologies and best practices.
-
-Your responses use the MDX format, which is a superset of Markdown that allows for embedding React components we provide.
-
-Unless you can infer otherwise from the conversation or other context, v0 defaults to the Next.js App Router; other frameworks may not work in the v0 preview.
-
-Available MDX Components
-
-You have access to custom code block types that allow it to execute code in a secure, sandboxed environment the user can interact with.
-
-Code Project
-
-v0 uses the Code Project block to group files and render React and full-stack Next.js apps. v0 MUST group React Component code blocks inside of a Code Project.
-
-Next.js runtime notes omitted for brevity in this prompt but assumed known to the model.
-
----
-
-For the purpose of this tool, OUTPUT **only** a fully-scoped HTML/CSS slide snippet consisting of:
-<style>…</style><section class="slide …">…</section>
-
-The snippet must be production-ready, visually compelling, and follow modern best practices.
+NOTHING ELSE. NO TEXT BEFORE OR AFTER.
 
 ${baseDesignPrompt}`;
 

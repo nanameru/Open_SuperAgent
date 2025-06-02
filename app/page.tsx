@@ -217,30 +217,30 @@ export default function AppPage() {
     const allMessages = messages;
     
     // デバッグ: 全メッセージの詳細をログ出力
-    console.log("[Page] 全メッセージ詳細:", messages.map(m => ({
-      id: m.id,
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content.substring(0, 200) + '...' : m.content,
-      annotations: m.annotations,
-      toolInvocations: (m as any).toolInvocations
-    })));
+    // console.log("[Page] 全メッセージ詳細:", messages.map(m => ({
+    //   id: m.id,
+    //   role: m.role,
+    //   content: typeof m.content === 'string' ? m.content.substring(0, 200) + '...' : m.content,
+    //   annotations: m.annotations,
+    //   toolInvocations: (m as any).toolInvocations
+    // })));
     
     // 🎯 browserAutomationTool実行検出は ChatMessage コンポーネントで処理されるため、
     // ここでは他のツールの処理のみを行う
     
     for (const msg of allMessages) {
-      console.log("[Page] メッセージ詳細:", {
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        annotations: msg.annotations,
-        toolInvocations: (msg as any).toolInvocations
-      });
+      // console.log("[Page] メッセージ詳細:", {
+      //   id: msg.id,
+      //   role: msg.role,
+      //   content: msg.content,
+      //   annotations: msg.annotations,
+      //   toolInvocations: (msg as any).toolInvocations
+      // });
       
       // ツール呼び出しを含むメッセージを処理
       if (msg.content && typeof msg.content === 'string') {
         try {
-          // Brave検索ツールの結果を検出した場合
+                // Brave検索ツールの結果を検出した場合
           if (msg.content.includes('brave-search') || msg.content.includes('braveSearchTool')) {
             console.log("[Page] Brave search tool result detected");
           }
@@ -255,14 +255,14 @@ export default function AppPage() {
   }, [messages]);
 
   // デバッグ情報（開発モードのみ）
-  useEffect(() => {
-    console.log("[Page] 現在のツールメッセージ:", toolMessages);
-  }, [toolMessages]);
+  // useEffect(() => {
+  //   console.log("[Page] 現在のツールメッセージ:", toolMessages);
+  // }, [toolMessages]);
 
   // Browserbaseツール状態のデバッグ
-  useEffect(() => {
-    console.log("[Page] Browserbaseツール状態:", browserbaseToolState);
-  }, [browserbaseToolState]);
+  // useEffect(() => {
+  //   console.log("[Page] Browserbaseツール状態:", browserbaseToolState);
+  // }, [browserbaseToolState]);
 
   // forcePanelOpenフラグが設定された時に自動的にプレビューパネルを開く
   useEffect(() => {
@@ -337,15 +337,28 @@ export default function AppPage() {
   }) => {
     console.log('[Page] 🌐 Browser Automation Tool detected:', data);
     
-    // 🔧 **参考実装と同じ即座表示ロジック**
-    setBrowserbaseToolState({
-      isActive: true,
-      sessionId: data.sessionId,
-      replayUrl: data.replayUrl,
-      liveViewUrl: data.liveViewUrl,
-      pageTitle: data.pageTitle,
-      elementText: data.elementText,
-      forcePanelOpen: true
+    // 🔧 **ライブビューURLが無い場合は自動生成**
+    let finalLiveViewUrl = data.liveViewUrl;
+    if (!finalLiveViewUrl && data.sessionId && data.sessionId !== 'default-session' && !data.sessionId.startsWith('starting-')) {
+      // セッションIDからライブビューURLを生成（実行開始時は除く）
+      finalLiveViewUrl = `https://www.browserbase.com/devtools-internal-compiled/index.html?sessionId=${data.sessionId}`;
+      console.log('[Page] 🔧 Generated live view URL from sessionId:', finalLiveViewUrl);
+    }
+    
+    // 🔧 **状態更新時に既存の値を保持**
+    setBrowserbaseToolState(prev => {
+      // 実行開始時（starting-で始まるセッションID）の場合は、ライブビューURLを保持
+      const shouldPreserveLiveViewUrl = data.sessionId.startsWith('starting-') && prev.liveViewUrl;
+      
+      return {
+        isActive: true,
+        sessionId: data.sessionId,
+        replayUrl: data.replayUrl,
+        liveViewUrl: shouldPreserveLiveViewUrl ? prev.liveViewUrl : finalLiveViewUrl,
+        pageTitle: data.pageTitle,
+        elementText: data.elementText,
+        forcePanelOpen: true
+      };
     });
     
     // 🔧 **即座にブラウザパネルを表示（参考実装と同じ）**
@@ -355,22 +368,74 @@ export default function AppPage() {
     console.log('[Page] ✅ Browser panel activated:', {
       showBrowserPanel: true,
       sessionId: data.sessionId,
-      liveViewUrl: data.liveViewUrl,
+      liveViewUrl: finalLiveViewUrl,
+      originalLiveViewUrl: data.liveViewUrl,
+      isStarting: data.sessionId.startsWith('starting-'),
       timestamp: new Date().toISOString()
     });
   }, []);
 
-  // 🔧 **状態変化の監視**
+  // 🚀 **ライブビューURL発行イベントのリスナー**
   useEffect(() => {
-    console.log('[Page] 🔍 State changed:', {
-      showBrowserPanel,
-      browserbaseToolState: {
-        isActive: browserbaseToolState.isActive,
-        sessionId: browserbaseToolState.sessionId,
-        liveViewUrl: browserbaseToolState.liveViewUrl
-      }
-    });
-  }, [showBrowserPanel, browserbaseToolState]);
+    const handleLiveViewReady = (event: CustomEvent) => {
+      const { sessionId, liveViewUrl, replayUrl, timestamp, status } = event.detail;
+      
+      console.log('[Page] 🌐 ライブビューURL発行イベント受信:', {
+        sessionId,
+        liveViewUrl,
+        replayUrl,
+        timestamp,
+        status
+      });
+      
+      // 🔧 **ライブビューURLが利用可能になった瞬間に状態を更新**
+      setBrowserbaseToolState(prev => {
+        // 同じセッションIDの場合のみ更新
+        if (prev.sessionId === sessionId || prev.sessionId.includes(sessionId)) {
+          console.log('[Page] ✅ ライブビューURL更新:', {
+            oldUrl: prev.liveViewUrl,
+            newUrl: liveViewUrl,
+            sessionId
+          });
+          
+          return {
+            ...prev,
+            liveViewUrl,
+            replayUrl,
+            isActive: true,
+            forcePanelOpen: true
+          };
+        }
+        
+        return prev;
+      });
+      
+      // パネルを確実に表示
+      setShowBrowserPanel(true);
+      setIsPreviewOpen(true);
+    };
+
+    // イベントリスナーを追加
+    if (typeof window !== 'undefined') {
+      window.addEventListener('browserAutomationLiveViewReady', handleLiveViewReady as EventListener);
+      
+      return () => {
+        window.removeEventListener('browserAutomationLiveViewReady', handleLiveViewReady as EventListener);
+      };
+    }
+  }, []);
+
+  // 🔧 **状態変化の監視**
+  // useEffect(() => {
+  //   console.log('[Page] 🔍 State changed:', {
+  //     showBrowserPanel,
+  //     browserbaseToolState: {
+  //       isActive: browserbaseToolState.isActive,
+  //       sessionId: browserbaseToolState.sessionId,
+  //       liveViewUrl: browserbaseToolState.liveViewUrl
+  //     }
+  //   });
+  // }, [showBrowserPanel, browserbaseToolState]);
 
   return (
     <SidebarProvider>
@@ -441,10 +506,21 @@ export default function AppPage() {
           {showBrowserPanel && (
             <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative">
               {/* 🔧 **デバッグ情報を表示** */}
-              <div className="absolute top-2 left-2 z-10 bg-blue-100 text-blue-800 text-xs p-2 rounded">
-                Panel: {showBrowserPanel ? 'ON' : 'OFF'} | 
-                Session: {browserbaseToolState.sessionId || 'none'} |
-                Live: {browserbaseToolState.liveViewUrl ? 'yes' : 'no'}
+              <div className="absolute top-2 left-2 z-10 bg-blue-100 text-blue-800 text-xs p-2 rounded max-w-md">
+                <div>Panel: {showBrowserPanel ? 'ON' : 'OFF'}</div>
+                <div>Session: {browserbaseToolState.sessionId || 'none'}</div>
+                <div>Live: {browserbaseToolState.liveViewUrl ? 'yes' : 'no'}</div>
+                <div>Replay: {browserbaseToolState.replayUrl ? 'yes' : 'no'}</div>
+                <div>Active: {browserbaseToolState.isActive ? 'yes' : 'no'}</div>
+                <div>Time: {new Date().toLocaleTimeString()}</div>
+                {browserbaseToolState.liveViewUrl && (
+                  <div className="mt-1 text-xs break-all">
+                    <div className="font-semibold">Live URL:</div>
+                    <div className="bg-white/50 p-1 rounded">
+                      {browserbaseToolState.liveViewUrl.substring(0, 80)}...
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* 非表示ボタン */}
