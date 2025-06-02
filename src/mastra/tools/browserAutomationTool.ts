@@ -234,17 +234,26 @@ export const browserAutomationTool = createTool({
       let liveViewUrl: string;
       try {
         const debugInfo = await bb.sessions.debug(sessionId);
-        // 🔧 **iframe表示に適したURLに変換**
+        // 🔧 **正しいライブビューURLを使用（ChatFeed.tsxと完全に同じロジック）**
         if (debugInfo.debuggerFullscreenUrl) {
-          // DevToolsのURLをライブビューURLに変換
-          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
-          console.log(`🔗 ライブビューURL生成: ${liveViewUrl}`);
+          // 🌐 **URL変換処理を適用（参考実装と完全に同じ）**
+          const originalUrl = debugInfo.debuggerFullscreenUrl;
+          
+          // ChatFeed.tsxと同じURL変換処理
+          liveViewUrl = originalUrl.replace(
+            "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+            "https://www.browserbase.com/devtools-internal-compiled/index.html"
+          );
+          
+          console.log(`🔗 ライブビューURL変換: ${originalUrl} -> ${liveViewUrl}`);
         } else {
-          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
+          // フォールバック用のURL
+          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+          console.log(`🔗 フォールバックURL使用: ${liveViewUrl}`);
         }
       } catch (error) {
         console.warn('⚠️ ライブビューURL取得失敗:', error);
-        liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}/live`;
+        liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}`;
       }
       
       const replayUrl = `https://www.browserbase.com/sessions/${sessionId}`;

@@ -38,6 +38,10 @@ export function BrowserOperationSidebar({
   const [isPreviewOpen, setIsPreviewOpen] = useState(true); // デフォルトで開く
   const [viewMode, setViewMode] = useState<'live' | 'replay'>('live');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'loading'>('loading');
+  
+  // 🔧 **手動URL入力機能**
+  const [manualUrl, setManualUrl] = useState<string>('');
+  const [useManualUrl, setUseManualUrl] = useState<boolean>(false);
 
   // 🔧 デバッグログを追加
   useEffect(() => {
@@ -54,6 +58,17 @@ export function BrowserOperationSidebar({
       onPreviewClose,
       onPreviewWidthChange
     });
+    
+    // 🔧 **URL形式の詳細ログ**
+    if (liveViewUrl) {
+      console.log('[BrowserOperationSidebar] 🔗 Live View URL details:', {
+        url: liveViewUrl,
+        isValidUrl: liveViewUrl.startsWith('https://'),
+        containsDevtools: liveViewUrl.includes('devtools'),
+        containsHash: liveViewUrl.includes('#'),
+        containsStarting: liveViewUrl.includes('starting')
+      });
+    }
   }, [sessionId, replayUrl, liveViewUrl, screenshot, pageTitle, elementText, autoOpenPreview, forcePanelOpen, onPreviewOpen, onPreviewClose, onPreviewWidthChange]);
 
   // 自動プレビュー開始
@@ -62,13 +77,20 @@ export function BrowserOperationSidebar({
     onPreviewOpen?.();
   }, [onPreviewOpen]);
 
-  // 接続状態の設定
+  // 🔧 **参考実装と同じ即座表示ロジック**
   useEffect(() => {
-    if (liveViewUrl && !liveViewUrl.includes('#')) {
+    // 🌐 **有効なURLがあれば即座に表示（参考実装と同じ）**
+    if (liveViewUrl && liveViewUrl.startsWith('https://') && !liveViewUrl.includes('#')) {
+      console.log('[BrowserOperationSidebar] ✅ Valid live view URL detected:', liveViewUrl);
       setConnectionStatus('connected');
-    } else if (replayUrl && !replayUrl.includes('#')) {
-      setConnectionStatus('disconnected');
+      setViewMode('live');
+    } else if (replayUrl && replayUrl.startsWith('https://') && !replayUrl.includes('#')) {
+      console.log('[BrowserOperationSidebar] ✅ Valid replay URL detected:', replayUrl);
+      setConnectionStatus('connected'); // replayも接続済みとして扱う
       setViewMode('replay');
+    } else {
+      console.log('[BrowserOperationSidebar] ⏳ Waiting for valid URL...', { liveViewUrl, replayUrl });
+      setConnectionStatus('loading');
     }
   }, [liveViewUrl, replayUrl]);
 
@@ -83,9 +105,13 @@ export function BrowserOperationSidebar({
     }
   }, [isPreviewOpen, onPreviewOpen, onPreviewClose]);
 
-  const currentUrl = viewMode === 'live' && liveViewUrl ? liveViewUrl : replayUrl;
-  const isLoading = sessionId.includes('loading') || sessionId.includes('starting') || replayUrl.includes('#') || connectionStatus === 'loading';
-  const isStarting = sessionId.includes('starting') || currentUrl?.includes('#starting');
+  // 🔧 **手動URLが設定されている場合はそれを優先**
+  const currentUrl = useManualUrl && manualUrl 
+    ? manualUrl 
+    : (viewMode === 'live' && liveViewUrl ? liveViewUrl : replayUrl);
+  
+  const isLoading = !useManualUrl && (sessionId.includes('loading') || sessionId.includes('starting') || replayUrl.includes('#') || connectionStatus === 'loading');
+  const isStarting = !useManualUrl && (sessionId.includes('starting') || currentUrl?.includes('#starting'));
   
   // 🔧 **実行完了の判定を追加**
   const isCompleted = !isLoading && !isStarting && currentUrl && !currentUrl.includes('#');
@@ -104,13 +130,14 @@ export function BrowserOperationSidebar({
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      {/* 最小限のヘッダー */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 py-2">
+      {/* ヘッダー - URL入力機能付き */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 py-2 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Monitor className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium text-gray-800">ブラウザ自動化</span>
             <div className={`w-2 h-2 rounded-full ${
+              useManualUrl ? 'bg-green-500' :
               isLoading ? 'bg-yellow-500 animate-pulse' : 
               connectionStatus === 'disconnected' ? 'bg-gray-500' :
               viewMode === 'live' ? 'bg-red-500' : 'bg-blue-500'
@@ -119,7 +146,7 @@ export function BrowserOperationSidebar({
           
           <div className="flex items-center gap-1">
             {/* 小さなコントロールボタン */}
-            {liveViewUrl && connectionStatus !== 'disconnected' && (
+            {!useManualUrl && liveViewUrl && connectionStatus !== 'disconnected' && (
               <Button
                 variant={viewMode === 'live' ? 'default' : 'ghost'}
                 size="sm"
@@ -130,23 +157,67 @@ export function BrowserOperationSidebar({
                 <Play className="h-3 w-3" />
               </Button>
             )}
-            <Button
-              variant={viewMode === 'replay' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('replay')}
-              className="h-6 px-2 text-xs"
-            >
-              <Square className="h-3 w-3" />
-            </Button>
+            {!useManualUrl && (
+              <Button
+                variant={viewMode === 'replay' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('replay')}
+                className="h-6 px-2 text-xs"
+              >
+                <Square className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => window.open(currentUrl, '_blank')}
               className="h-6 px-2 text-xs"
+              disabled={!currentUrl}
             >
               <ExternalLink className="h-3 w-3" />
             </Button>
           </div>
+        </div>
+        
+        {/* 🔧 **手動URL入力エリア** */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="useManualUrl"
+              checked={useManualUrl}
+              onChange={(e) => setUseManualUrl(e.target.checked)}
+              className="h-3 w-3"
+            />
+            <label htmlFor="useManualUrl" className="text-xs text-gray-600">
+              手動URL入力
+            </label>
+          </div>
+          
+          {useManualUrl && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualUrl}
+                onChange={(e) => setManualUrl(e.target.value)}
+                placeholder="https://www.browserbase.com/devtools-internal-compiled/index.html?sessionId=..."
+                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (manualUrl) {
+                    setConnectionStatus('connected');
+                    console.log('[BrowserOperationSidebar] Manual URL set:', manualUrl);
+                  }
+                }}
+                className="h-6 px-2 text-xs"
+                disabled={!manualUrl}
+              >
+                適用
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -179,22 +250,37 @@ export function BrowserOperationSidebar({
               <p className="text-sm text-gray-600">セッションが終了しました</p>
             </div>
           </div>
-        ) : currentUrl && !currentUrl.includes('#') ? (
-          <iframe
-            src={currentUrl}
-            className="w-full h-full border-0"
-            title={`Browserbase ${viewMode === 'live' ? 'Live View' : 'Session Replay'}`}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            allow="clipboard-read; clipboard-write; fullscreen"
-            onLoad={() => {
-              console.log('[BrowserOperationSidebar] iframe loaded:', currentUrl);
-              setConnectionStatus('connected');
-            }}
-            onError={() => {
-              console.error('[BrowserOperationSidebar] iframe error:', currentUrl);
-              setConnectionStatus('disconnected');
-            }}
-          />
+        ) : currentUrl && (currentUrl.startsWith('https://') || useManualUrl) && !currentUrl.includes('#') ? (
+          <div className="w-full h-full relative">
+            {/* 🔧 **シンプルなiframe表示（手動URL対応）** */}
+            <iframe
+              src={currentUrl}
+              className="w-full h-full border-0"
+              title={useManualUrl ? 'Manual URL View' : `Browserbase ${viewMode === 'live' ? 'Live View' : 'Session Replay'}`}
+              sandbox="allow-same-origin allow-scripts allow-forms"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onLoad={() => {
+                console.log('[BrowserOperationSidebar] ✅ iframe loaded successfully:', currentUrl);
+                setConnectionStatus('connected');
+              }}
+              onError={(e) => {
+                console.error('[BrowserOperationSidebar] ❌ iframe error:', {
+                  url: currentUrl,
+                  error: e,
+                  timestamp: new Date().toISOString()
+                });
+                setConnectionStatus('disconnected');
+              }}
+            />
+            
+            {/* 🔧 **デバッグ情報（右下に小さく表示）** */}
+            <div className="absolute bottom-2 right-2 z-10 bg-black/70 text-white text-xs p-2 rounded max-w-xs">
+              <div className="font-semibold">{useManualUrl ? 'Manual URL' : 'Auto URL'}:</div>
+              <div className="break-all text-xs">{currentUrl}</div>
+              <div className="mt-1">Mode: {useManualUrl ? 'manual' : viewMode} | Status: {connectionStatus}</div>
+            </div>
+          </div>
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">
             <div className="text-center space-y-4 p-6">
@@ -207,6 +293,14 @@ export function BrowserOperationSidebar({
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-xs text-blue-700">
                     💡 チャットで「Webサイトを開いて」や「情報を検索して」などのタスクを入力してください
+                  </p>
+                </div>
+                <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-xs text-green-700">
+                    🔧 <strong>手動URL入力</strong>: 上部の「手動URL入力」チェックボックスをオンにして、BrowserbaseのライブビューURLを直接入力できます
+                  </p>
+                  <p className="text-xs text-green-600 mt-1">
+                    例: https://www.browserbase.com/devtools-internal-compiled/index.html?sessionId=...
                   </p>
                 </div>
               </div>

@@ -401,8 +401,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
             
             // 🔧 **browser-automation-toolの即座表示（参考実装と同じ）**
             if ((tc.toolName === 'browser-automation-tool' || tc.toolName === 'browserbase-automation') && tc.args) {
-              // 🌐 **即座にセッションを作成してライブビューを表示**
-              console.log('[ChatMessage] Browser Automation Tool実行開始を検知');
+              console.log('[ChatMessage] 🌐 Browser Automation Tool実行開始を検知');
               console.log('[ChatMessage] Tool call details:', {
                 toolName: tc.toolName,
                 toolCallId: tc.toolCallId,
@@ -410,30 +409,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                 timestamp: new Date().toISOString()
               });
               
-              // ツール実行開始時点でBrowserbaseToolデータを準備
-              setBrowserbaseTool(prev => ({
-                ...prev,
-                [tc.toolCallId]: {
-                  sessionId: 'starting-' + tc.toolCallId, // 開始状態のセッションID
-                  replayUrl: '#starting',
-                  liveViewUrl: '#starting',
-                  pageTitle: `ブラウザ自動化を開始中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
-                  title: 'ブラウザ自動化'
-                }
-              }));
-              
-              // 親コンポーネントに即座に通知（セッション作成中として）
+              // 🔧 **参考実装と同じ即座通知**
               if (onBrowserAutomationDetected) {
-                console.log('[ChatMessage] Calling onBrowserAutomationDetected callback');
+                console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected callback immediately');
                 onBrowserAutomationDetected({
                   sessionId: 'starting-' + tc.toolCallId,
                   replayUrl: '#starting',
                   liveViewUrl: '#starting',
-                  pageTitle: `ブラウザ自動化を開始中: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
+                  pageTitle: `ブラウザ自動化開始: ${(tc.args as any).task?.substring(0, 50) || 'タスク実行中'}...`,
                   elementText: 'セッション作成中...'
                 });
               } else {
-                console.warn('[ChatMessage] onBrowserAutomationDetected callback is not defined!');
+                console.error('[ChatMessage] ❌ onBrowserAutomationDetected callback is not defined!');
               }
             }
           });
@@ -527,6 +514,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               
               // Browserbaseツールの結果データを保存
               if ((toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool') && tr.result?.sessionId) {
+                console.log('[ChatMessage] Browser Automation Tool result received:', tr.result);
+                
                 setBrowserbaseTool(prev => ({
                   ...prev,
                   [tr.toolCallId]: {
@@ -537,6 +526,36 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
                     title: tr.result.pageTitle || 'ブラウザ自動化セッション'
                   }
                 }));
+                
+                // 🔧 **ツール結果受信時の即座通知（参考実装と同じ）**
+                if (onBrowserAutomationDetected && tr.result.sessionId) {
+                  console.log('[ChatMessage] 🎯 Browser automation result received, calling callback immediately');
+                  
+                  // 🌐 **URL変換処理を適用**
+                  let processedLiveViewUrl = tr.result.liveViewUrl;
+                  if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
+                    processedLiveViewUrl = processedLiveViewUrl.replace(
+                      "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+                      "https://www.browserbase.com/devtools-internal-compiled/index.html"
+                    );
+                    console.log('[ChatMessage] 🔗 URL変換適用:', tr.result.liveViewUrl, '->', processedLiveViewUrl);
+                  }
+                  
+                  console.log('[ChatMessage] ✅ Calling onBrowserAutomationDetected with processed data:', {
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: processedLiveViewUrl,
+                    pageTitle: tr.result.pageTitle
+                  });
+                  
+                  onBrowserAutomationDetected({
+                    sessionId: tr.result.sessionId,
+                    replayUrl: tr.result.replayUrl,
+                    liveViewUrl: processedLiveViewUrl,
+                    pageTitle: tr.result.pageTitle || 'ブラウザ自動化セッション',
+                    elementText: tr.result.result || 'ブラウザ自動化が完了しました'
+                  });
+                }
                 
                 // autoOpenPreviewが設定されていれば自動的にBrowserbaseプレビューを開く
                 if (tr.result.autoOpenPreview && onBrowserbasePreview) {
@@ -685,10 +704,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           console.log('[ChatMessage] Browser Automation Tool result detected:', result);
           
           // 🔧 **実行完了時の適切な通知**
+          // 🌐 **URL変換処理を適用**
+          let processedLiveViewUrl = result.liveViewUrl || `https://www.browserbase.com/sessions/${result.sessionId}/live`;
+          if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
+            processedLiveViewUrl = processedLiveViewUrl.replace(
+              "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+              "https://www.browserbase.com/devtools-internal-compiled/index.html"
+            );
+          }
+          
           onBrowserAutomationDetected({
             sessionId: result.sessionId || `session-${Date.now()}`,
             replayUrl: result.replayUrl || '#no-replay',
-            liveViewUrl: result.liveViewUrl || `https://www.browserbase.com/sessions/${result.sessionId}/live`,
+            liveViewUrl: processedLiveViewUrl,
             pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
             elementText: result.success ? 'ブラウザ自動化が完了しました' : 'ブラウザ自動化でエラーが発生しました'
           });
@@ -705,10 +733,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           if (toolName === 'browser-automation-tool' && result && onBrowserAutomationDetected) {
             console.log('[ChatMessage] Browser Automation Tool result detected from parts:', result);
             
+            // 🌐 **URL変換処理を適用**
+            let processedLiveViewUrl = result.liveViewUrl;
+            if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
+              processedLiveViewUrl = processedLiveViewUrl.replace(
+                "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+                "https://www.browserbase.com/devtools-internal-compiled/index.html"
+              );
+            }
+            
             onBrowserAutomationDetected({
               sessionId: result.sessionId || `session-${Date.now()}`,
               replayUrl: result.replayUrl || '#no-replay',
-              liveViewUrl: result.liveViewUrl,
+              liveViewUrl: processedLiveViewUrl,
               pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
               elementText: result.result || 'ブラウザ自動化が完了しました'
             });
@@ -728,10 +765,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
           const result = toolResult.result;
           console.log('[ChatMessage] Browser Automation Tool result detected from tool_results:', result);
           
+          // 🌐 **URL変換処理を適用**
+          let processedLiveViewUrl = result.liveViewUrl;
+          if (processedLiveViewUrl && processedLiveViewUrl.includes('devtools-fullscreen')) {
+            processedLiveViewUrl = processedLiveViewUrl.replace(
+              "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+              "https://www.browserbase.com/devtools-internal-compiled/index.html"
+            );
+          }
+          
           onBrowserAutomationDetected({
             sessionId: result.sessionId || `session-${Date.now()}`,
             replayUrl: result.replayUrl || '#no-replay',
-            liveViewUrl: result.liveViewUrl,
+            liveViewUrl: processedLiveViewUrl,
             pageTitle: result.pageTitle || 'ブラウザ自動化実行結果',
             elementText: result.result || 'ブラウザ自動化が完了しました'
           });

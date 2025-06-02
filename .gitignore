@@ -44,6 +44,7 @@ next-env.d.ts
 /public/generated-images/
 /public/generated-music/
 /public/generated-videos/
+/public/browser-screenshots/
 
 # Database files
 *.db

@@ -64,8 +64,10 @@ export default function AppPage() {
   const [toolMessages, setToolMessages] = useState<ToolMessage[]>([]);
   // 現在の会話ID（ストリームの再接続用）
   const [conversationId, setConversationId] = useState<string>(`conv-${Date.now()}`);
-  // ブラウザ自動化パネルの表示状態
+  // ブラウザ自動化パネルの表示状態（デフォルトで表示）
   const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(true);
+  
+
   // スライドツール関連の状態
   const [slideToolState, setSlideToolState] = useState<SlideToolState>({
     isActive: false,
@@ -333,9 +335,9 @@ export default function AppPage() {
     pageTitle?: string;
     elementText?: string;
   }) => {
-    console.log('[Page] Browser Automation Tool detected:', data);
-    console.log('[Page] Setting browserbaseToolState to active...');
+    console.log('[Page] 🌐 Browser Automation Tool detected:', data);
     
+    // 🔧 **参考実装と同じ即座表示ロジック**
     setBrowserbaseToolState({
       isActive: true,
       sessionId: data.sessionId,
@@ -345,10 +347,30 @@ export default function AppPage() {
       elementText: data.elementText,
       forcePanelOpen: true
     });
+    
+    // 🔧 **即座にブラウザパネルを表示（参考実装と同じ）**
+    setShowBrowserPanel(true);
     setIsPreviewOpen(true);
     
-    console.log('[Page] BrowserOperationSidebar should now be visible in sidebar');
+    console.log('[Page] ✅ Browser panel activated:', {
+      showBrowserPanel: true,
+      sessionId: data.sessionId,
+      liveViewUrl: data.liveViewUrl,
+      timestamp: new Date().toISOString()
+    });
   }, []);
+
+  // 🔧 **状態変化の監視**
+  useEffect(() => {
+    console.log('[Page] 🔍 State changed:', {
+      showBrowserPanel,
+      browserbaseToolState: {
+        isActive: browserbaseToolState.isActive,
+        sessionId: browserbaseToolState.sessionId,
+        liveViewUrl: browserbaseToolState.liveViewUrl
+      }
+    });
+  }, [showBrowserPanel, browserbaseToolState]);
 
   return (
     <SidebarProvider>
@@ -418,6 +440,13 @@ export default function AppPage() {
           {/* ブラウザ操作サイドバー - 50% */}
           {showBrowserPanel && (
             <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative">
+              {/* 🔧 **デバッグ情報を表示** */}
+              <div className="absolute top-2 left-2 z-10 bg-blue-100 text-blue-800 text-xs p-2 rounded">
+                Panel: {showBrowserPanel ? 'ON' : 'OFF'} | 
+                Session: {browserbaseToolState.sessionId || 'none'} |
+                Live: {browserbaseToolState.liveViewUrl ? 'yes' : 'no'}
+              </div>
+              
               {/* 非表示ボタン */}
               <button
                 onClick={() => setShowBrowserPanel(false)}
