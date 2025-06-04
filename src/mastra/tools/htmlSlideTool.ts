@@ -118,7 +118,45 @@ export const htmlSlideTool = tool({
    - 'icons'       : テーマに関連するアイコンセット
    - 'none'        : 図解なし（テキストのみ重視する場合）
 
-8. **モダンデザイン要素（必須）**
+8. **構造化されたHTML生成（必須）**
+   PPTXへの正確な変換のため、以下の構造化ルールに従う：
+   
+   a) スライドコンテナ構造:
+   <section class="slide ${promptArgs.uniqueClass}" data-layout="${promptArgs.layoutType}" data-slide-index="${promptArgs.slideIndex}">
+     <div class="slide-container" style="width: 1280px; height: 720px;">
+       <div class="slide-header" data-position="top">
+         <!-- タイトル要素 -->
+       </div>
+       <div class="slide-body" data-layout="${promptArgs.layoutType}">
+         <!-- メインコンテンツ -->
+       </div>
+       <div class="slide-footer" data-position="bottom">
+         <!-- フッター要素 -->
+       </div>
+     </div>
+   </section>
+
+   b) セマンティックな要素:
+   - タイトル: <h1 class="slide-title" data-element-type="title">
+   - サブタイトル: <h2 class="slide-subtitle" data-element-type="subtitle">
+   - 本文: <p class="slide-text" data-element-type="body">
+   - リスト: <ul class="slide-list" data-element-type="list">
+   - 強調ボックス: <div class="concept-box" data-element-type="highlight-box">
+   - 図表: <div class="diagram-container" data-element-type="diagram">
+   - アイコン: <i class="icon" data-element-type="icon" data-icon-name="...">
+
+   c) レイアウト情報:
+   - 2カラム: <div class="flex-container" data-layout="two-column">
+              <div class="column-left" data-width="50%">...</div>
+              <div class="column-right" data-width="50%">...</div>
+            </div>
+   - グリッド: <div class="grid-container" data-layout="grid" data-columns="3">
+
+   d) 位置情報:
+   - 明示的な位置指定: data-position="top|center|bottom|left|right"
+   - サイズ指定: data-width="50%" data-height="200px"
+
+9. **モダンデザイン要素（必須）**
    以下のデザイン要素を必ず1つ以上含める：
    - 洗練されたグラデーション背景
    - 半透明の図形やオーバーレイ
@@ -128,7 +166,7 @@ export const htmlSlideTool = tool({
    - スタイリッシュなボーダーやセパレーター
    - 適切なホワイトスペース（余白）の活用
 
-9. **テキスト設計ガイドライン**
+10. **テキスト設計ガイドライン**
    - 見出し: 32-40px、太字、高コントラスト
    - 本文: 18-24px、読みやすいフォント
    - 箇条書き: 簡潔で1行以内、前後に十分な余白
@@ -136,22 +174,22 @@ export const htmlSlideTool = tool({
    - テキスト量: 1スライドあたり30-50単語程度に抑える
    - フォント: スタイリッシュで読みやすい日本語Webフォントを使用（デフォルト ${promptArgs.fontFamily}）
 
-10. **アクセシビリティとレスポンシブデザイン**
+11. **アクセシビリティとレスポンシブデザイン**
     - コントラスト比 AA 準拠
     - SVG要素には適切なalt/aria属性
     - レスポンシブな要素配置（vw/vh単位の活用）
 
-11. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
+12. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
 
-12. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
+13. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
     - バリアント1: 標準的でクリーンなデザイン
     - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
     - バリアント3: よりミニマリストでエレガントなデザイン
 
-13. **必須含有要素の組み込み**
+14. **必須含有要素の組み込み**
     「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-14. **絶対禁止事項**
+15. **絶対禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更

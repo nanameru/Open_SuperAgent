@@ -93,6 +93,33 @@ BROWSERBASE_PROJECT_ID=your_browserbase_project_id_here
 # Get your API key from: https://aistudio.google.com/app/apikey
 GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key_here
 GEMINI_API_KEY=your_google_ai_api_key_here
+
+# Anthropic Claude API Configuration
+# Get your API key from: https://console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# OpenAI API Configuration
+# Get your API key from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# X.AI Grok API Configuration
+# Get your API key from: https://x.ai/api
+XAI_API_KEY=your_xai_api_key_here
+
+# Brave Search API Configuration
+# Get your API key from: https://api.search.brave.com/app/keys
+BRAVE_API_KEY=your_brave_api_key_here
+
+# V0 Code Generation API Configuration
+# Get your API key from: https://v0.dev/settings
+V0_API_KEY=your_v0_api_key_here
+
+# Fal.ai API Configuration (for media generation)
+# Get your API key from: https://fal.ai/dashboard/keys
+FAL_KEY=your_fal_key_here
+
+# Node Environment
+NODE_ENV=development
 ```
 
 ### 技術仕様
@@ -119,6 +146,12 @@ cd open-superagent
 
 # 依存パッケージをインストール
 npm install
+
+# 環境変数ファイルを作成
+cp .env.example .env  # .env.exampleがない場合は手動で.envファイルを作成
+
+# .envファイルを編集し、必要なAPIキーを設定
+# 詳細は「環境変数設定」セクションを参照
 
 # 開発サーバーを起動
 npm run dev
@@ -390,4 +423,50 @@ await geminiDJTool.invoke({
 1. [Browserbase Dashboard](https://browserbase.com/dashboard/settings) にアクセス
 2. アカウント作成またはサインイン
 3. API KeyとProject IDを取得
+4. `.env`ファイルに追加
+
+### Anthropic Claude APIキー
+1. [Anthropic Console](https://console.anthropic.com/settings/keys) にアクセス
+2. アカウント作成またはサインイン
+3. "Create Key" をクリック
+4. 生成されたAPIキーをコピー
+5. `.env`ファイルに `ANTHROPIC_API_KEY=your_api_key_here` として追加
+
+### OpenAI APIキー
+1. [OpenAI Platform](https://platform.openai.com/api-keys) にアクセス
+2. アカウント作成またはサインイン
+3. "Create new secret key" をクリック
+4. 生成されたAPIキーをコピー
+5. `.env`ファイルに `OPENAI_API_KEY=your_api_key_here` として追加
+
+### X.AI Grok APIキー
+1. [X.AI API](https://x.ai/api) にアクセス
+2. X (Twitter) アカウントでサインイン
+3. API Keyを申請・取得
+4. `.env`ファイルに `XAI_API_KEY=your_api_key_here` として追加
+
+### Brave Search APIキー
+1. [Brave Search API](https://api.search.brave.com/app/keys) にアクセス
+2. アカウント作成またはサインイン
+3. "Create new key" をクリック
+4. 生成されたAPIキーをコピー
+5. `.env`ファイルに `BRAVE_API_KEY=your_api_key_here` として追加
+
+### V0 Code Generation APIキー
+1. [V0 Settings](https://v0.dev/settings) にアクセス
+2. Vercelアカウントでサインイン
+3. API Keys セクションで新しいキーを生成
+4. `.env`ファイルに `V0_API_KEY=your_api_key_here` として追加
+
+### Fal.ai APIキー
+1. [Fal.ai Dashboard](https://fal.ai/dashboard/keys) にアクセス
+2. アカウント作成またはサインイン
+3. "Create API Key" をクリック
+4. 生成されたAPIキーをコピー
+5. `.env`ファイルに `FAL_KEY=your_api_key_here` として追加
+
+### MiniMax APIキー
+1. [MiniMax Platform](https://platform.minimaxi.com/) にアクセス
+2. アカウント作成またはサインイン
+3. API管理ページでAPI KeyとGroup IDを取得
 4. `.env`ファイルに追加
