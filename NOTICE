@@ -10,10 +10,10 @@ Third-party Software Notices
 This software includes the following third-party components:
 
 1. Mastra Framework
-   - Copyright: Mastra Contributors
-   - License: Elastic License 2.0
+   - Copyright (c) 2025 Mastra AI, Inc.
+   - License: Elastic License 2.0 (ELv2)
    - Source: https://mastra.dev
-   - License Text: https://www.elastic.co/licensing/elastic-license
+   - License Text: See below
 
    IMPORTANT: The Mastra components are subject to the Elastic License 2.0, which
    includes the following key restrictions:
@@ -24,6 +24,19 @@ This software includes the following third-party components:
 
 2. Other Dependencies
    - See package.json for a complete list of dependencies and their licenses
+
+================================================================================
+Mastra License (Elastic License 2.0)
+================================================================================
+
+Copyright (c) 2025 Mastra AI, Inc.
+
+The full license terms for Mastra are included in the LICENSE file under Part 2.
+
+Key restrictions:
+- No providing the software as a hosted/managed service
+- No circumventing license key functionality
+- No removing licensing/copyright notices
 
 ================================================================================
 License Compliance Notice
@@ -38,5 +51,4 @@ When redistributing this software, you MUST:
 
 For questions about license compliance, please refer to:
 - Our LICENSE file for detailed terms
-- Elastic License 2.0: https://www.elastic.co/licensing/elastic-license
 - Mastra documentation: https://mastra.dev 
