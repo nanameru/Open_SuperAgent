@@ -86,11 +86,6 @@ const data = {
       url: "/usecases",
       icon: Lightbulb,
     },
-    {
-      name: "YAML記憶装置",
-      url: "/memory-synapse",
-      icon: Database,
-    },
   ],
 }
 
