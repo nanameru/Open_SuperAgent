@@ -431,6 +431,66 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
     }
   };
 
+  // Nutrient APIを使用したPPTXエクスポート
+  const exportToNutrientPPTX = async () => {
+    setIsExportingHybridPPTX(true);
+    
+    try {
+      // HTMLを個別のスライドに分割
+      const { slides: slideHtmlArray, styles } = splitIntoSlides(previewHtml);
+      
+      if (slideHtmlArray.length === 0) {
+        throw new Error('スライドが見つかりません');
+      }
+      
+      console.log(`${slideHtmlArray.length}枚のスライドをNutrient APIでエクスポート中...`);
+      
+      // 各スライドのHTMLを準備
+      const slidesData = slideHtmlArray.map((slideHtml, index) => ({
+        html: `<style>${styles}</style>${slideHtml}`,
+        index
+      }));
+      
+      // APIにリクエスト
+      const response = await fetch('/api/export-pptx-nutrient', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          slides: slidesData,
+          title: title
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Nutrient PPTXエクスポートに失敗しました');
+      }
+      
+      // レスポンスをBlobとして取得
+      const blob = await response.blob();
+      
+      // ダウンロードリンクを作成
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/\s+/g, '_')}_nutrient.pptx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('Nutrient PPTXエクスポートが完了しました');
+      
+    } catch (error) {
+      console.error('Nutrient PPTX export error:', error);
+      alert('Nutrient PPTXファイルのエクスポートに失敗しました。' + (error instanceof Error ? '\n' + error.message : ''));
+    } finally {
+      setIsExportingHybridPPTX(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -533,14 +593,24 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
             <TabsContent value="preview" className="flex-1 p-6 pt-4 m-0">
               <div className="mb-4 flex justify-end space-x-2">
                 <Button
-                  onClick={exportToHybridPPTX}
+                  onClick={exportToNutrientPPTX}
                   variant="default"
                   size="sm"
                   className="flex items-center gap-2"
                   disabled={isExportingHybridPPTX}
                 >
                   <Presentation className="h-4 w-4" />
-                  {isExportingHybridPPTX ? 'エクスポート中...' : 'ハイブリッドPPTX（推奨）'}
+                  {isExportingHybridPPTX ? 'エクスポート中...' : 'Nutrient PPTX（推奨）'}
+                </Button>
+                <Button
+                  onClick={exportToHybridPPTX}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  disabled={isExportingHybridPPTX}
+                >
+                  <Presentation className="h-4 w-4" />
+                  {isExportingHybridPPTX ? 'エクスポート中...' : 'ハイブリッドPPTX'}
                 </Button>
                 <Button
                   onClick={exportToAdvancedPPTX}

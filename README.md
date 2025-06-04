@@ -118,6 +118,10 @@ V0_API_KEY=your_v0_api_key_here
 # Get your API key from: https://fal.ai/dashboard/keys
 FAL_KEY=your_fal_key_here
 
+# Document Processing (Nutrient API)
+# Get your API key from: https://nutrient.io/
+NUTRIENT_API_KEY=your_nutrient_api_key_here
+
 # Node Environment
 NODE_ENV=development
 ```
@@ -489,6 +493,13 @@ await geminiDJTool.invoke({
 3. "Create API Key" をクリック
 4. 生成されたAPIキーをコピー
 5. `.env`ファイルに `FAL_KEY=your_api_key_here` として追加
+
+### Nutrient APIキー
+1. [Nutrient](https://nutrient.io/) にアクセス
+2. アカウント作成またはサインイン
+3. ダッシュボードでAPI Keyを取得
+4. `.env`ファイルに `NUTRIENT_API_KEY=your_api_key_here` として追加
+5. 開発用テストキー: `pdf_live_fy1NX9djc1G2GoPVFljLgpsYUfbWrQU47Uxgj0y5py2`
 
 ### MiniMax APIキー
 1. [MiniMax Platform](https://platform.minimaxi.com/) にアクセス
