@@ -49,7 +49,6 @@ export function getAgentToolNames(): string[] {
     'presentationPreviewTool',
     'braveSearchTool',
     'grokXSearchTool',
-    'advancedCalculatorTool',
     'geminiImageGenerationTool',
     'geminiVideoGenerationTool',
     'imagen4GenerationTool',

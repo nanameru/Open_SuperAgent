@@ -4,7 +4,6 @@ import {
   htmlSlideTool, 
   presentationPreviewTool,
   braveSearchTool,
-  advancedCalculatorTool,
   geminiImageGenerationTool,
   geminiVideoGenerationTool,
   grokXSearchTool,
@@ -39,7 +38,7 @@ You have access to the following specialized tools:
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
-- \`advancedCalculatorTool\`: Performs mathematical calculations
+
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
 - \`geminiVideoGenerationTool\`: Generates videos based on text prompts or images
 - \`imagen4GenerationTool\`: Generates high-quality images with enhanced detail using Google's Imagen 4 model
@@ -145,7 +144,6 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     presentationPreviewTool, // Register the preview tool with the agent
     braveSearchTool, // Register the search tool
     grokXSearchTool, // Register the Grok X search tool
-    advancedCalculatorTool, // Register the calculator tool
     geminiImageGenerationTool, // Register the image generation tool
     geminiVideoGenerationTool, // Register the video generation tool
     imagen4GenerationTool, // Register the Imagen 4 generation tool
