@@ -1,3 +1,11 @@
+DUAL LICENSE NOTICE
+
+This software contains code from multiple sources and is subject to different licenses:
+
+================================================================================
+PART 1: Open-SuperAgent Original Code
+================================================================================
+
 MIT License with Commercial Use Restrictions
 
 Copyright (c) 2024 AI Agent Presentation Contributors
@@ -30,4 +38,45 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE. 
+SOFTWARE.
+
+================================================================================
+PART 2: Mastra Framework Components
+================================================================================
+
+This software uses Mastra (https://mastra.dev), which is licensed under the
+Elastic License 2.0 (ELv2).
+
+The following restrictions apply to Mastra components:
+
+1. You may not provide the Mastra components to third parties as a hosted or 
+   managed service, where the service provides users with access to any 
+   substantial set of the features or functionality of Mastra.
+
+2. You may not move, change, disable, or circumvent the license key functionality
+   in Mastra, if any, and you may not remove or obscure any functionality in 
+   Mastra that is protected by the license key.
+
+3. You may not alter, remove, or obscure any licensing, copyright, or other 
+   notices of Mastra.
+
+For the full Elastic License 2.0 text, see: https://www.elastic.co/licensing/elastic-license
+
+================================================================================
+IMPORTANT USAGE NOTES
+================================================================================
+
+When using this software:
+
+- For LOCAL INSTALLATION and SELF-HOSTING: Both licenses apply. You must comply
+  with the commercial use restrictions in Part 1 AND the Elastic License 2.0 
+  restrictions in Part 2.
+
+- For REDISTRIBUTION: You must include this entire LICENSE file and maintain all
+  copyright notices.
+
+- For COMMERCIAL USE: Must be a member of the specified communities (see Part 1)
+  AND must not violate the Elastic License 2.0 managed service restriction.
+
+- PROHIBITED: Hosting this software as a service where you provide the Mastra
+  functionality to others through a web interface or API. 

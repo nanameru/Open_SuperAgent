@@ -1,0 +1,42 @@
+Open-SuperAgent
+Copyright (c) 2024 AI Agent Presentation Contributors
+
+This product includes software developed by AI Agent Presentation Contributors.
+
+================================================================================
+Third-party Software Notices
+================================================================================
+
+This software includes the following third-party components:
+
+1. Mastra Framework
+   - Copyright: Mastra Contributors
+   - License: Elastic License 2.0
+   - Source: https://mastra.dev
+   - License Text: https://www.elastic.co/licensing/elastic-license
+
+   IMPORTANT: The Mastra components are subject to the Elastic License 2.0, which
+   includes the following key restrictions:
+   
+   a) You may not provide Mastra as a hosted or managed service
+   b) You may not circumvent any license key functionality
+   c) You may not remove or alter any licensing notices
+
+2. Other Dependencies
+   - See package.json for a complete list of dependencies and their licenses
+
+================================================================================
+License Compliance Notice
+================================================================================
+
+When redistributing this software, you MUST:
+
+1. Include this NOTICE file
+2. Include the LICENSE file  
+3. Maintain all copyright and license notices
+4. Ensure users understand the dual-license structure
+
+For questions about license compliance, please refer to:
+- Our LICENSE file for detailed terms
+- Elastic License 2.0: https://www.elastic.co/licensing/elastic-license
+- Mastra documentation: https://mastra.dev 
