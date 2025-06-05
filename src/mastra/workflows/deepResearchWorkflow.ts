@@ -1,3 +1,42 @@
+/**
+ * Deep Research Workflow - 詳細分析結果
+ * 
+ * 【ワークフロー概要】
+ * LangGraphスタイルの高度な研究エージェントシステム
+ * 6つのステップからなる反復的な情報収集・分析ワークフロー
+ * 
+ * 【技術構成】
+ * - フレームワーク: Mastra (@mastra/core/workflows)
+ * - バリデーション: Zod
+ * - AIモデル: Claude Opus 4 (anthropic('claude-opus-4-20250514'))
+ * - 外部API: Brave Search API (braveSearchTool)
+ * 
+ * 【重要な特徴】
+ * ⚠️ 自己完結型ではない: braveSearchToolに依存
+ * ⚠️ Web検索はモックではない: 実際のBrave Search APIを使用
+ * ✅ レート制限対応: 1.1秒間隔での検索実行
+ * ✅ 堅牢なエラーハンドリング: 各ステップでフォールバック実装
+ * 
+ * 【入力スキーマ】
+ * - message: string (ユーザーからの質問)
+ * - maxIterations: number (最大反復回数, デフォルト: 2)
+ * - queriesPerIteration: number (各反復での検索クエリ数, デフォルト: 3)
+ * 
+ * 【出力スキーマ】
+ * - answer: string (最終回答)
+ * - sources: Array<{title, url}> (情報源一覧)
+ * - searchQueries: string[] (実行された検索クエリ)
+ * - iterations: number (実行された反復回数)
+ * - knowledgeGaps: string[] (特定された知識ギャップ)
+ * 
+ * 【処理フロー図】
+ * User Input → [1]Query Generation → [2]Parallel Search → [3]Reflection
+ *                                          ↓                      ↓
+ * Final Answer ← [6]Answer Generation ← [5]Additional Search ← [4]Gap Analysis
+ *                                          ↑                      ↓
+ *                                    (条件: shouldContinue)    (maxIterations未満)
+ */
+
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -31,7 +70,17 @@ const KnowledgeGapSchema = z.object({
   suggestedQuery: z.string(),
 });
 
-// Deep Researchワークフローの定義
+/**
+ * 【createWorkflow使用パターン分析】
+ * - createWorkflow()でワークフロー本体を定義
+ * - .then(createStep())でステップチェーンを構築
+ * - 各ステップのinputSchema/outputSchemaで型安全性を確保
+ * - 最終的に.commit()でワークフローを登録
+ * 
+ * 【Zodスキーマ設計】
+ * inputSchema: ユーザー入力の受け口 (message, maxIterations, queriesPerIteration)
+ * outputSchema: 最終成果物の構造 (answer, sources, searchQueries, iterations, knowledgeGaps)
+ */
 export const deepResearchWorkflow = createWorkflow({
   id: 'deep-research-workflow',
   description: 'LangGraphスタイルの高度な研究エージェントシステム',
@@ -51,7 +100,18 @@ export const deepResearchWorkflow = createWorkflow({
     knowledgeGaps: z.array(z.string()).optional(),
   }),
 })
-  // ステップ1: 初期クエリ生成
+  /**
+   * 【ステップ1: 初期クエリ生成】
+   * - anthropic('claude-opus-4-20250514')を直接使用
+   * - JSONレスポンスのパース処理に堅牢なフォールバック
+   * - マークダウンコードブロック除去機能 (line 139-143)
+   * - 無効クエリのフィルタリング (line 165-176)
+   * 
+   * 【重要な実装詳細】
+   * - generateText()でプロンプトエンジニアリング実行
+   * - JSONパース失敗時は元質問をフォールバックとして使用
+   * - queriesPerIteration数まで有効クエリを制限
+   */
   .then(createStep({
     id: 'generate-initial-queries',
     description: 'ユーザーの質問から複数の検索クエリを生成',
@@ -171,7 +231,19 @@ export const deepResearchWorkflow = createWorkflow({
       }
     },
   }))
-  // ステップ2: 並列Web検索実行
+  /**
+   * 【ステップ2: 並列Web検索実行】
+   * ⚠️ 重要: これは「並列」ではなく順次実行
+   * - braveSearchTool.execute()で実際のBrave Search APIを呼び出し
+   * - レート制限対策: 1.1秒間隔で順次実行 (line 243-245)
+   * - 検索結果の検証と無効データ処理 (line 256-266)
+   * - 各結果に対してClaude Opusで要約生成
+   * 
+   * 【実装上の注意点】
+   * - 「並列」という名前だが実際は順次処理（APIレート制限のため）
+   * - 検索失敗時も処理を継続（エラー耐性）
+   * - 引用抽出で上位3件の結果を使用
+   */
   .then(createStep({
     id: 'parallel-web-search',
     description: '生成されたクエリで並列にWeb検索を実行',
@@ -575,7 +647,19 @@ ${inputData.searchResults.map(sr => `
       };
     },
   }))
-  // ステップ6: 最終回答生成
+  /**
+   * 【ステップ6: 最終回答生成】
+   * - 全検索結果を統合して包括的な回答を生成
+   * - 重複URLを除去してユニークなソース一覧を作成 (line 660-670)
+   * - 最大20個のソースに制限 (line 702)
+   * - 専門的で構造化された回答を生成するプロンプト設計
+   * 
+   * 【品質管理】
+   * - Claude Opus 4の最高品質モデルを使用
+   * - 包括的で詳細な回答要件を明確化
+   * - 適切な情報源引用の指示
+   * - エラー時のフォールバック応答
+   */
   .then(createStep({
     id: 'generate-final-answer',
     description: '収集した全情報から包括的な回答を生成',
@@ -658,5 +742,29 @@ ${sr.citations.map(c => `- ${c.text} (出典: ${c.url})`).join('\n')}
     },
   }));
 
-// ワークフローをコミット
+/**
+ * 【ワークフローコミット】
+ * - .commit()でMastraシステムにワークフローを登録
+ * - 登録後はAPIエンドポイントから呼び出し可能
+ * 
+ * 【総合評価と改善提案】
+ * 
+ * ✅ 優れている点:
+ * - 堅牢なエラーハンドリング
+ * - 型安全性の確保（Zod）
+ * - 反復的な情報収集アプローチ
+ * - レート制限への配慮
+ * 
+ * ⚠️ 改善点:
+ * - 「並列」検索が実際は順次実行
+ * - braveSearchToolへの外部依存
+ * - すべてのステップでClaude Opus直接呼び出し（コスト高）
+ * - マジックナンバー（1.1秒、最大20ソースなど）のハードコード
+ * 
+ * 🔧 推奨改善:
+ * - 真の並列処理実装（Promise.all + セマフォ）
+ * - 設定可能なレート制限間隔
+ * - より軽量なモデルとの使い分け
+ * - 検索ツールの抽象化
+ */
 deepResearchWorkflow.commit(); 
