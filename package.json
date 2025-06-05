@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "dev:mastra": "mastra dev",
+    "build:mastra": "mastra build"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.11",
@@ -17,9 +19,10 @@
     "@google/genai": "^1.2.0",
     "@heroicons/react": "^2.2.0",
     "@libsql/client": "^0.15.8",
-    "@mastra/core": "^0.10.1",
-    "@mastra/libsql": "^0.10.0",
-    "@mastra/memory": "^0.10.1",
+    "@mastra/core": "^0.10.3",
+    "@mastra/libsql": "^0.10.1",
+    "@mastra/memory": "^0.10.2",
+    "mastra": "^0.10.3",
     "@playwright/test": "^1.52.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",

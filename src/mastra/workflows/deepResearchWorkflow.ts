@@ -63,6 +63,9 @@ export const deepResearchWorkflow = createWorkflow({
     outputSchema: z.object({
       queries: z.array(SearchQuerySchema),
       iteration: z.number(),
+      message: z.string(),
+      maxIterations: z.number(),
+      queriesPerIteration: z.number(),
     }),
     execute: async ({ inputData }) => {
       const model = anthropic('claude-opus-4-20250514');
@@ -92,19 +95,66 @@ export const deepResearchWorkflow = createWorkflow({
         // JSONパースを試みる
         let queries: Array<{ query: string; reason: string }>;
         try {
-          queries = JSON.parse(response.text);
-        } catch {
+          // マークダウンのコードブロック記法を除去
+          let jsonText = response.text.trim();
+          if (jsonText.includes('```json')) {
+            jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          } else if (jsonText.includes('```')) {
+            jsonText = jsonText.replace(/```\s*/g, '');
+          }
+          
+          queries = JSON.parse(jsonText);
+          
+          // 配列でない場合の処理
+          if (!Array.isArray(queries)) {
+            throw new Error('Response is not an array');
+          }
+        } catch (parseError) {
+          console.error('JSONパースエラー:', parseError);
+          console.log('元のレスポンス:', response.text);
+          
           // JSONパースに失敗した場合、テキストから抽出
-          const lines = response.text.split('\n').filter(line => line.trim());
+          const lines = response.text.split('\n').filter(line => line.trim() && !line.includes('```'));
           queries = lines.slice(0, inputData.queriesPerIteration).map(line => ({
             query: line.trim(),
             reason: '効果的な検索クエリ',
           }));
         }
 
+        // 有効なクエリのみをフィルタリング
+        const validQueries = queries
+          .filter(q => {
+            // クエリが有効かチェック
+            if (!q || typeof q !== 'object' || !q.query || typeof q.query !== 'string') {
+              return false;
+            }
+            // 明らかに無効なクエリを除外
+            const invalidPatterns = ['{', '}', '[', ']', '```', 'json', '"query":', '"reason":'];
+            return !invalidPatterns.some(pattern => q.query.trim() === pattern);
+          })
+          .slice(0, inputData.queriesPerIteration);
+
+        // 有効なクエリがない場合はフォールバック
+        if (validQueries.length === 0) {
+          console.log('有効なクエリが生成されませんでした。フォールバックを使用します。');
+          return {
+            queries: [{
+              query: inputData.message,
+              reason: 'フォールバック: 元の質問を使用',
+            }],
+            iteration: 1,
+            message: inputData.message,
+            maxIterations: inputData.maxIterations,
+            queriesPerIteration: inputData.queriesPerIteration,
+          };
+        }
+
         return {
-          queries: queries.slice(0, inputData.queriesPerIteration),
+          queries: validQueries,
           iteration: 1,
+          message: inputData.message,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
         };
       } catch (error) {
         console.error('クエリ生成エラー:', error);
@@ -114,6 +164,9 @@ export const deepResearchWorkflow = createWorkflow({
             reason: 'フォールバック: 元の質問を使用',
           }],
           iteration: 1,
+          message: inputData.message,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
         };
       }
     },
@@ -125,10 +178,16 @@ export const deepResearchWorkflow = createWorkflow({
     inputSchema: z.object({
       queries: z.array(SearchQuerySchema),
       iteration: z.number(),
+      message: z.string(),
+      maxIterations: z.number(),
+      queriesPerIteration: z.number(),
     }),
     outputSchema: z.object({
       searchResults: z.array(SearchResultSchema),
       iteration: z.number(),
+      message: z.string(),
+      maxIterations: z.number(),
+      queriesPerIteration: z.number(),
     }),
     execute: async ({ inputData }) => {
       const model = anthropic('claude-opus-4-20250514');
@@ -152,6 +211,18 @@ export const deepResearchWorkflow = createWorkflow({
           const braveResults = await braveSearchTool.execute({
             context: { query, count: 5 }
           } as any);
+          
+          // 検索結果の検証
+          if (!braveResults || !braveResults.results || !Array.isArray(braveResults.results)) {
+            console.error(`検索結果が無効です (${query}):`, braveResults);
+            searchResults.push({
+              query,
+              results: [],
+              summary: '検索結果を取得できませんでした',
+              citations: [],
+            });
+            continue;
+          }
           
           // 検索結果から引用を抽出
           const citationPrompt = `以下の検索結果から、質問に関連する重要な情報を抽出し、引用として整理してください。
@@ -196,9 +267,18 @@ URL: ${r.url}
         }
       }
 
+      console.log('[Parallel Search] Returning results:', {
+        searchResultsCount: searchResults.length,
+        iteration: inputData.iteration,
+        hasResults: searchResults.length > 0
+      });
+
       return {
         searchResults,
         iteration: inputData.iteration,
+        message: inputData.message,
+        maxIterations: inputData.maxIterations,
+        queriesPerIteration: inputData.queriesPerIteration,
       };
     },
   }))
@@ -211,14 +291,43 @@ URL: ${r.url}
       searchResults: z.array(SearchResultSchema),
       iteration: z.number(),
       maxIterations: z.number(),
+      queriesPerIteration: z.number(),
     }),
     outputSchema: z.object({
       isComplete: z.boolean(),
       knowledgeGaps: z.array(KnowledgeGapSchema),
       summary: z.string(),
       shouldContinue: z.boolean(),
+      iteration: z.number(),
+      message: z.string(),
+      searchResults: z.array(SearchResultSchema),
+      maxIterations: z.number(),
+      queriesPerIteration: z.number(),
     }),
     execute: async ({ inputData }) => {
+      console.log('[Reflection] Input data received:', {
+        message: inputData.message,
+        searchResultsCount: inputData.searchResults?.length || 0,
+        iteration: inputData.iteration,
+        maxIterations: inputData.maxIterations
+      });
+      
+      // 入力データの検証
+      if (!inputData.searchResults || !Array.isArray(inputData.searchResults)) {
+        console.error('[Reflection] Invalid searchResults:', inputData.searchResults);
+        return {
+          isComplete: true,
+          knowledgeGaps: [],
+          summary: '検索結果が無効です',
+          shouldContinue: false,
+          iteration: inputData.iteration,
+          message: inputData.message,
+          searchResults: inputData.searchResults || [],
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
+        };
+      }
+      
       const model = anthropic('claude-opus-4-20250514');
       
       // 現在の反復が最大値に達している場合は終了
@@ -228,6 +337,11 @@ URL: ${r.url}
           knowledgeGaps: [],
           summary: '最大反復回数に達しました',
           shouldContinue: false,
+          iteration: inputData.iteration,
+          message: inputData.message,
+          searchResults: inputData.searchResults,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
         };
       }
       
@@ -267,8 +381,19 @@ ${inputData.searchResults.map(sr => `
 
         let evaluation;
         try {
-          evaluation = JSON.parse(response.text);
-        } catch {
+          // マークダウンのコードブロック記法を除去
+          let jsonText = response.text.trim();
+          if (jsonText.includes('```json')) {
+            jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          } else if (jsonText.includes('```')) {
+            jsonText = jsonText.replace(/```\s*/g, '');
+          }
+          
+          evaluation = JSON.parse(jsonText);
+        } catch (parseError) {
+          console.error('評価JSONパースエラー:', parseError);
+          console.log('元のレスポンス:', response.text);
+          
           // JSONパースに失敗した場合のフォールバック
           evaluation = {
             isComplete: true,
@@ -282,6 +407,11 @@ ${inputData.searchResults.map(sr => `
           knowledgeGaps: evaluation.knowledgeGaps || [],
           summary: evaluation.summary || '情報を評価しました',
           shouldContinue: !evaluation.isComplete && inputData.iteration < inputData.maxIterations,
+          iteration: inputData.iteration,
+          message: inputData.message,
+          searchResults: inputData.searchResults,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
         };
       } catch (error) {
         console.error('評価エラー:', error);
@@ -290,6 +420,11 @@ ${inputData.searchResults.map(sr => `
           knowledgeGaps: [],
           summary: ' 評価エラーが発生しました',
           shouldContinue: false,
+          iteration: inputData.iteration,
+          message: inputData.message,
+          searchResults: inputData.searchResults,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
         };
       }
     },
@@ -303,8 +438,7 @@ ${inputData.searchResults.map(sr => `
       knowledgeGaps: z.array(KnowledgeGapSchema),
       summary: z.string(),
       shouldContinue: z.boolean(),
-      // 追加で必要なデータ
-      queriesPerIteration: z.number().optional().default(3),
+      queriesPerIteration: z.number(),
       iteration: z.number(),
       message: z.string(),
       searchResults: z.array(SearchResultSchema),
@@ -314,13 +448,24 @@ ${inputData.searchResults.map(sr => `
       additionalQueries: z.array(SearchQuerySchema).optional(),
       shouldSearch: z.boolean(),
       nextIteration: z.number(),
+      previousResults: z.array(SearchResultSchema),
+      message: z.string(),
     }),
     execute: async ({ inputData }) => {
+      console.log('[Generate Additional Queries] Input data:', {
+        isComplete: inputData.isComplete,
+        shouldContinue: inputData.shouldContinue,
+        knowledgeGapsCount: inputData.knowledgeGaps?.length || 0,
+        searchResultsCount: inputData.searchResults?.length || 0
+      });
+      
       if (!inputData.shouldContinue || inputData.knowledgeGaps.length === 0) {
         return {
           additionalQueries: undefined,
           shouldSearch: false,
           nextIteration: inputData.iteration,
+          previousResults: inputData.searchResults || [],
+          message: inputData.message,
         };
       }
 
@@ -338,6 +483,8 @@ ${inputData.searchResults.map(sr => `
         additionalQueries,
         shouldSearch: true,
         nextIteration: inputData.iteration + 1,
+        previousResults: inputData.searchResults || [],
+        message: inputData.message,
       };
     },
   }))
@@ -350,16 +497,28 @@ ${inputData.searchResults.map(sr => `
       additionalQueries: z.array(SearchQuerySchema).optional(),
       nextIteration: z.number(),
       previousResults: z.array(SearchResultSchema),
+      message: z.string(),
     }),
     outputSchema: z.object({
       allSearchResults: z.array(SearchResultSchema),
       totalIterations: z.number(),
+      message: z.string(),
     }),
     execute: async ({ inputData }) => {
+      console.log('[Additional Search] Input data:', {
+        shouldSearch: inputData.shouldSearch,
+        additionalQueriesCount: inputData.additionalQueries?.length || 0,
+        previousResultsCount: inputData.previousResults?.length || 0
+      });
+      
+      // previousResultsのデフォルト値を設定
+      const previousResults = inputData.previousResults || [];
+      
       if (!inputData.shouldSearch || !inputData.additionalQueries) {
         return {
-          allSearchResults: inputData.previousResults,
+          allSearchResults: previousResults,
           totalIterations: inputData.nextIteration - 1,
+          message: inputData.message,
         };
       }
 
@@ -381,6 +540,12 @@ ${inputData.searchResults.map(sr => `
           const braveResults = await braveSearchTool.execute({
             context: { query, count: 5 }
           } as any);
+          
+          // 検索結果の検証
+          if (!braveResults || !braveResults.results || !Array.isArray(braveResults.results)) {
+            console.error(`追加検索結果が無効です (${query}):`, braveResults);
+            continue;
+          }
           
           const citationPrompt = `検索結果を要約してください：\n\nクエリ: ${query}\n結果: ${JSON.stringify(braveResults.results.slice(0, 3))}`;
           
@@ -404,8 +569,9 @@ ${inputData.searchResults.map(sr => `
       }
 
       return {
-        allSearchResults: [...inputData.previousResults, ...additionalResults],
+        allSearchResults: [...previousResults, ...additionalResults],
         totalIterations: inputData.nextIteration,
+        message: inputData.message,
       };
     },
   }))

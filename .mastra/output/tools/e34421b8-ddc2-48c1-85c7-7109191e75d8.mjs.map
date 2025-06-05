@@ -1,0 +1,1 @@
+{"version":3,"file":"e34421b8-ddc2-48c1-85c7-7109191e75d8.mjs","sources":["../../../src/mastra/tools/browserSharedInstances.ts"],"sourcesContent":["// Stagehandのグローバルインスタンスを管理\nexport const stagehandInstances = new Map<string, any>(); "],"names":[],"mappings":"AACa,MAAA,kBAAA,uBAAyB,GAAiB;;;;"}

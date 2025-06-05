@@ -8,6 +8,8 @@ import { PresentationPreviewPanel } from './PresentationPreviewPanel';
 import { ImagePreviewPanel } from './ImagePreviewPanel';
 import { BrowserOperationSidebar } from './BrowserOperationSidebar';
 import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { Badge } from '@/components/ui/badge';
+import { ExternalLink } from 'lucide-react';
 
 // 拡張メッセージパートの型
 type MessageContentPart = {
@@ -1312,6 +1314,90 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
     return parts.length > 0 ? parts : [text];
   };
 
+  // マークダウンのリンクをBadge形式で表示する関数
+  const renderMarkdownWithBadges = (text: string): ReactNode[] => {
+    // まずメディア要素を処理
+    const mediaProcessed = renderMarkdownMedia(text);
+    
+    // メディア要素が見つかった場合はそのまま返す
+    if (mediaProcessed.length > 1 || (mediaProcessed.length === 1 && typeof mediaProcessed[0] !== 'string')) {
+      return mediaProcessed;
+    }
+    
+    // テキストのみの場合、リンクをBadgeに変換
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    
+    const processedText = typeof mediaProcessed[0] === 'string' ? mediaProcessed[0] : text;
+    
+    while ((match = linkRegex.exec(processedText)) !== null) {
+      const [fullMatch, linkText, url] = match;
+      
+      // リンクの前のテキスト部分を追加
+      if (match.index > lastIndex) {
+        const beforeText = processedText.slice(lastIndex, match.index);
+        if (beforeText) {
+          parts.push(
+            <span key={`text-${lastIndex}`}>{beforeText}</span>
+          );
+        }
+      }
+      
+      // URLがメディアファイルでない場合のみBadgeとして表示
+      const isMediaUrl = /\.(jpg|jpeg|png|gif|webp|svg|mp4|webm|ogg|mov|avi|mp3|wav|m4a|aac|flac)(\?|$)/i.test(url) ||
+                        url.includes('/generated-');
+      
+      if (!isMediaUrl) {
+        // Badge形式でリンクを表示 - シンプルなインライン要素として
+        parts.push(
+          <a
+            key={`badge-${match.index}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mx-1 px-2.5 py-1 text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-200 hover:text-blue-800 transition-colors no-underline"
+            style={{
+              textDecoration: 'none',
+              verticalAlign: 'middle',
+            }}
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="truncate" style={{ maxWidth: '200px' }}>{linkText}</span>
+          </a>
+        );
+      } else {
+        // メディアURLの場合は通常のリンクとして表示
+        parts.push(
+          <a
+            key={`link-${match.index}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            {linkText}
+          </a>
+        );
+      }
+      
+      lastIndex = match.index + fullMatch.length;
+    }
+    
+    // 残りのテキスト部分を追加
+    if (lastIndex < processedText.length) {
+      const remainingText = processedText.slice(lastIndex);
+      if (remainingText) {
+        parts.push(
+          <span key={`text-${lastIndex}`}>{remainingText}</span>
+        );
+      }
+    }
+    
+    return parts.length > 0 ? parts : [processedText];
+  };
+
   // HTML文字列から純粋なテキストのみを抽出する関数
   const stripHtmlTags = (html: string) => {
     // ... existing code ...
@@ -2012,7 +2098,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
               <div className="text-base leading-relaxed">
                 {content.split('\n').map((line, i) => (
                   <div key={i} className={i > 0 ? 'mt-2' : ''}>
-                    {renderMarkdownMedia(line)}
+                    {renderMarkdownWithBadges(line)}
                   </div>
                 ))}
               </div>
