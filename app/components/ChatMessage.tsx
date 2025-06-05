@@ -10,6 +10,7 @@ import { BrowserOperationSidebar } from './BrowserOperationSidebar';
 import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink } from 'lucide-react';
+import { ActivityTimeline, ProcessedEvent } from './ActivityTimeline';
 
 // 拡張メッセージパートの型
 type MessageContentPart = {
@@ -104,6 +105,8 @@ interface ChatMessageProps {
     pageTitle?: string;
     elementText?: string;
   }) => void; // Browser Automation Tool実行検知時のコールバック
+  deepResearchEvents?: ProcessedEvent[]; // Deep Researchのイベント
+  isDeepResearchLoading?: boolean; // Deep Researchの実行状態
 }
 
 // 折りたたみ可能なツールセクションコンポーネント
@@ -302,7 +305,16 @@ const CollapsibleToolSection = ({
   );
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen, onPreviewClose, onPreviewWidthChange, onBrowserbasePreview, onBrowserAutomationDetected }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ 
+  message, 
+  onPreviewOpen, 
+  onPreviewClose, 
+  onPreviewWidthChange, 
+  onBrowserbasePreview, 
+  onBrowserAutomationDetected,
+  deepResearchEvents = [],
+  isDeepResearchLoading = false
+}) => {
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
@@ -1722,6 +1734,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
 
   const content = getMessageContent();
 
+  // Deep Researchメッセージかどうかを判定
+  const isDeepResearchMessage = () => {
+    return content.includes('[Deep Research]') || deepResearchEvents.length > 0;
+  };
+
   // ツールメッセージは表示しない
   if (message.role === 'tool' || !content.trim()) {
     return null;
@@ -2091,6 +2108,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewOpen
 
     return (
       <>
+        {/* Deep Researchタイムライン表示 */}
+        {isDeepResearchMessage() && (deepResearchEvents.length > 0 || isDeepResearchLoading) && (
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-3xl">
+              <ActivityTimeline 
+                processedEvents={deepResearchEvents}
+                isLoading={isDeepResearchLoading}
+              />
+            </div>
+          </div>
+        )}
+
         {/* アシスタントテキストコンテンツ */}
         {content.trim() && (
           <div className="flex justify-start mb-6">

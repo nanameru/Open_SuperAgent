@@ -8,9 +8,10 @@ import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
 import { BrowserOperationSidebar } from './components/BrowserOperationSidebar';
-import { useEffect, useState, useRef, useCallback, useOptimistic } from 'react';
+import { useEffect, useState, useRef, useCallback, useOptimistic, startTransition } from 'react';
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { useDeepResearch } from './hooks/useDeepResearch';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -66,6 +67,18 @@ export default function AppPage() {
   const [conversationId, setConversationId] = useState<string>(`conv-${Date.now()}`);
   // ブラウザ自動化パネルの表示状態（デフォルトで非表示）
   const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(false);
+  // Deep Researchモードの状態
+  const [isDeepResearchMode, setIsDeepResearchMode] = useState<boolean>(false);
+  
+  // Deep Researchフック
+  const {
+    isLoading: isDeepResearchLoading,
+    processedEvents: deepResearchEvents,
+    result: deepResearchResult,
+    error: deepResearchError,
+    executeDeepResearch,
+    reset: resetDeepResearch
+  } = useDeepResearch();
   
 
   // スライドツール関連の状態
@@ -151,6 +164,9 @@ export default function AppPage() {
     if (messages.length === 0) {
       setToolMessages([]);
       setConversationId(`conv-${Date.now()}`);
+      // Deep Researchモードもリセット
+      setIsDeepResearchMode(false);
+      resetDeepResearch();
       // スライドツール状態もリセット
       setSlideToolState({
         isActive: false,
@@ -177,7 +193,7 @@ export default function AppPage() {
         forcePanelOpen: false
       });
     }
-  }, [messages.length]);
+  }, [messages.length, resetDeepResearch]);
 
   // ★ useOptimistic フックで一時的なメッセージリストを作成
   const [optimisticMessages, addOptimisticMessage] = useOptimistic<UIMessage[], UIMessage>(
@@ -197,6 +213,22 @@ export default function AppPage() {
     }
   );
 
+  // Deep Researchの結果をメッセージに反映
+  useEffect(() => {
+    if (deepResearchResult && !isDeepResearchLoading) {
+      const assistantMessage: Message = {
+        id: `deep-research-${Date.now()}`,
+        role: 'assistant',
+        content: deepResearchResult.answer,
+        createdAt: new Date()
+      };
+      
+      startTransition(() => {
+        addOptimisticMessage(assistantMessage);
+      });
+    }
+  }, [deepResearchResult, isDeepResearchLoading, addOptimisticMessage]);
+
   // ユーザーメッセージの送信を処理するカスタムsubmitハンドラ
   const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -205,6 +237,49 @@ export default function AppPage() {
     if (messages.length === 0) {
       setToolMessages([]);
       setConversationId(`conv-${Date.now()}`);
+    }
+    
+    // Deep Researchモードの場合はワークフローを実行
+    if (isDeepResearchMode && input.trim()) {
+      // Deep Researchプレフィックスを除去
+      const cleanInput = input.replace(/^\[Deep Research\]\s*/, '');
+      
+      // ユーザーメッセージを楽観的に追加
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: input,
+        createdAt: new Date()
+      };
+      
+      startTransition(() => {
+        addOptimisticMessage(userMessage);
+      });
+      
+      // 入力フィールドをクリア
+      const syntheticEvent = {
+        target: { value: '' }
+      } as React.ChangeEvent<HTMLInputElement>;
+      handleInputChange(syntheticEvent);
+      
+      // Deep Researchワークフローを実行
+      executeDeepResearch(cleanInput).catch(error => {
+        console.error('[Page] Deep Research error:', error);
+        
+        // エラーメッセージを表示
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `Deep Researchでエラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          createdAt: new Date()
+        };
+        
+        startTransition(() => {
+          addOptimisticMessage(errorMessage);
+        });
+      });
+      
+      return;
     }
     
     // 標準のhandleSubmitを実行
@@ -495,6 +570,8 @@ export default function AppPage() {
                       onPreviewWidthChange={handlePreviewPanelWidthChange}
                       onBrowserbasePreview={handleBrowserbasePreview}
                       onBrowserAutomationDetected={handleBrowserAutomationDetected}
+                      deepResearchEvents={deepResearchEvents}
+                      isDeepResearchLoading={isDeepResearchLoading}
                     />
                   ))}
                 </div>
@@ -594,7 +671,9 @@ export default function AppPage() {
             input={input}
             handleInputChange={handleInputChange}
             handleSubmit={handleCustomSubmit}
-            isLoading={isLoading}
+            isLoading={isLoading || isDeepResearchLoading}
+            isDeepResearchMode={isDeepResearchMode}
+            onDeepResearchModeChange={setIsDeepResearchMode}
           />
         </div>
       </SidebarInset>
