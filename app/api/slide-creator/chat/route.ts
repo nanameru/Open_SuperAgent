@@ -44,21 +44,24 @@ export async function POST(req: NextRequest) {
       try {
         // Deep Researchワークフローを実行
         const workflow = mastra.getWorkflow('deep-research');
-        const run = workflow.createRun();
+        
+        if (!workflow) {
+          throw new Error('Deep Research Workflow が見つかりません');
+        }
         
         devLog('Starting Deep Research workflow for query:', query);
         
-        const result = await run.start({
-          inputData: {
-            message: query,
-          },
+        const result = await workflow.execute({
+          message: query,
+          maxIterations: 2,
+          queriesPerIteration: 3,
         });
         
         devLog('Deep Research workflow completed');
         
         // ワークフロー結果の型チェック
-        if (result.status !== 'success') {
-          throw new Error('Deep Research workflow failed');
+        if (!result) {
+          throw new Error('Deep Research workflow returned no result');
         }
         
         // 結果をストリーミング形式で返す
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
             { role: 'user', content: query }, // プレフィックスなしのクエリ
             { 
               role: 'assistant', 
-              content: `## Deep Research 結果\n\n${result.result?.answer || ''}\n\n### 参照元\n${result.result?.sources?.map((s: any) => `- [${s.label}](${s.url})`).join('\n') || '参照元なし'}`
+              content: `## Deep Research 結果\n\n${result.answer || ''}\n\n### 参照元\n${result.sources?.map((s: any) => `- [${s.title}](${s.url})`).join('\n') || '参照元なし'}`
             }
           ],
         });

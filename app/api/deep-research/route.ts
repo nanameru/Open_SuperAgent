@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { mastra } from '@/src/mastra';
 
 export async function POST(request: NextRequest) {
   try {
+    // 環境変数の検証
+    const requiredEnvVars = ['ANTHROPIC_API_KEY', 'BRAVE_API_KEY'];
+    const missing = requiredEnvVars.filter(key => !process.env[key]);
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `必要な環境変数が設定されていません: ${missing.join(', ')}` },
+        { status: 500 }
+      );
+    }
+
     const { message, maxIterations = 2, queriesPerIteration = 3 } = await request.json();
 
     if (!message || typeof message !== 'string') {
@@ -17,19 +28,19 @@ export async function POST(request: NextRequest) {
       queriesPerIteration
     });
 
-    // 動的にワークフローをインポートして実行
+    // Mastraインスタンス経由でワークフローを実行
     let result;
     
     try {
-      const { deepResearchWorkflow } = await import('@/src/mastra/workflows/deepResearchWorkflow');
+      // 正しいワークフロー実行方法
+      const workflow = mastra.getWorkflow('deep-research');
       
-      // ワークフローが正しく初期化されているか確認
-      if (!deepResearchWorkflow) {
-        throw new Error('Deep Research Workflow が見つかりません');
+      if (!workflow) {
+        throw new Error('Deep Research Workflow が見つかりません。Mastraインスタンスに登録されていない可能性があります。');
       }
 
       // ワークフローを実行
-      result = await (deepResearchWorkflow as any).run({
+      result = await workflow.execute({
         message,
         maxIterations,
         queriesPerIteration
@@ -39,9 +50,13 @@ export async function POST(request: NextRequest) {
       console.error('[Deep Research API] Workflow execution failed:', workflowError);
       
       // フォールバック: 簡単な検索結果を返す
-      const { braveSearchTool } = await import('@/src/mastra/tools/braveSearchTool');
-      
       try {
+        const braveSearchTool = mastra.getTool('braveSearchTool');
+        
+        if (!braveSearchTool) {
+          throw new Error('braveSearchTool が見つかりません');
+        }
+        
         const searchResult = await braveSearchTool.execute({
           context: { query: message, count: 5 }
         } as any);
