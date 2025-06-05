@@ -20,6 +20,7 @@
     "@mastra/core": "^0.10.1",
     "@mastra/libsql": "^0.10.0",
     "@mastra/memory": "^0.10.1",
+    "@opentelemetry/resources": "^2.0.1",
     "@playwright/test": "^1.52.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
