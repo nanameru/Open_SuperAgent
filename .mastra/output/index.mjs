@@ -8,7 +8,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { browserCloseTool, browserScreenshotTool, browserWaitTool, browserObserveTool, browserExtractTool, browserActTool, browserGotoTool, browserSessionTool, minimaxTTSTool, graphicRecordingTool, v0CodeGenerationTool, imagen4GenerationTool, geminiVideoGenerationTool, geminiImageGenerationTool, grokXSearchTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/3508b746-7bf0-4b77-9a03-b5d94f6a9315.mjs';
+import { browserCloseTool, browserScreenshotTool, browserWaitTool, browserObserveTool, browserExtractTool, browserActTool, browserGotoTool, browserSessionTool, minimaxTTSTool, graphicRecordingTool, v0CodeGenerationTool, imagen4GenerationTool, geminiVideoGenerationTool, geminiImageGenerationTool, grokXSearchTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/5246fbe2-65d0-4927-bf3f-3d79fcb73494.mjs';
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z, ZodFirstPartyTypeKind, ZodOptional } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -265,90 +265,222 @@ const deepResearchWorkflow = createWorkflow({
   id: "deep-research-workflow",
   description: "\u8A73\u7D30\u306A\u8ABF\u67FB\u3068\u5206\u6790\u3092\u884C\u3046\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC",
   inputSchema: z.object({
-    message: z.string().describe("\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u8CEA\u554F")
+    message: z.string().describe("\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u8CEA\u554F"),
+    maxQueries: z.number().optional().default(3).describe("\u751F\u6210\u3059\u308B\u691C\u7D22\u30AF\u30A8\u30EA\u306E\u6700\u5927\u6570"),
+    searchResultsPerQuery: z.number().optional().default(5).describe("\u5404\u30AF\u30A8\u30EA\u306E\u691C\u7D22\u7D50\u679C\u6570")
   }),
   outputSchema: z.object({
     answer: z.string(),
     sources: z.array(z.object({
       title: z.string(),
       url: z.string()
-    }))
+    })),
+    searchQueries: z.array(z.string()).optional(),
+    totalSourcesFound: z.number().optional()
   })
 }).then(createStep({
-  id: "deep-research",
-  description: "Deep Research\u51E6\u7406",
+  id: "generate-search-queries",
+  description: "\u8CEA\u554F\u304B\u3089\u52B9\u679C\u7684\u306A\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210",
   inputSchema: z.object({
-    message: z.string()
+    message: z.string(),
+    maxQueries: z.number().optional().default(3),
+    searchResultsPerQuery: z.number().optional().default(5)
   }),
   outputSchema: z.object({
-    answer: z.string(),
-    sources: z.array(z.object({
-      title: z.string(),
-      url: z.string()
-    }))
+    queries: z.array(z.string())
   }),
   execute: async ({ inputData }) => {
-    const model = anthropic("claude-3-5-sonnet-20241022");
+    const model = anthropic("claude-opus-4-20250514");
     const queryPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
 
-\u3053\u306E\u8CEA\u554F\u306B\u7B54\u3048\u308B\u305F\u3081\u306B\u30013\u500B\u306E\u52B9\u679C\u7684\u306AWeb\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u3053\u306E\u8CEA\u554F\u306B\u7B54\u3048\u308B\u305F\u3081\u306B\u3001${inputData.maxQueries}\u500B\u306E\u52B9\u679C\u7684\u306AWeb\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 \u5404\u30AF\u30A8\u30EA\u306F\u7570\u306A\u308B\u5074\u9762\u3092\u30AB\u30D0\u30FC\u3057\u3001\u6700\u65B0\u306E\u60C5\u5831\u3092\u53D6\u5F97\u3067\u304D\u308B\u3088\u3046\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 \u73FE\u5728\u306E\u65E5\u4ED8: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ja-JP")}
 
 \u30AF\u30A8\u30EA\u306E\u307F\u3092\u6539\u884C\u533A\u5207\u308A\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-    const queryResponse = await generateText({
-      model,
-      prompt: queryPrompt
-    });
-    const queries = queryResponse.text.split("\n").filter((q) => q.trim()).slice(0, 3);
-    const searchResults = await Promise.all(queries.map(async (query) => {
-      const mockResults = [
-        {
-          title: `${query} - \u6700\u65B0\u60C5\u5831`,
-          url: `https://example.com/${encodeURIComponent(query)}/latest`,
-          snippet: `${query}\u306B\u95A2\u3059\u308B\u6700\u65B0\u306E\u60C5\u5831\u3067\u3059\u3002`
-        },
-        {
-          title: `${query} \u5B8C\u5168\u30AC\u30A4\u30C9`,
-          url: `https://example.com/${encodeURIComponent(query)}/guide`,
-          snippet: `${query}\u306E\u8A73\u7D30\u306A\u89E3\u8AAC\u3067\u3059\u3002`
+    try {
+      const queryResponse = await generateText({
+        model,
+        prompt: queryPrompt
+      });
+      const queries = queryResponse.text.split("\n").filter((q) => q.trim()).slice(0, inputData.maxQueries);
+      if (queries.length === 0) {
+        throw new Error("\u691C\u7D22\u30AF\u30A8\u30EA\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+      }
+      return { queries };
+    } catch (error) {
+      console.error("\u30AF\u30A8\u30EA\u751F\u6210\u30A8\u30E9\u30FC:", error);
+      return { queries: [inputData.message] };
+    }
+  }
+})).then(createStep({
+  id: "execute-searches",
+  description: "\u5404\u30AF\u30A8\u30EA\u3067Brave\u691C\u7D22\u3092\u5B9F\u884C",
+  inputSchema: z.object({
+    queries: z.array(z.string()),
+    searchResultsPerQuery: z.number()
+  }),
+  outputSchema: z.object({
+    searchResults: z.array(z.object({
+      query: z.string(),
+      results: z.array(z.object({
+        title: z.string(),
+        url: z.string(),
+        description: z.string().optional()
+      })),
+      error: z.string().optional()
+    }))
+  }),
+  execute: async ({ inputData }) => {
+    const searchResults = [];
+    for (let i = 0; i < inputData.queries.length; i++) {
+      const query = inputData.queries[i];
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      try {
+        const braveResults = await braveSearchTool.execute({
+          context: { query, count: inputData.searchResultsPerQuery }
+        });
+        searchResults.push({
+          query,
+          results: braveResults.results
+        });
+      } catch (error) {
+        console.warn(`Brave Search failed for query "${query}":`, error);
+        searchResults.push({
+          query,
+          results: [],
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+    return { searchResults };
+  }
+})).then(createStep({
+  id: "summarize-results",
+  description: "\u5404\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04",
+  inputSchema: z.object({
+    searchResults: z.array(z.object({
+      query: z.string(),
+      results: z.array(z.object({
+        title: z.string(),
+        url: z.string(),
+        description: z.string().optional()
+      })),
+      error: z.string().optional()
+    }))
+  }),
+  outputSchema: z.object({
+    summaries: z.array(z.object({
+      query: z.string(),
+      summary: z.string(),
+      sources: z.array(z.object({
+        title: z.string(),
+        url: z.string()
+      }))
+    }))
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-opus-4-20250514");
+    const summaries = await Promise.all(
+      inputData.searchResults.map(async ({ query, results, error }) => {
+        if (error || results.length === 0) {
+          return {
+            query,
+            summary: `${query}\u306B\u95A2\u3059\u308B\u60C5\u5831\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002`,
+            sources: []
+          };
         }
-      ];
-      const searchPrompt = `\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+        const searchPrompt = `\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
 
 \u691C\u7D22\u30AF\u30A8\u30EA: ${query}
 
-${mockResults.map((r) => `\u30BF\u30A4\u30C8\u30EB: ${r.title}
+${results.map((r) => `\u30BF\u30A4\u30C8\u30EB: ${r.title}
 URL: ${r.url}
-\u5185\u5BB9: ${r.snippet}`).join("\n\n")}
+\u5185\u5BB9: ${r.description || "No description available"}`).join("\n\n")}
 
 \u91CD\u8981\u306A\u60C5\u5831\u3092\u62BD\u51FA\u3057\u3001\u7C21\u6F54\u306B\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-      const searchResponse = await generateText({
-        model,
-        prompt: searchPrompt
-      });
-      return {
-        content: searchResponse.text,
-        sources: mockResults.map((r) => ({ title: r.title, url: r.url }))
-      };
-    }));
-    const allSources = searchResults.flatMap((r) => r.sources);
-    const summaries = searchResults.map((r) => r.content).join("\n\n---\n\n");
+        try {
+          const searchResponse = await generateText({
+            model,
+            prompt: searchPrompt
+          });
+          return {
+            query,
+            summary: searchResponse.text,
+            sources: results.map((r) => ({ title: r.title, url: r.url }))
+          };
+        } catch (error2) {
+          console.error(`\u8981\u7D04\u751F\u6210\u30A8\u30E9\u30FC (${query}):`, error2);
+          return {
+            query,
+            summary: "\u8981\u7D04\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002",
+            sources: results.map((r) => ({ title: r.title, url: r.url }))
+          };
+        }
+      })
+    );
+    return { summaries };
+  }
+})).then(createStep({
+  id: "generate-final-answer",
+  description: "\u53CE\u96C6\u3057\u305F\u60C5\u5831\u304B\u3089\u6700\u7D42\u7684\u306A\u56DE\u7B54\u3092\u751F\u6210",
+  inputSchema: z.object({
+    message: z.string(),
+    summaries: z.array(z.object({
+      query: z.string(),
+      summary: z.string(),
+      sources: z.array(z.object({
+        title: z.string(),
+        url: z.string()
+      }))
+    }))
+  }),
+  outputSchema: z.object({
+    answer: z.string(),
+    sources: z.array(z.object({
+      title: z.string(),
+      url: z.string()
+    })),
+    searchQueries: z.array(z.string()),
+    totalSourcesFound: z.number()
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-opus-4-20250514");
+    const allSources = inputData.summaries.flatMap((s) => s.sources);
+    const uniqueSources = Array.from(
+      new Map(allSources.map((s) => [s.url, s])).values()
+    );
+    const combinedSummaries = inputData.summaries.map((s) => `\u3010${s.query}\u3011
+${s.summary}`).join("\n\n---\n\n");
     const answerPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
 
 \u4EE5\u4E0B\u306E\u60C5\u5831\u3092\u57FA\u306B\u3001\u5305\u62EC\u7684\u3067\u6B63\u78BA\u306A\u56DE\u7B54\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
 
-${summaries}
+${combinedSummaries}
 
 \u56DE\u7B54\u306B\u306F\u9069\u5207\u306B\u60C5\u5831\u6E90\u3092\u5F15\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-    const answerResponse = await generateText({
-      model,
-      prompt: answerPrompt
-    });
-    return {
-      answer: answerResponse.text,
-      sources: allSources
-    };
+    try {
+      const answerResponse = await generateText({
+        model,
+        prompt: answerPrompt
+      });
+      return {
+        answer: answerResponse.text,
+        sources: uniqueSources,
+        searchQueries: inputData.summaries.map((s) => s.query),
+        totalSourcesFound: uniqueSources.length
+      };
+    } catch (error) {
+      console.error("\u6700\u7D42\u56DE\u7B54\u751F\u6210\u30A8\u30E9\u30FC:", error);
+      return {
+        answer: "\u7533\u3057\u8A33\u3054\u3056\u3044\u307E\u305B\u3093\u3002\u60C5\u5831\u306E\u51E6\u7406\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F\u3002",
+        sources: uniqueSources,
+        searchQueries: inputData.summaries.map((s) => s.query),
+        totalSourcesFound: uniqueSources.length
+      };
+    }
   }
 }));
 deepResearchWorkflow.commit();

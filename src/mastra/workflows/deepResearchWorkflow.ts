@@ -89,29 +89,37 @@ export const deepResearchWorkflow = createWorkflow({
       })),
     }),
     execute: async ({ inputData }) => {
-      const searchResults = await Promise.all(
-        inputData.queries.map(async (query) => {
-          try {
-            // braveSearchToolを使用
-            const braveResults = await braveSearchTool.execute({
-              context: { query, count: inputData.searchResultsPerQuery }
-            } as any);
-            
-            return {
-              query,
-              results: braveResults.results,
-            };
-          } catch (error) {
-            console.warn(`Brave Search failed for query "${query}":`, error);
-            // エラー時のフォールバック
-            return {
-              query,
-              results: [],
-              error: error instanceof Error ? error.message : 'Unknown error',
-            };
-          }
-        })
-      );
+      // レート制限を避けるため、順次実行に変更
+      const searchResults = [];
+      
+      for (let i = 0; i < inputData.queries.length; i++) {
+        const query = inputData.queries[i];
+        
+        // 最初のクエリ以外は遅延を入れる
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // 500ms待機
+        }
+        
+        try {
+          // braveSearchToolを使用
+          const braveResults = await braveSearchTool.execute({
+            context: { query, count: inputData.searchResultsPerQuery }
+          } as any);
+          
+          searchResults.push({
+            query,
+            results: braveResults.results,
+          });
+        } catch (error) {
+          console.warn(`Brave Search failed for query "${query}":`, error);
+          // エラー時のフォールバック
+          searchResults.push({
+            query,
+            results: [],
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
 
       return { searchResults };
     },
