@@ -95,9 +95,10 @@ export const deepResearchWorkflow = createWorkflow({
       for (let i = 0; i < inputData.queries.length; i++) {
         const query = inputData.queries[i];
         
-        // 最初のクエリ以外は遅延を入れる
+        // レート制限対策: 1秒あたり1リクエストの制限に対応
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 500)); // 500ms待機
+          console.log(`Waiting 1.1 seconds before next search query (${i + 1}/${inputData.queries.length})...`);
+          await new Promise(resolve => setTimeout(resolve, 1100)); // 1.1秒待機（安全マージン含む）
         }
         
         try {

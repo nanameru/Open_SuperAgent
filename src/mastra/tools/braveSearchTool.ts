@@ -62,15 +62,20 @@ export const braveSearchTool = createTool({
     const endpoint = 'https://api.search.brave.com/res/v1/web/search';
     
     // 日本語クエリに対応するため、適切にエンコード
+    // 422エラー対策: 日本語を含むクエリの場合、追加のパラメータを設定
     const params = new URLSearchParams({ 
-      q: query,  // URLSearchParamsが自動的にエンコードしてくれる
-      count: String(count) 
+      q: query,
+      count: String(count),
+      // 日本語検索のための追加パラメータ
+      country: 'jp',  // 日本からの検索として扱う
+      lang: 'ja',     // 日本語の結果を優先
+      safesearch: 'moderate'  // セーフサーチを中程度に設定
     });
 
     // レート制限対策: リトライロジックを追加
     let retryCount = 0;
     const maxRetries = 3;
-    const retryDelay = 1000; // 1秒
+    const baseRetryDelay = 1100; // 1.1秒（レート制限対策）
 
     while (retryCount < maxRetries) {
       try {
@@ -86,8 +91,9 @@ export const braveSearchTool = createTool({
           // レート制限エラーの場合、待機してリトライ
           retryCount++;
           if (retryCount < maxRetries) {
-            console.warn(`Brave Search API rate limit hit. Retrying in ${retryDelay}ms... (attempt ${retryCount}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay * retryCount));
+            const delay = baseRetryDelay * retryCount;
+            console.warn(`Brave Search API rate limit hit. Retrying in ${delay}ms... (attempt ${retryCount}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
         }
@@ -109,8 +115,9 @@ export const braveSearchTool = createTool({
       } catch (error) {
         if (retryCount < maxRetries - 1 && error instanceof Error && error.message.includes('429')) {
           retryCount++;
+          const delay = baseRetryDelay * retryCount;
           console.warn(`Retrying Brave Search after error... (attempt ${retryCount}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay * retryCount));
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         throw error;

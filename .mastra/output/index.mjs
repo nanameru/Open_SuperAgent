@@ -336,7 +336,8 @@ const deepResearchWorkflow = createWorkflow({
     for (let i = 0; i < inputData.queries.length; i++) {
       const query = inputData.queries[i];
       if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log(`Waiting 1.1 seconds before next search query (${i + 1}/${inputData.queries.length})...`);
+        await new Promise((resolve) => setTimeout(resolve, 1100));
       }
       try {
         const braveResults = await braveSearchTool.execute({
