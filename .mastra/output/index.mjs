@@ -261,182 +261,34 @@ const weatherAgent = new Agent({
   })
 });
 
+const SearchQuerySchema = z.object({
+  query: z.string(),
+  reason: z.string()
+});
+const SearchResultSchema = z.object({
+  query: z.string(),
+  results: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    description: z.string().optional()
+  })),
+  summary: z.string(),
+  citations: z.array(z.object({
+    text: z.string(),
+    url: z.string()
+  }))
+});
+const KnowledgeGapSchema = z.object({
+  gap: z.string(),
+  suggestedQuery: z.string()
+});
 const deepResearchWorkflow = createWorkflow({
   id: "deep-research-workflow",
-  description: "\u8A73\u7D30\u306A\u8ABF\u67FB\u3068\u5206\u6790\u3092\u884C\u3046\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC",
+  description: "LangGraph\u30B9\u30BF\u30A4\u30EB\u306E\u9AD8\u5EA6\u306A\u7814\u7A76\u30A8\u30FC\u30B8\u30A7\u30F3\u30C8\u30B7\u30B9\u30C6\u30E0",
   inputSchema: z.object({
     message: z.string().describe("\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u8CEA\u554F"),
-    maxQueries: z.number().optional().default(3).describe("\u751F\u6210\u3059\u308B\u691C\u7D22\u30AF\u30A8\u30EA\u306E\u6700\u5927\u6570"),
-    searchResultsPerQuery: z.number().optional().default(5).describe("\u5404\u30AF\u30A8\u30EA\u306E\u691C\u7D22\u7D50\u679C\u6570")
-  }),
-  outputSchema: z.object({
-    answer: z.string(),
-    sources: z.array(z.object({
-      title: z.string(),
-      url: z.string()
-    })),
-    searchQueries: z.array(z.string()).optional(),
-    totalSourcesFound: z.number().optional()
-  })
-}).then(createStep({
-  id: "generate-search-queries",
-  description: "\u8CEA\u554F\u304B\u3089\u52B9\u679C\u7684\u306A\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210",
-  inputSchema: z.object({
-    message: z.string(),
-    maxQueries: z.number().optional().default(3),
-    searchResultsPerQuery: z.number().optional().default(5)
-  }),
-  outputSchema: z.object({
-    queries: z.array(z.string())
-  }),
-  execute: async ({ inputData }) => {
-    const model = anthropic("claude-opus-4-20250514");
-    const queryPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
-
-\u3053\u306E\u8CEA\u554F\u306B\u7B54\u3048\u308B\u305F\u3081\u306B\u3001${inputData.maxQueries}\u500B\u306E\u52B9\u679C\u7684\u306AWeb\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u5404\u30AF\u30A8\u30EA\u306F\u7570\u306A\u308B\u5074\u9762\u3092\u30AB\u30D0\u30FC\u3057\u3001\u6700\u65B0\u306E\u60C5\u5831\u3092\u53D6\u5F97\u3067\u304D\u308B\u3088\u3046\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-\u73FE\u5728\u306E\u65E5\u4ED8: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ja-JP")}
-
-\u30AF\u30A8\u30EA\u306E\u307F\u3092\u6539\u884C\u533A\u5207\u308A\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-    try {
-      const queryResponse = await generateText({
-        model,
-        prompt: queryPrompt
-      });
-      const queries = queryResponse.text.split("\n").filter((q) => q.trim()).slice(0, inputData.maxQueries);
-      if (queries.length === 0) {
-        throw new Error("\u691C\u7D22\u30AF\u30A8\u30EA\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
-      }
-      return { queries };
-    } catch (error) {
-      console.error("\u30AF\u30A8\u30EA\u751F\u6210\u30A8\u30E9\u30FC:", error);
-      return { queries: [inputData.message] };
-    }
-  }
-})).then(createStep({
-  id: "execute-searches",
-  description: "\u5404\u30AF\u30A8\u30EA\u3067Brave\u691C\u7D22\u3092\u5B9F\u884C",
-  inputSchema: z.object({
-    queries: z.array(z.string()),
-    searchResultsPerQuery: z.number()
-  }),
-  outputSchema: z.object({
-    searchResults: z.array(z.object({
-      query: z.string(),
-      results: z.array(z.object({
-        title: z.string(),
-        url: z.string(),
-        description: z.string().optional()
-      })),
-      error: z.string().optional()
-    }))
-  }),
-  execute: async ({ inputData }) => {
-    const searchResults = [];
-    for (let i = 0; i < inputData.queries.length; i++) {
-      const query = inputData.queries[i];
-      if (i > 0) {
-        console.log(`Waiting 1.1 seconds before next search query (${i + 1}/${inputData.queries.length})...`);
-        await new Promise((resolve) => setTimeout(resolve, 1100));
-      }
-      try {
-        const braveResults = await braveSearchTool.execute({
-          context: { query, count: inputData.searchResultsPerQuery }
-        });
-        searchResults.push({
-          query,
-          results: braveResults.results
-        });
-      } catch (error) {
-        console.warn(`Brave Search failed for query "${query}":`, error);
-        searchResults.push({
-          query,
-          results: [],
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-    return { searchResults };
-  }
-})).then(createStep({
-  id: "summarize-results",
-  description: "\u5404\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04",
-  inputSchema: z.object({
-    searchResults: z.array(z.object({
-      query: z.string(),
-      results: z.array(z.object({
-        title: z.string(),
-        url: z.string(),
-        description: z.string().optional()
-      })),
-      error: z.string().optional()
-    }))
-  }),
-  outputSchema: z.object({
-    summaries: z.array(z.object({
-      query: z.string(),
-      summary: z.string(),
-      sources: z.array(z.object({
-        title: z.string(),
-        url: z.string()
-      }))
-    }))
-  }),
-  execute: async ({ inputData }) => {
-    const model = anthropic("claude-opus-4-20250514");
-    const summaries = await Promise.all(
-      inputData.searchResults.map(async ({ query, results, error }) => {
-        if (error || results.length === 0) {
-          return {
-            query,
-            summary: `${query}\u306B\u95A2\u3059\u308B\u60C5\u5831\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002`,
-            sources: []
-          };
-        }
-        const searchPrompt = `\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
-
-\u691C\u7D22\u30AF\u30A8\u30EA: ${query}
-
-${results.map((r) => `\u30BF\u30A4\u30C8\u30EB: ${r.title}
-URL: ${r.url}
-\u5185\u5BB9: ${r.description || "No description available"}`).join("\n\n")}
-
-\u91CD\u8981\u306A\u60C5\u5831\u3092\u62BD\u51FA\u3057\u3001\u7C21\u6F54\u306B\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-        try {
-          const searchResponse = await generateText({
-            model,
-            prompt: searchPrompt
-          });
-          return {
-            query,
-            summary: searchResponse.text,
-            sources: results.map((r) => ({ title: r.title, url: r.url }))
-          };
-        } catch (error2) {
-          console.error(`\u8981\u7D04\u751F\u6210\u30A8\u30E9\u30FC (${query}):`, error2);
-          return {
-            query,
-            summary: "\u8981\u7D04\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002",
-            sources: results.map((r) => ({ title: r.title, url: r.url }))
-          };
-        }
-      })
-    );
-    return { summaries };
-  }
-})).then(createStep({
-  id: "generate-final-answer",
-  description: "\u53CE\u96C6\u3057\u305F\u60C5\u5831\u304B\u3089\u6700\u7D42\u7684\u306A\u56DE\u7B54\u3092\u751F\u6210",
-  inputSchema: z.object({
-    message: z.string(),
-    summaries: z.array(z.object({
-      query: z.string(),
-      summary: z.string(),
-      sources: z.array(z.object({
-        title: z.string(),
-        url: z.string()
-      }))
-    }))
+    maxIterations: z.number().optional().default(2).describe("\u6700\u5927\u53CD\u5FA9\u56DE\u6570"),
+    queriesPerIteration: z.number().optional().default(3).describe("\u5404\u53CD\u5FA9\u3067\u306E\u691C\u7D22\u30AF\u30A8\u30EA\u6570")
   }),
   outputSchema: z.object({
     answer: z.string(),
@@ -445,41 +297,387 @@ URL: ${r.url}
       url: z.string()
     })),
     searchQueries: z.array(z.string()),
-    totalSourcesFound: z.number()
+    iterations: z.number(),
+    knowledgeGaps: z.array(z.string()).optional()
+  })
+}).then(createStep({
+  id: "generate-initial-queries",
+  description: "\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F\u304B\u3089\u8907\u6570\u306E\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210",
+  inputSchema: z.object({
+    message: z.string(),
+    maxIterations: z.number().optional().default(2),
+    queriesPerIteration: z.number().optional().default(3)
+  }),
+  outputSchema: z.object({
+    queries: z.array(SearchQuerySchema),
+    iteration: z.number()
   }),
   execute: async ({ inputData }) => {
     const model = anthropic("claude-opus-4-20250514");
-    const allSources = inputData.summaries.flatMap((s) => s.sources);
-    const uniqueSources = Array.from(
-      new Map(allSources.map((s) => [s.url, s])).values()
-    );
-    const combinedSummaries = inputData.summaries.map((s) => `\u3010${s.query}\u3011
-${s.summary}`).join("\n\n---\n\n");
-    const answerPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
+    const prompt = `\u3042\u306A\u305F\u306F\u7814\u7A76\u30A2\u30B7\u30B9\u30BF\u30F3\u30C8\u3067\u3059\u3002\u4EE5\u4E0B\u306E\u8CEA\u554F\u306B\u7B54\u3048\u308B\u305F\u3081\u306B\u3001${inputData.queriesPerIteration}\u500B\u306E\u52B9\u679C\u7684\u306AWeb\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
-\u4EE5\u4E0B\u306E\u60C5\u5831\u3092\u57FA\u306B\u3001\u5305\u62EC\u7684\u3067\u6B63\u78BA\u306A\u56DE\u7B54\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+\u8CEA\u554F: ${inputData.message}
 
-${combinedSummaries}
+\u5404\u30AF\u30A8\u30EA\u306B\u3064\u3044\u3066\u3001\u306A\u305C\u305D\u306E\u30AF\u30A8\u30EA\u304C\u6709\u52B9\u304B\u306E\u7406\u7531\u3082\u542B\u3081\u3066\u304F\u3060\u3055\u3044\u3002
+\u73FE\u5728\u306E\u65E5\u4ED8: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ja-JP")}
 
-\u56DE\u7B54\u306B\u306F\u9069\u5207\u306B\u60C5\u5831\u6E90\u3092\u5F15\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+\u4EE5\u4E0B\u306EJSON\u5F62\u5F0F\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+[
+  {
+    "query": "\u691C\u7D22\u30AF\u30A8\u30EA1",
+    "reason": "\u3053\u306E\u30AF\u30A8\u30EA\u304C\u6709\u52B9\u306A\u7406\u7531"
+  },
+  ...
+]`;
     try {
-      const answerResponse = await generateText({
+      const response = await generateText({
         model,
-        prompt: answerPrompt
+        prompt
+      });
+      let queries;
+      try {
+        queries = JSON.parse(response.text);
+      } catch {
+        const lines = response.text.split("\n").filter((line) => line.trim());
+        queries = lines.slice(0, inputData.queriesPerIteration).map((line) => ({
+          query: line.trim(),
+          reason: "\u52B9\u679C\u7684\u306A\u691C\u7D22\u30AF\u30A8\u30EA"
+        }));
+      }
+      return {
+        queries: queries.slice(0, inputData.queriesPerIteration),
+        iteration: 1
+      };
+    } catch (error) {
+      console.error("\u30AF\u30A8\u30EA\u751F\u6210\u30A8\u30E9\u30FC:", error);
+      return {
+        queries: [{
+          query: inputData.message,
+          reason: "\u30D5\u30A9\u30FC\u30EB\u30D0\u30C3\u30AF: \u5143\u306E\u8CEA\u554F\u3092\u4F7F\u7528"
+        }],
+        iteration: 1
+      };
+    }
+  }
+})).then(createStep({
+  id: "parallel-web-search",
+  description: "\u751F\u6210\u3055\u308C\u305F\u30AF\u30A8\u30EA\u3067\u4E26\u5217\u306BWeb\u691C\u7D22\u3092\u5B9F\u884C",
+  inputSchema: z.object({
+    queries: z.array(SearchQuerySchema),
+    iteration: z.number()
+  }),
+  outputSchema: z.object({
+    searchResults: z.array(SearchResultSchema),
+    iteration: z.number()
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-opus-4-20250514");
+    const searchResults = [];
+    for (let i = 0; i < inputData.queries.length; i++) {
+      const { query, reason } = inputData.queries[i];
+      if (i > 0) {
+        console.log(`[Iteration ${inputData.iteration}] Waiting 1.1s before search ${i + 1}/${inputData.queries.length}...`);
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+      try {
+        console.log(`[Iteration ${inputData.iteration}] Searching: "${query}" (Reason: ${reason})`);
+        const braveResults = await braveSearchTool.execute({
+          context: { query, count: 5 }
+        });
+        const citationPrompt = `\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u304B\u3089\u3001\u8CEA\u554F\u306B\u95A2\u9023\u3059\u308B\u91CD\u8981\u306A\u60C5\u5831\u3092\u62BD\u51FA\u3057\u3001\u5F15\u7528\u3068\u3057\u3066\u6574\u7406\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u691C\u7D22\u30AF\u30A8\u30EA: ${query}
+\u691C\u7D22\u7D50\u679C:
+${braveResults.results.map((r) => `
+\u30BF\u30A4\u30C8\u30EB: ${r.title}
+URL: ${r.url}
+\u8AAC\u660E: ${r.description || "\u306A\u3057"}
+`).join("\n")}
+
+\u4EE5\u4E0B\u306E\u5F62\u5F0F\u3067\u8981\u7D04\u3068\u5F15\u7528\u3092\u63D0\u4F9B\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+1. \u5168\u4F53\u306E\u8981\u7D04\uFF082-3\u6587\uFF09
+2. \u91CD\u8981\u306A\u5F15\u7528\uFF08\u5404\u5F15\u7528\u306B\u306FURL\u3092\u542B\u3081\u308B\uFF09`;
+        const citationResponse = await generateText({
+          model,
+          prompt: citationPrompt
+        });
+        const citations = braveResults.results.slice(0, 3).map((r) => ({
+          text: r.description || r.title,
+          url: r.url
+        }));
+        searchResults.push({
+          query,
+          results: braveResults.results,
+          summary: citationResponse.text,
+          citations
+        });
+      } catch (error) {
+        console.error(`\u691C\u7D22\u30A8\u30E9\u30FC (${query}):`, error);
+        searchResults.push({
+          query,
+          results: [],
+          summary: `\u691C\u7D22\u30A8\u30E9\u30FC: ${error instanceof Error ? error.message : "Unknown error"}`,
+          citations: []
+        });
+      }
+    }
+    return {
+      searchResults,
+      iteration: inputData.iteration
+    };
+  }
+})).then(createStep({
+  id: "reflection-and-evaluation",
+  description: "\u53CE\u96C6\u3057\u305F\u60C5\u5831\u3092\u8A55\u4FA1\u3057\u3001\u77E5\u8B58\u30AE\u30E3\u30C3\u30D7\u3092\u7279\u5B9A",
+  inputSchema: z.object({
+    message: z.string(),
+    searchResults: z.array(SearchResultSchema),
+    iteration: z.number(),
+    maxIterations: z.number()
+  }),
+  outputSchema: z.object({
+    isComplete: z.boolean(),
+    knowledgeGaps: z.array(KnowledgeGapSchema),
+    summary: z.string(),
+    shouldContinue: z.boolean()
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-opus-4-20250514");
+    if (inputData.iteration >= inputData.maxIterations) {
+      return {
+        isComplete: true,
+        knowledgeGaps: [],
+        summary: "\u6700\u5927\u53CD\u5FA9\u56DE\u6570\u306B\u9054\u3057\u307E\u3057\u305F",
+        shouldContinue: false
+      };
+    }
+    const evaluationPrompt = `\u3042\u306A\u305F\u306F\u7814\u7A76\u8A55\u4FA1\u8005\u3067\u3059\u3002\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u3092\u5206\u6790\u3057\u3001\u5143\u306E\u8CEA\u554F\u306B\u5BFE\u3059\u308B\u60C5\u5831\u306E\u5341\u5206\u6027\u3092\u8A55\u4FA1\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u5143\u306E\u8CEA\u554F: ${inputData.message}
+
+\u53CE\u96C6\u3057\u305F\u60C5\u5831:
+${inputData.searchResults.map((sr) => `
+\u30AF\u30A8\u30EA: ${sr.query}
+\u8981\u7D04: ${sr.summary}
+\u7D50\u679C\u6570: ${sr.results.length}
+`).join("\n---\n")}
+
+\u4EE5\u4E0B\u3092\u8A55\u4FA1\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+1. \u8CEA\u554F\u306B\u7B54\u3048\u308B\u306E\u306B\u5341\u5206\u306A\u60C5\u5831\u304C\u96C6\u307E\u3063\u305F\u304B\uFF1F
+2. \u307E\u3060\u4E0D\u8DB3\u3057\u3066\u3044\u308B\u60C5\u5831\u3084\u77E5\u8B58\u30AE\u30E3\u30C3\u30D7\u306F\u4F55\u304B\uFF1F
+3. \u8FFD\u52A0\u3067\u691C\u7D22\u3059\u3079\u304D\u30AF\u30A8\u30EA\u306F\u4F55\u304B\uFF1F
+
+\u4EE5\u4E0B\u306EJSON\u5F62\u5F0F\u3067\u56DE\u7B54\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+{
+  "isComplete": true/false,
+  "summary": "\u73FE\u5728\u306E\u60C5\u5831\u306E\u8981\u7D04",
+  "knowledgeGaps": [
+    {
+      "gap": "\u4E0D\u8DB3\u3057\u3066\u3044\u308B\u60C5\u5831",
+      "suggestedQuery": "\u8FFD\u52A0\u691C\u7D22\u30AF\u30A8\u30EA"
+    }
+  ]
+}`;
+    try {
+      const response = await generateText({
+        model,
+        prompt: evaluationPrompt
+      });
+      let evaluation;
+      try {
+        evaluation = JSON.parse(response.text);
+      } catch {
+        evaluation = {
+          isComplete: true,
+          summary: response.text,
+          knowledgeGaps: []
+        };
+      }
+      return {
+        isComplete: evaluation.isComplete || false,
+        knowledgeGaps: evaluation.knowledgeGaps || [],
+        summary: evaluation.summary || "\u60C5\u5831\u3092\u8A55\u4FA1\u3057\u307E\u3057\u305F",
+        shouldContinue: !evaluation.isComplete && inputData.iteration < inputData.maxIterations
+      };
+    } catch (error) {
+      console.error("\u8A55\u4FA1\u30A8\u30E9\u30FC:", error);
+      return {
+        isComplete: true,
+        knowledgeGaps: [],
+        summary: " \u8A55\u4FA1\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
+        shouldContinue: false
+      };
+    }
+  }
+})).then(createStep({
+  id: "generate-additional-queries",
+  description: "\u77E5\u8B58\u30AE\u30E3\u30C3\u30D7\u306B\u57FA\u3065\u3044\u3066\u8FFD\u52A0\u30AF\u30A8\u30EA\u3092\u751F\u6210",
+  inputSchema: z.object({
+    isComplete: z.boolean(),
+    knowledgeGaps: z.array(KnowledgeGapSchema),
+    summary: z.string(),
+    shouldContinue: z.boolean(),
+    // 追加で必要なデータ
+    queriesPerIteration: z.number().optional().default(3),
+    iteration: z.number(),
+    message: z.string(),
+    searchResults: z.array(SearchResultSchema),
+    maxIterations: z.number()
+  }),
+  outputSchema: z.object({
+    additionalQueries: z.array(SearchQuerySchema).optional(),
+    shouldSearch: z.boolean(),
+    nextIteration: z.number()
+  }),
+  execute: async ({ inputData }) => {
+    if (!inputData.shouldContinue || inputData.knowledgeGaps.length === 0) {
+      return {
+        additionalQueries: void 0,
+        shouldSearch: false,
+        nextIteration: inputData.iteration
+      };
+    }
+    const additionalQueries = inputData.knowledgeGaps.slice(0, inputData.queriesPerIteration).map((gap) => ({
+      query: gap.suggestedQuery,
+      reason: `\u77E5\u8B58\u30AE\u30E3\u30C3\u30D7: ${gap.gap}`
+    }));
+    console.log(`[Iteration ${inputData.iteration}] \u8FFD\u52A0\u30AF\u30A8\u30EA\u3092\u751F\u6210: ${additionalQueries.length}\u500B`);
+    return {
+      additionalQueries,
+      shouldSearch: true,
+      nextIteration: inputData.iteration + 1
+    };
+  }
+})).then(createStep({
+  id: "additional-search",
+  description: "\u8FFD\u52A0\u30AF\u30A8\u30EA\u3067\u691C\u7D22\u3092\u5B9F\u884C",
+  inputSchema: z.object({
+    shouldSearch: z.boolean(),
+    additionalQueries: z.array(SearchQuerySchema).optional(),
+    nextIteration: z.number(),
+    previousResults: z.array(SearchResultSchema)
+  }),
+  outputSchema: z.object({
+    allSearchResults: z.array(SearchResultSchema),
+    totalIterations: z.number()
+  }),
+  execute: async ({ inputData }) => {
+    if (!inputData.shouldSearch || !inputData.additionalQueries) {
+      return {
+        allSearchResults: inputData.previousResults,
+        totalIterations: inputData.nextIteration - 1
+      };
+    }
+    const model = anthropic("claude-opus-4-20250514");
+    const additionalResults = [];
+    for (let i = 0; i < inputData.additionalQueries.length; i++) {
+      const { query} = inputData.additionalQueries[i];
+      if (i > 0) {
+        console.log(`[Iteration ${inputData.nextIteration}] Waiting 1.1s before additional search ${i + 1}/${inputData.additionalQueries.length}...`);
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+      try {
+        console.log(`[Iteration ${inputData.nextIteration}] Additional search: "${query}"`);
+        const braveResults = await braveSearchTool.execute({
+          context: { query, count: 5 }
+        });
+        const citationPrompt = `\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+
+\u30AF\u30A8\u30EA: ${query}
+\u7D50\u679C: ${JSON.stringify(braveResults.results.slice(0, 3))}`;
+        const citationResponse = await generateText({
+          model,
+          prompt: citationPrompt
+        });
+        additionalResults.push({
+          query,
+          results: braveResults.results,
+          summary: citationResponse.text,
+          citations: braveResults.results.slice(0, 3).map((r) => ({
+            text: r.description || r.title,
+            url: r.url
+          }))
+        });
+      } catch (error) {
+        console.error(`\u8FFD\u52A0\u691C\u7D22\u30A8\u30E9\u30FC (${query}):`, error);
+      }
+    }
+    return {
+      allSearchResults: [...inputData.previousResults, ...additionalResults],
+      totalIterations: inputData.nextIteration
+    };
+  }
+})).then(createStep({
+  id: "generate-final-answer",
+  description: "\u53CE\u96C6\u3057\u305F\u5168\u60C5\u5831\u304B\u3089\u5305\u62EC\u7684\u306A\u56DE\u7B54\u3092\u751F\u6210",
+  inputSchema: z.object({
+    message: z.string(),
+    allSearchResults: z.array(SearchResultSchema),
+    totalIterations: z.number()
+  }),
+  outputSchema: z.object({
+    answer: z.string(),
+    sources: z.array(z.object({
+      title: z.string(),
+      url: z.string()
+    })),
+    searchQueries: z.array(z.string()),
+    iterations: z.number(),
+    knowledgeGaps: z.array(z.string()).optional()
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-opus-4-20250514");
+    const allSources = /* @__PURE__ */ new Map();
+    const allQueries = [];
+    inputData.allSearchResults.forEach((sr) => {
+      allQueries.push(sr.query);
+      sr.results.forEach((r) => {
+        if (!allSources.has(r.url)) {
+          allSources.set(r.url, { title: r.title, url: r.url });
+        }
+      });
+    });
+    const finalPrompt = `\u3042\u306A\u305F\u306F\u5C02\u9580\u7684\u306A\u7814\u7A76\u8005\u3067\u3059\u3002\u4EE5\u4E0B\u306E\u60C5\u5831\u3092\u57FA\u306B\u3001\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F\u306B\u5BFE\u3059\u308B\u5305\u62EC\u7684\u3067\u6B63\u78BA\u306A\u56DE\u7B54\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u8CEA\u554F: ${inputData.message}
+
+\u53CE\u96C6\u3057\u305F\u60C5\u5831\uFF08${inputData.totalIterations}\u56DE\u306E\u53CD\u5FA9\u691C\u7D22\uFF09:
+${inputData.allSearchResults.map((sr) => `
+\u3010\u691C\u7D22: ${sr.query}\u3011
+\u8981\u7D04: ${sr.summary}
+\u5F15\u7528:
+${sr.citations.map((c) => `- ${c.text} (\u51FA\u5178: ${c.url})`).join("\n")}
+`).join("\n\n")}
+
+\u8981\u4EF6:
+1. \u5305\u62EC\u7684\u3067\u8A73\u7D30\u306A\u56DE\u7B54\u3092\u63D0\u4F9B
+2. \u9069\u5207\u306B\u60C5\u5831\u6E90\u3092\u5F15\u7528
+3. \u69CB\u9020\u5316\u3055\u308C\u305F\u5F62\u5F0F\u3067\u63D0\u793A
+4. \u5C02\u9580\u7684\u304B\u3064\u7406\u89E3\u3057\u3084\u3059\u3044\u8A00\u8449\u3092\u4F7F\u7528
+5. \u91CD\u8981\u306A\u30DD\u30A4\u30F3\u30C8\u3092\u5F37\u8ABF
+
+\u56DE\u7B54\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A`;
+    try {
+      const response = await generateText({
+        model,
+        prompt: finalPrompt
       });
       return {
-        answer: answerResponse.text,
-        sources: uniqueSources,
-        searchQueries: inputData.summaries.map((s) => s.query),
-        totalSourcesFound: uniqueSources.length
+        answer: response.text,
+        sources: Array.from(allSources.values()).slice(0, 20),
+        // 最大20個のソース
+        searchQueries: allQueries,
+        iterations: inputData.totalIterations,
+        knowledgeGaps: void 0
       };
     } catch (error) {
       console.error("\u6700\u7D42\u56DE\u7B54\u751F\u6210\u30A8\u30E9\u30FC:", error);
       return {
-        answer: "\u7533\u3057\u8A33\u3054\u3056\u3044\u307E\u305B\u3093\u3002\u60C5\u5831\u306E\u51E6\u7406\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F\u3002",
-        sources: uniqueSources,
-        searchQueries: inputData.summaries.map((s) => s.query),
-        totalSourcesFound: uniqueSources.length
+        answer: "\u7533\u3057\u8A33\u3054\u3056\u3044\u307E\u305B\u3093\u3002\u56DE\u7B54\u306E\u751F\u6210\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F\u3002",
+        sources: Array.from(allSources.values()).slice(0, 10),
+        searchQueries: allQueries,
+        iterations: inputData.totalIterations,
+        knowledgeGaps: ["\u56DE\u7B54\u751F\u6210\u30A8\u30E9\u30FC"]
       };
     }
   }
