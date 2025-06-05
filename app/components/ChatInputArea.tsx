@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Mic, MicOff, ChevronDown, Globe, Search } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, ChevronDown, Search } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -29,6 +29,8 @@ interface ChatInputAreaProps {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
+  isDeepResearchMode?: boolean;
+  onDeepResearchModeChange?: (enabled: boolean) => void;
 }
 
 // ツールオプションの型定義
@@ -41,12 +43,6 @@ interface ToolOption {
 
 const toolOptions: ToolOption[] = [
   {
-    value: 'web',
-    label: 'ウェブを検索する',
-    icon: <Globe className="h-4 w-4" />,
-    description: 'インターネットから情報を検索します'
-  },
-  {
     value: 'deep-research',
     label: 'Deep Research を実行する',
     icon: <Search className="h-4 w-4" />,
@@ -58,7 +54,9 @@ export const ChatInputArea = ({
   input, 
   handleInputChange, 
   handleSubmit, 
-  isLoading 
+  isLoading,
+  isDeepResearchMode = false,
+  onDeepResearchModeChange
 }: ChatInputAreaProps) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
@@ -126,8 +124,6 @@ export const ChatInputArea = ({
       
       if (selectedTool === 'deep-research') {
         modifiedInput = `[Deep Research] ${input}`;
-      } else if (selectedTool === 'web') {
-        modifiedInput = `[Web検索] ${input}`;
       }
       
       // 修正された入力で送信
@@ -145,8 +141,13 @@ export const ChatInputArea = ({
       
       handleSubmit(syntheticEvent);
       
-      // ツール選択をリセット
-      setSelectedTool('');
+          // Deep Researchモード以外の場合はツール選択をリセット
+      if (selectedTool !== 'deep-research') {
+        setSelectedTool('');
+        if (onDeepResearchModeChange) {
+          onDeepResearchModeChange(false);
+        }
+      }
     } else {
       // 通常の送信でもpreventDefaultメソッドを含むイベントを渡す
       handleSubmit(e);
@@ -169,7 +170,9 @@ export const ChatInputArea = ({
                   <>
                     {toolOptions.find(opt => opt.value === selectedTool)?.icon}
                     <span className="text-xs font-medium">
-                      {toolOptions.find(opt => opt.value === selectedTool)?.label}
+                      {isDeepResearchMode && selectedTool === 'deep-research' 
+                        ? 'Deep Research (有効)' 
+                        : toolOptions.find(opt => opt.value === selectedTool)?.label}
                     </span>
                   </>
                 ) : (
@@ -191,8 +194,14 @@ export const ChatInputArea = ({
                         key={option.value}
                         value={option.value}
                         onSelect={(currentValue) => {
-                          setSelectedTool(currentValue === selectedTool ? '' : currentValue);
+                          const newSelectedTool = currentValue === selectedTool ? '' : currentValue;
+                          setSelectedTool(newSelectedTool);
                           setOpen(false);
+                          
+                          // Deep Researchモードの状態を更新
+                          if (onDeepResearchModeChange) {
+                            onDeepResearchModeChange(newSelectedTool === 'deep-research');
+                          }
                         }}
                         className="flex items-start gap-3 p-3"
                       >
@@ -213,7 +222,13 @@ export const ChatInputArea = ({
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder={selectedTool ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` : "質問してみましょう"}
+            placeholder={
+              isDeepResearchMode 
+                ? "Deep Researchで詳細調査します..." 
+                : selectedTool 
+                  ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
+                  : "質問してみましょう"
+            }
             className="flex-1 p-3 pl-2 pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base"
             disabled={isLoading}
           />
