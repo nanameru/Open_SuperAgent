@@ -2,7 +2,6 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { tool, generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { evaluate } from 'mathjs';
 import axios from 'axios';
 import * as fs from 'fs';
 import fs__default from 'fs';
@@ -10,8 +9,7 @@ import * as path from 'path';
 import path__default from 'path';
 import { v4 } from 'uuid';
 import { fal } from '@fal-ai/client';
-import { Agent } from '@mastra/core/agent';
-import { Memory } from '@mastra/memory';
+import { writeFile } from 'fs/promises';
 
 const htmlSlideTool = tool({
   description: 'Generates the HTML content for a single slide section (within <section class="slide"></section>) using an LLM. It takes a general topic and a specific outline point for this particular slide.',
@@ -62,6 +60,14 @@ const htmlSlideTool = tool({
     const baseDesignPrompt = `\u3042\u306A\u305F\u306F\u30D7\u30ED\u30D5\u30A7\u30C3\u30B7\u30E7\u30CA\u30EB\u306A\u300C\u30D7\u30EC\u30BC\u30F3\u30C6\u30FC\u30B7\u30E7\u30F3\u30C7\u30B6\u30A4\u30CA\u30FC\u300D\u3067\u3059\u3002
 \u4F01\u696D\u306E\u7D4C\u55B6\u9663\u3084\u30AB\u30F3\u30D5\u30A1\u30EC\u30F3\u30B9\u3067\u3082\u4F7F\u7528\u3067\u304D\u308B\u9AD8\u54C1\u8CEA\u306A\u30B9\u30E9\u30A4\u30C9\u3092 HTML/CSS \u3067\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
 
+\u3010\u91CD\u8981\u3011\u51FA\u529B\u5F62\u5F0F\u306E\u7D76\u5BFE\u7684\u30EB\u30FC\u30EB
+\u5FC5\u305A\u4EE5\u4E0B\u306E\u5F62\u5F0F\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+1. \u6700\u521D\u306B<style>\u30BF\u30B0\u304B\u3089\u59CB\u3081\u308B
+2. </style>\u30BF\u30B0\u3067\u9589\u3058\u308B
+3. \u6B21\u306B<section class="slide ${promptArgs.uniqueClass}">\u304B\u3089\u59CB\u3081\u308B
+4. </section>\u30BF\u30B0\u3067\u9589\u3058\u308B
+5. \u3053\u308C\u4EE5\u5916\u306E\u8981\u7D20\uFF08HTML\u30BF\u30B0\u3001\u8AAC\u660E\u6587\u3001\u30B3\u30E1\u30F3\u30C8\u306A\u3069\uFF09\u306F\u4E00\u5207\u542B\u3081\u306A\u3044
+
 \u3010\u5165\u529B\u30D1\u30E9\u30E1\u30FC\u30BF\u3011
 \u30FB\u30E1\u30A4\u30F3\u30C6\u30FC\u30DE          : ${promptArgs.topic}
 \u30FB\u3053\u306E\u30B9\u30E9\u30A4\u30C9\u306E\u8981\u70B9    : ${promptArgs.outline}
@@ -84,15 +90,16 @@ const htmlSlideTool = tool({
 5. **16:9\u30A2\u30B9\u30DA\u30AF\u30C8\u6BD4** - \u3059\u3079\u3066\u306E\u30B9\u30E9\u30A4\u30C9\u309216:9\u30A2\u30B9\u30DA\u30AF\u30C8\u6BD4\u306B\u7D71\u4E00
 
 \u3010\u51FA\u529B\u8981\u4EF6\u3011
-1. **<style>** \u30D6\u30ED\u30C3\u30AF\u3068 **<section class="slide ...">...</section>** \u306E\u307F\u8FD4\u3059\u3002
-2. CSS \u306F\u30AF\u30E9\u30B9 \`.${promptArgs.uniqueClass}\` \u306B\u30B9\u30B3\u30FC\u30D7\u3057\u3001\u4ED6\u8981\u7D20\u3078\u5F71\u97FF\u3055\u305B\u306A\u3044\u3002
-3. \u672A\u6307\u5B9A\u30D1\u30E9\u30E1\u30FC\u30BF\u306F\u30C7\u30D5\u30A9\u30EB\u30C8\u5024\u3092\u63A1\u7528\u3002
-4. **\u30B9\u30E9\u30A4\u30C9\u306E\u5BF8\u6CD5\u309216:9\u306E\u30A2\u30B9\u30DA\u30AF\u30C8\u6BD4\u306B\u56FA\u5B9A\u3059\u308B**
+1. **\u5FC5\u305A<style>\u30BF\u30B0\u304B\u3089\u59CB\u3081\u3001</style>\u30BF\u30B0\u3067\u9589\u3058\u308B**
+2. **\u5FC5\u305A<section class="slide ${promptArgs.uniqueClass}">\u304B\u3089\u59CB\u3081\u3001</section>\u30BF\u30B0\u3067\u9589\u3058\u308B**
+3. **\u4E0A\u8A18\u4EE5\u5916\u306E\u30BF\u30B0\u3084\u6587\u5B57\u306F\u4E00\u5207\u51FA\u529B\u3057\u306A\u3044**
+4. CSS \u306F\u30AF\u30E9\u30B9 \`.${promptArgs.uniqueClass}\` \u306B\u30B9\u30B3\u30FC\u30D7\u3057\u3001\u4ED6\u8981\u7D20\u3078\u5F71\u97FF\u3055\u305B\u306A\u3044
+5. **\u30B9\u30E9\u30A4\u30C9\u306E\u5BF8\u6CD5\u309216:9\u306E\u30A2\u30B9\u30DA\u30AF\u30C8\u6BD4\u306B\u56FA\u5B9A\u3059\u308B**
    - width: 100%
    - height: 0
    - padding-bottom: 56.25% (16:9\u306E\u30A2\u30B9\u30DA\u30AF\u30C8\u6BD4)
    - \u307E\u305F\u306F\u9069\u5207\u306Avw/vh\u30E6\u30CB\u30C3\u30C8\u3092\u4F7F\u7528
-5. \u751F\u6210\u3059\u308B HTML \u69CB\u9020\u306F **layoutType** \u306B\u5FDC\u3058\u3066\u4EE5\u4E0B\u3092\u53C2\u8003\u306B\u67D4\u8EDF\u306B\u5909\u5F62\u3059\u308B\u3053\u3068\u3002
+6. \u751F\u6210\u3059\u308B HTML \u69CB\u9020\u306F **layoutType** \u306B\u5FDC\u3058\u3066\u4EE5\u4E0B\u3092\u53C2\u8003\u306B\u67D4\u8EDF\u306B\u5909\u5F62\u3059\u308B\u3053\u3068\u3002
    - 'default'           : \u5927\u304D\u306A\u898B\u51FA\u3057 + \u7C21\u6F54\u306A\u672C\u6587 + \u8996\u899A\u7684\u56F3\u89E3 + \u7B87\u6761\u66F8\u304D\uFF083\u9805\u76EE\u7A0B\u5EA6\uFF09
    - 'image-left'        : \u5DE6\u5074\u306B\u56F3\u89E3\u30FB\u30A4\u30E9\u30B9\u30C8 / \u53F3\u5074\u306B\u7C21\u6F54\u306A\u672C\u6587\u3068\u30DD\u30A4\u30F3\u30C8
    - 'image-right'       : \u53F3\u5074\u306B\u56F3\u89E3\u30FB\u30A4\u30E9\u30B9\u30C8 / \u5DE6\u5074\u306B\u7C21\u6F54\u306A\u672C\u6587\u3068\u30DD\u30A4\u30F3\u30C8
@@ -106,7 +113,7 @@ const htmlSlideTool = tool({
    - 'data-visualization': \u30C7\u30FC\u30BF\u30D3\u30B8\u30E5\u30A2\u30E9\u30A4\u30BC\u30FC\u30B7\u30E7\u30F3\u3092\u4E2D\u5FC3\u3068\u3057\u305F\u30B9\u30E9\u30A4\u30C9
    - 'photo-with-caption' : \u5370\u8C61\u7684\u306A\u5199\u771F\u307E\u305F\u306F\u30A4\u30E9\u30B9\u30C8\u3068\u7C21\u6F54\u306A\u30AD\u30E3\u30D7\u30B7\u30E7\u30F3
 
-6. **\u56F3\u89E3\u3068\u30D3\u30B8\u30E5\u30A2\u30EB\u8981\u7D20\uFF08\u5FC5\u9808\uFF09**
+7. **\u56F3\u89E3\u3068\u30D3\u30B8\u30E5\u30A2\u30EB\u8981\u7D20\uFF08\u5FC5\u9808\uFF09**
    **diagramType** ('${promptArgs.diagramType}') \u306B\u57FA\u3065\u3044\u3066\u9069\u5207\u306A\u56F3\u89E3\u3092 SVG \u3067\u751F\u6210\uFF1A
    - 'auto'        : \u5185\u5BB9\u306B\u6700\u9069\u306A\u56F3\u89E3\u3092\u81EA\u52D5\u9078\u629E
    - 'bar'         : \u68D2\u30B0\u30E9\u30D5\uFF08\u9805\u76EE\u6BD4\u8F03\u306B\u6700\u9069\uFF09
@@ -121,7 +128,45 @@ const htmlSlideTool = tool({
    - 'icons'       : \u30C6\u30FC\u30DE\u306B\u95A2\u9023\u3059\u308B\u30A2\u30A4\u30B3\u30F3\u30BB\u30C3\u30C8
    - 'none'        : \u56F3\u89E3\u306A\u3057\uFF08\u30C6\u30AD\u30B9\u30C8\u306E\u307F\u91CD\u8996\u3059\u308B\u5834\u5408\uFF09
 
-7. **\u30E2\u30C0\u30F3\u30C7\u30B6\u30A4\u30F3\u8981\u7D20\uFF08\u5FC5\u9808\uFF09**
+8. **\u69CB\u9020\u5316\u3055\u308C\u305FHTML\u751F\u6210\uFF08\u5FC5\u9808\uFF09**
+   PPTX\u3078\u306E\u6B63\u78BA\u306A\u5909\u63DB\u306E\u305F\u3081\u3001\u4EE5\u4E0B\u306E\u69CB\u9020\u5316\u30EB\u30FC\u30EB\u306B\u5F93\u3046\uFF1A
+   
+   a) \u30B9\u30E9\u30A4\u30C9\u30B3\u30F3\u30C6\u30CA\u69CB\u9020:
+   <section class="slide ${promptArgs.uniqueClass}" data-layout="${promptArgs.layoutType}" data-slide-index="${promptArgs.slideIndex}">
+     <div class="slide-container" style="width: 1280px; height: 720px;">
+       <div class="slide-header" data-position="top">
+         <!-- \u30BF\u30A4\u30C8\u30EB\u8981\u7D20 -->
+       </div>
+       <div class="slide-body" data-layout="${promptArgs.layoutType}">
+         <!-- \u30E1\u30A4\u30F3\u30B3\u30F3\u30C6\u30F3\u30C4 -->
+       </div>
+       <div class="slide-footer" data-position="bottom">
+         <!-- \u30D5\u30C3\u30BF\u30FC\u8981\u7D20 -->
+       </div>
+     </div>
+   </section>
+
+   b) \u30BB\u30DE\u30F3\u30C6\u30A3\u30C3\u30AF\u306A\u8981\u7D20:
+   - \u30BF\u30A4\u30C8\u30EB: <h1 class="slide-title" data-element-type="title">
+   - \u30B5\u30D6\u30BF\u30A4\u30C8\u30EB: <h2 class="slide-subtitle" data-element-type="subtitle">
+   - \u672C\u6587: <p class="slide-text" data-element-type="body">
+   - \u30EA\u30B9\u30C8: <ul class="slide-list" data-element-type="list">
+   - \u5F37\u8ABF\u30DC\u30C3\u30AF\u30B9: <div class="concept-box" data-element-type="highlight-box">
+   - \u56F3\u8868: <div class="diagram-container" data-element-type="diagram">
+   - \u30A2\u30A4\u30B3\u30F3: <i class="icon" data-element-type="icon" data-icon-name="...">
+
+   c) \u30EC\u30A4\u30A2\u30A6\u30C8\u60C5\u5831:
+   - 2\u30AB\u30E9\u30E0: <div class="flex-container" data-layout="two-column">
+              <div class="column-left" data-width="50%">...</div>
+              <div class="column-right" data-width="50%">...</div>
+            </div>
+   - \u30B0\u30EA\u30C3\u30C9: <div class="grid-container" data-layout="grid" data-columns="3">
+
+   d) \u4F4D\u7F6E\u60C5\u5831:
+   - \u660E\u793A\u7684\u306A\u4F4D\u7F6E\u6307\u5B9A: data-position="top|center|bottom|left|right"
+   - \u30B5\u30A4\u30BA\u6307\u5B9A: data-width="50%" data-height="200px"
+
+9. **\u30E2\u30C0\u30F3\u30C7\u30B6\u30A4\u30F3\u8981\u7D20\uFF08\u5FC5\u9808\uFF09**
    \u4EE5\u4E0B\u306E\u30C7\u30B6\u30A4\u30F3\u8981\u7D20\u3092\u5FC5\u305A1\u3064\u4EE5\u4E0A\u542B\u3081\u308B\uFF1A
    - \u6D17\u7DF4\u3055\u308C\u305F\u30B0\u30E9\u30C7\u30FC\u30B7\u30E7\u30F3\u80CC\u666F
    - \u534A\u900F\u660E\u306E\u56F3\u5F62\u3084\u30AA\u30FC\u30D0\u30FC\u30EC\u30A4
@@ -131,7 +176,7 @@ const htmlSlideTool = tool({
    - \u30B9\u30BF\u30A4\u30EA\u30C3\u30B7\u30E5\u306A\u30DC\u30FC\u30C0\u30FC\u3084\u30BB\u30D1\u30EC\u30FC\u30BF\u30FC
    - \u9069\u5207\u306A\u30DB\u30EF\u30A4\u30C8\u30B9\u30DA\u30FC\u30B9\uFF08\u4F59\u767D\uFF09\u306E\u6D3B\u7528
 
-8. **\u30C6\u30AD\u30B9\u30C8\u8A2D\u8A08\u30AC\u30A4\u30C9\u30E9\u30A4\u30F3**
+10. **\u30C6\u30AD\u30B9\u30C8\u8A2D\u8A08\u30AC\u30A4\u30C9\u30E9\u30A4\u30F3**
    - \u898B\u51FA\u3057: 32-40px\u3001\u592A\u5B57\u3001\u9AD8\u30B3\u30F3\u30C8\u30E9\u30B9\u30C8
    - \u672C\u6587: 18-24px\u3001\u8AAD\u307F\u3084\u3059\u3044\u30D5\u30A9\u30F3\u30C8
    - \u7B87\u6761\u66F8\u304D: \u7C21\u6F54\u30671\u884C\u4EE5\u5185\u3001\u524D\u5F8C\u306B\u5341\u5206\u306A\u4F59\u767D
@@ -139,32 +184,32 @@ const htmlSlideTool = tool({
    - \u30C6\u30AD\u30B9\u30C8\u91CF: 1\u30B9\u30E9\u30A4\u30C9\u3042\u305F\u308A30-50\u5358\u8A9E\u7A0B\u5EA6\u306B\u6291\u3048\u308B
    - \u30D5\u30A9\u30F3\u30C8: \u30B9\u30BF\u30A4\u30EA\u30C3\u30B7\u30E5\u3067\u8AAD\u307F\u3084\u3059\u3044\u65E5\u672C\u8A9EWeb\u30D5\u30A9\u30F3\u30C8\u3092\u4F7F\u7528\uFF08\u30C7\u30D5\u30A9\u30EB\u30C8 ${promptArgs.fontFamily}\uFF09
 
-9. **\u30A2\u30AF\u30BB\u30B7\u30D3\u30EA\u30C6\u30A3\u3068\u30EC\u30B9\u30DD\u30F3\u30B7\u30D6\u30C7\u30B6\u30A4\u30F3**
-   - \u30B3\u30F3\u30C8\u30E9\u30B9\u30C8\u6BD4 AA \u6E96\u62E0
-   - SVG\u8981\u7D20\u306B\u306F\u9069\u5207\u306Aalt/aria\u5C5E\u6027
-   - \u30EC\u30B9\u30DD\u30F3\u30B7\u30D6\u306A\u8981\u7D20\u914D\u7F6E\uFF08vw/vh\u5358\u4F4D\u306E\u6D3B\u7528\uFF09
+11. **\u30A2\u30AF\u30BB\u30B7\u30D3\u30EA\u30C6\u30A3\u3068\u30EC\u30B9\u30DD\u30F3\u30B7\u30D6\u30C7\u30B6\u30A4\u30F3**
+    - \u30B3\u30F3\u30C8\u30E9\u30B9\u30C8\u6BD4 AA \u6E96\u62E0
+    - SVG\u8981\u7D20\u306B\u306F\u9069\u5207\u306Aalt/aria\u5C5E\u6027
+    - \u30EC\u30B9\u30DD\u30F3\u30B7\u30D6\u306A\u8981\u7D20\u914D\u7F6E\uFF08vw/vh\u5358\u4F4D\u306E\u6D3B\u7528\uFF09
 
-10. **\u6700\u4E0B\u90E8\u53F3\u5BC4\u305B\u306B "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} \u2014 ${promptArgs.topic}" \u3092\u6D17\u7DF4\u3055\u308C\u305F\u30C7\u30B6\u30A4\u30F3\u3067\u8868\u793A**
+12. **\u6700\u4E0B\u90E8\u53F3\u5BC4\u305B\u306B "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} \u2014 ${promptArgs.topic}" \u3092\u6D17\u7DF4\u3055\u308C\u305F\u30C7\u30B6\u30A4\u30F3\u3067\u8868\u793A**
 
-11. **\u30D0\u30EA\u30A2\u30F3\u30C8\u306B\u3088\u308B\u30C7\u30B6\u30A4\u30F3\u5DEE\u5225\u5316\uFF08\u30D0\u30EA\u30A2\u30F3\u30C8: ${promptArgs.variant}\uFF09**
-   - \u30D0\u30EA\u30A2\u30F3\u30C81: \u6A19\u6E96\u7684\u3067\u30AF\u30EA\u30FC\u30F3\u306A\u30C7\u30B6\u30A4\u30F3
-   - \u30D0\u30EA\u30A2\u30F3\u30C82: \u3088\u308A\u5927\u80C6\u3067\u8996\u899A\u7684\u306A\u30A4\u30F3\u30D1\u30AF\u30C8\u3092\u91CD\u8996\u3057\u305F\u30C7\u30B6\u30A4\u30F3
-   - \u30D0\u30EA\u30A2\u30F3\u30C83: \u3088\u308A\u30DF\u30CB\u30DE\u30EA\u30B9\u30C8\u3067\u30A8\u30EC\u30AC\u30F3\u30C8\u306A\u30C7\u30B6\u30A4\u30F3
+13. **\u30D0\u30EA\u30A2\u30F3\u30C8\u306B\u3088\u308B\u30C7\u30B6\u30A4\u30F3\u5DEE\u5225\u5316\uFF08\u30D0\u30EA\u30A2\u30F3\u30C8: ${promptArgs.variant}\uFF09**
+    - \u30D0\u30EA\u30A2\u30F3\u30C81: \u6A19\u6E96\u7684\u3067\u30AF\u30EA\u30FC\u30F3\u306A\u30C7\u30B6\u30A4\u30F3
+    - \u30D0\u30EA\u30A2\u30F3\u30C82: \u3088\u308A\u5927\u80C6\u3067\u8996\u899A\u7684\u306A\u30A4\u30F3\u30D1\u30AF\u30C8\u3092\u91CD\u8996\u3057\u305F\u30C7\u30B6\u30A4\u30F3
+    - \u30D0\u30EA\u30A2\u30F3\u30C83: \u3088\u308A\u30DF\u30CB\u30DE\u30EA\u30B9\u30C8\u3067\u30A8\u30EC\u30AC\u30F3\u30C8\u306A\u30C7\u30B6\u30A4\u30F3
 
-12. **\u5FC5\u9808\u542B\u6709\u8981\u7D20\u306E\u7D44\u307F\u8FBC\u307F**
-   \u300C${promptArgs.forceInclude}\u300D\u3092\u78BA\u5B9F\u306B\u30B9\u30E9\u30A4\u30C9\u5185\u306B\u542B\u3081\u308B\u3053\u3068\u3002
+14. **\u5FC5\u9808\u542B\u6709\u8981\u7D20\u306E\u7D44\u307F\u8FBC\u307F**
+    \u300C${promptArgs.forceInclude}\u300D\u3092\u78BA\u5B9F\u306B\u30B9\u30E9\u30A4\u30C9\u5185\u306B\u542B\u3081\u308B\u3053\u3068\u3002
 
-13. **\u7981\u6B62\u4E8B\u9805**
+15. **\u7D76\u5BFE\u7981\u6B62\u4E8B\u9805**
     - <html>, <head>, <body> \u30BF\u30B0\u306E\u4F7F\u7528
     - \u5916\u90E8\u753B\u50CFURL\uFF08\u3059\u3079\u3066SVG\u3067\u5B8C\u7D50\uFF09
     - CSS \u30EA\u30BB\u30C3\u30C8\u30FB\u5927\u57DF\u30D5\u30A9\u30F3\u30C8\u5909\u66F4
     - \u904E\u5EA6\u306A\u88C5\u98FE\u3084\u8AAD\u307F\u306B\u304F\u3044\u30C7\u30B6\u30A4\u30F3
     - \u60C5\u5831\u904E\u591A\uFF081\u30B9\u30E9\u30A4\u30C9\u306B\u8A70\u3081\u8FBC\u307F\u3059\u304E\u306A\u3044\uFF09
+    - **\u8AAC\u660E\u6587\u3001\u30B3\u30E1\u30F3\u30C8\u3001\u30DE\u30FC\u30AF\u30C0\u30A6\u30F3\u3001\u30D0\u30C3\u30AF\u30AF\u30A9\u30FC\u30C8\u306E\u4F7F\u7528**
+    - **<style>\u30BF\u30B0\u3068<section>\u30BF\u30B0\u4EE5\u5916\u306E\u30C8\u30C3\u30D7\u30EC\u30D9\u30EB\u8981\u7D20**
 
-\u3010\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\u4F8B\u3011
-\`\`\`
+\u3010\u6B63\u3057\u3044\u51FA\u529B\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8\uFF08\u3053\u308C\u4EE5\u5916\u306E\u5F62\u5F0F\u306F\u7981\u6B62\uFF09\u3011
 <style>
-/* \u30B9\u30B3\u30FC\u30D7\u3055\u308C\u305FCSS */
 .${promptArgs.uniqueClass} {
   /* \u30D9\u30FC\u30B9\u30B9\u30BF\u30A4\u30EB */
 }
@@ -173,47 +218,26 @@ const htmlSlideTool = tool({
 <section class="slide ${promptArgs.uniqueClass}">
   <!-- \u30B9\u30E9\u30A4\u30C9\u30B3\u30F3\u30C6\u30F3\u30C4 -->
 </section>
-\`\`\`
 
-\u3010\u601D\u8003\u30D7\u30ED\u30BB\u30B9\u3011
-1. \u30B9\u30E9\u30A4\u30C9\u306E\u76EE\u7684\u3092\u7406\u89E3\uFF08\u8AAC\u660E\u30FB\u6BD4\u8F03\u30FB\u5F37\u8ABF\u30FB\u30D7\u30ED\u30BB\u30B9\u89E3\u8AAC\u306A\u3069\uFF09
-2. \u76EE\u7684\u306B\u6700\u9069\u306A\u30EC\u30A4\u30A2\u30A6\u30C8\u3068\u56F3\u89E3\u30BF\u30A4\u30D7\u3092\u9078\u629E
-3. \u5185\u5BB9\u306E\u968E\u5C64\u5316\uFF08\u4E3B\u898B\u51FA\u3057\u2192\u526F\u898B\u51FA\u3057\u2192\u8A73\u7D30\uFF09
-4. \u8996\u899A\u7684\u8981\u7D20\u3092\u8A08\u753B\uFF08\u56F3\u89E3\u30FB\u30A2\u30A4\u30B3\u30F3\u30FB\u88C5\u98FE\uFF09
-5. \u30D0\u30EA\u30A2\u30F3\u30C8\u5024\uFF08${promptArgs.variant}\uFF09\u306B\u5FDC\u3058\u305F\u30C7\u30B6\u30A4\u30F3\u9069\u7528
-6. \u5FC5\u9808\u542B\u6709\u8981\u7D20\u300C${promptArgs.forceInclude}\u300D\u306E\u81EA\u7136\u306A\u7D44\u307F\u8FBC\u307F
-7. \u30E2\u30C0\u30F3\u3067\u5C02\u9580\u7684\u306A\u30C7\u30B6\u30A4\u30F3\u8981\u7D20\u3092\u9069\u7528
-8. \u5168\u4F53\u306E\u30D0\u30E9\u30F3\u30B9\u3068\u8996\u7DDA\u306E\u6D41\u308C\u3092\u6700\u7D42\u8ABF\u6574
+\u3010\u6700\u91CD\u8981\u3011\u4E0A\u8A18\u306E\u5F62\u5F0F\u4EE5\u5916\u306F\u7D76\u5BFE\u306B\u51FA\u529B\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002\u8AAC\u660E\u3084\u30B3\u30E1\u30F3\u30C8\u3082\u4E0D\u8981\u3067\u3059\u3002`;
+    const systemPrompt = `You are a professional presentation designer creating high-quality slides.
 
-\u3053\u306E\u30AC\u30A4\u30C9\u30E9\u30A4\u30F3\u306B\u5F93\u3044\u3001\u30D7\u30ED\u30D5\u30A7\u30C3\u30B7\u30E7\u30CA\u30EB\u3067\u8AAC\u5F97\u529B\u306E\u3042\u308B\u30B9\u30E9\u30A4\u30C9\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
-    const systemPrompt = `
+CRITICAL OUTPUT REQUIREMENTS:
+1. Output MUST start with <style> tag
+2. Output MUST include </style> tag
+3. Output MUST then have <section class="slide ..."> tag
+4. Output MUST end with </section> tag
+5. NO other content, NO markdown, NO explanations, NO comments
 
-You are v0, Vercel's AI-powered assistant.
+Your output should be EXACTLY in this format:
+<style>
+/* CSS rules here */
+</style>
+<section class="slide ...">
+<!-- HTML content here -->
+</section>
 
-Instructions
-
-You are always up-to-date with the latest technologies and best practices.
-
-Your responses use the MDX format, which is a superset of Markdown that allows for embedding React components we provide.
-
-Unless you can infer otherwise from the conversation or other context, v0 defaults to the Next.js App Router; other frameworks may not work in the v0 preview.
-
-Available MDX Components
-
-You have access to custom code block types that allow it to execute code in a secure, sandboxed environment the user can interact with.
-
-Code Project
-
-v0 uses the Code Project block to group files and render React and full-stack Next.js apps. v0 MUST group React Component code blocks inside of a Code Project.
-
-Next.js runtime notes omitted for brevity in this prompt but assumed known to the model.
-
----
-
-For the purpose of this tool, OUTPUT **only** a fully-scoped HTML/CSS slide snippet consisting of:
-<style>\u2026</style><section class="slide \u2026">\u2026</section>
-
-The snippet must be production-ready, visually compelling, and follow modern best practices.
+NOTHING ELSE. NO TEXT BEFORE OR AFTER.
 
 ${baseDesignPrompt}`;
     let slideHtmlAndCss = '<style>.error-slide { background: #ffe0e0; color: red; }</style><section class="slide error-slide"><h1>Error</h1><p>Could not generate slide content and CSS.</p></section>';
@@ -295,35 +319,6 @@ const braveSearchTool = createTool({
       description: r.description
     }));
     return { results: simplified };
-  }
-});
-
-const advancedCalculatorTool = tool({
-  description: "Performs advanced calculations including arithmetic, unit conversions, and mathematical functions. Supports expressions interpretable by math.js.",
-  parameters: z.object({
-    expression: z.string().describe('The mathematical expression or conversion query to evaluate. Examples: "2 * (3 + 4)", "10km to miles", "sqrt(16) + 5^2", "sin(pi/2)"')
-  }),
-  execute: async ({ expression }) => {
-    let result;
-    let errorMessage;
-    try {
-      const calculatedValue = evaluate(expression);
-      if (typeof calculatedValue === "object" && calculatedValue !== null && typeof calculatedValue.toString === "function") {
-        result = calculatedValue.toString();
-      } else {
-        result = String(calculatedValue);
-      }
-    } catch (e) {
-      const error = e instanceof Error ? e : new Error(String(e));
-      console.error(`[advancedCalculatorTool] Error evaluating expression "${expression}":`, error);
-      errorMessage = `Failed to evaluate expression: "${expression}". Error: ${error.message || "Unknown error"}`;
-      result = "Error: Could not compute the result.";
-    }
-    return {
-      computationResult: result,
-      ...errorMessage && { error: errorMessage }
-      // Conditionally add error message to output
-    };
   }
 });
 
@@ -1780,770 +1775,26 @@ const minimaxTTSTool = createTool({
   }
 });
 
-let Stagehand;
-let Browserbase;
-let shimsImported$1 = false;
-async function importStagehandDependencies() {
-  if (typeof window === "undefined") {
-    try {
-      if (!shimsImported$1) {
-        await import('@browserbasehq/sdk/shims/web');
-        shimsImported$1 = true;
-      }
-      if (!Stagehand) {
-        const stagehandModule = await import('@browserbasehq/stagehand');
-        Stagehand = stagehandModule.Stagehand;
-      }
-      if (!Browserbase) {
-        const browserbaseModule = await import('@browserbasehq/sdk');
-        Browserbase = browserbaseModule.default || browserbaseModule.Browserbase;
-      }
-      return true;
-    } catch (error) {
-      console.error("[BrowserAutomationAgent] Failed to import dependencies:", error);
-      return false;
-    }
-  }
-  return false;
-}
-async function saveScreenshot(base64Data, filename) {
-  try {
-    const base64Image = base64Data.replace(/^data:image\/[a-z]+;base64,/, "");
-    const screenshotDir = path.join(process.cwd(), "public", "browser-screenshots");
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true });
-    }
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-    const safeFilename = `${timestamp}_${filename.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
-    const filePath = path.join(screenshotDir, safeFilename);
-    fs.writeFileSync(filePath, base64Image, "base64");
-    const publicPath = `/browser-screenshots/${safeFilename}`;
-    console.log(`\u{1F4F8} \u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8\u4FDD\u5B58\u5B8C\u4E86: ${publicPath}`);
-    return publicPath;
-  } catch (error) {
-    console.error("\u274C \u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8\u4FDD\u5B58\u30A8\u30E9\u30FC:", error);
-    return "";
-  }
-}
-async function executeWithVerificationLoops(agent, context) {
-  const { task, verificationLevel = "standard", maxRetries = 3, url, sessionId: existingSessionId } = context;
-  const executionSteps = [];
-  let stepCounter = 0;
-  const taskSteps = await planTaskSteps(agent, task);
-  let stagehand = null;
-  let page = null;
-  let sessionId = "";
-  try {
-    const imported = await importStagehandDependencies();
-    if (!imported) {
-      throw new Error("Failed to import Stagehand dependencies");
-    }
-    if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
-      throw new Error("Missing required environment variables");
-    }
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    if (!geminiApiKey) {
-      throw new Error("Missing Gemini API key");
-    }
-    if (existingSessionId) {
-      sessionId = existingSessionId;
-      console.log(`\u{1F504} \u65E2\u5B58\u306E\u30BB\u30C3\u30B7\u30E7\u30F3\u3092\u4F7F\u7528: ${sessionId}`);
-    } else {
-      if (!Browserbase) {
-        throw new Error("Browserbase SDK not properly imported");
-      }
-      const bb = new Browserbase({
-        apiKey: process.env.BROWSERBASE_API_KEY,
-        fetch: globalThis.fetch
-      });
-      const session = await bb.sessions.create({
-        projectId: process.env.BROWSERBASE_PROJECT_ID,
-        keepAlive: true,
-        timeout: 600
-        // 🔧 タイムアウトを10分に延長（長時間タスク対応）
-      });
-      sessionId = session.id;
-      console.log(`\u{1F310} \u65B0\u898F\u30D6\u30E9\u30A6\u30B6\u30BB\u30C3\u30B7\u30E7\u30F3\u4F5C\u6210\u5B8C\u4E86: ${sessionId}`);
-      executionSteps.push({
-        step: 0,
-        action: "Session Creation",
-        status: "success",
-        verificationResult: `Session created: ${sessionId}`,
-        retryCount: 0,
-        timestamp: Date.now()
-      });
-    }
-    stagehand = new Stagehand({
-      browserbaseSessionID: sessionId,
-      env: "BROWSERBASE",
-      modelName: "google/gemini-2.0-flash",
-      modelClientOptions: {
-        apiKey: geminiApiKey
-      },
-      apiKey: process.env.BROWSERBASE_API_KEY,
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
-      disablePino: true
-    });
-    await stagehand.init();
-    page = stagehand.page;
-    await page.setDefaultTimeout(9e4);
-    await page.setDefaultNavigationTimeout(9e4);
-    if (url) {
-      console.log(`\u{1F310} \u521D\u671F\u30CA\u30D3\u30B2\u30FC\u30B7\u30E7\u30F3\u958B\u59CB: ${url}`);
-      await page.goto(url, {
-        waitUntil: "commit",
-        // 🔧 commitを使用（参考コードより）
-        timeout: 6e4
-      });
-      console.log(`\u2705 \u521D\u671F\u30CA\u30D3\u30B2\u30FC\u30B7\u30E7\u30F3\u5B8C\u4E86: ${url}`);
-      await new Promise((resolve) => setTimeout(resolve, 2e3));
-    }
-    let sessionDisconnected = false;
-    for (const taskStep of taskSteps) {
-      if (sessionDisconnected) {
-        stepCounter++;
-        executionSteps.push({
-          step: stepCounter,
-          action: taskStep,
-          status: "failed",
-          verificationResult: "FAILED: Session disconnected",
-          retryCount: 0,
-          timestamp: Date.now()
-        });
-        continue;
-      }
-      stepCounter++;
-      let retryCount = 0;
-      let stepSuccess = false;
-      let stepResult = "";
-      let stepScreenshot = "";
-      let stepExtractedData = void 0;
-      while (!stepSuccess && retryCount <= maxRetries) {
-        try {
-          console.log(`\u{1F504} \u30B9\u30C6\u30C3\u30D7 ${stepCounter}: ${taskStep} (\u8A66\u884C ${retryCount + 1})`);
-          try {
-            const isPageAvailable = await page.evaluate(() => {
-              return document.readyState !== void 0;
-            }).catch(() => false);
-            if (!isPageAvailable) {
-              console.error("\u274C \u30DA\u30FC\u30B8\u304C\u5229\u7528\u3067\u304D\u307E\u305B\u3093\u3002\u51E6\u7406\u3092\u4E2D\u65AD\u3057\u307E\u3059\u3002");
-              throw new Error("Page is not available");
-            }
-          } catch (e) {
-            console.error("\u274C \u30DA\u30FC\u30B8\u304C\u9589\u3058\u3089\u308C\u3066\u3044\u307E\u3059\u3002\u51E6\u7406\u3092\u4E2D\u65AD\u3057\u307E\u3059\u3002");
-            throw new Error("Page has been closed");
-          }
-          if (taskStep.includes("\u5F85\u6A5F") || taskStep.toLowerCase().includes("wait")) {
-            const waitMatch = taskStep.match(/(\d+)/);
-            const waitSeconds = waitMatch ? parseInt(waitMatch[1]) : 2;
-            console.log(`\u23F3 ${waitSeconds}\u79D2\u5F85\u6A5F\u4E2D...`);
-            await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1e3));
-            stepResult = `SUCCESS: Waited for ${waitSeconds} seconds`;
-            stepSuccess = true;
-            executionSteps.push({
-              step: stepCounter,
-              action: taskStep,
-              status: "success",
-              verificationResult: stepResult,
-              retryCount,
-              timestamp: Date.now()
-            });
-            console.log(`\u2705 \u30B9\u30C6\u30C3\u30D7 ${stepCounter} \u6210\u529F`);
-            continue;
-          }
-          if (taskStep.includes("\u78BA\u8A8D") || taskStep.toLowerCase().includes("verify") || taskStep.toLowerCase().includes("check")) {
-            try {
-              const observation = await page.observe(taskStep);
-              stepResult = `SUCCESS: Observation - ${observation}`;
-              stepSuccess = true;
-            } catch (e) {
-              console.warn("Observation failed, trying screenshot instead:", e);
-              try {
-                const screenshotBuffer = await page.screenshot({ fullPage: true, timeout: 1e4 });
-                stepScreenshot = `data:image/png;base64,${screenshotBuffer.toString("base64")}`;
-                const savedPath = await saveScreenshot(stepScreenshot, `verification_step_${stepCounter}`);
-                if (savedPath) {
-                  stepResult = `SUCCESS: Verification screenshot saved to: ${savedPath}`;
-                } else {
-                  stepResult = `SUCCESS: Verification screenshot captured`;
-                }
-                stepSuccess = true;
-              } catch (screenshotError) {
-                throw new Error("Failed to verify page state");
-              }
-            }
-            if (stepSuccess) {
-              executionSteps.push({
-                step: stepCounter,
-                action: taskStep,
-                status: "success",
-                verificationResult: stepResult,
-                retryCount,
-                timestamp: Date.now(),
-                screenshot: stepScreenshot
-              });
-              console.log(`\u2705 \u30B9\u30C6\u30C3\u30D7 ${stepCounter} \u6210\u529F`);
-              continue;
-            }
-          }
-          await page.act(taskStep, {
-            timeout: 3e4
-            // 各アクションに30秒のタイムアウト
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1e3));
-          stepResult = `SUCCESS: Action executed - ${taskStep}`;
-          try {
-            const pageTitle = await page.title();
-            stepResult += ` Page title: ${pageTitle}.`;
-          } catch (e) {
-            console.warn("Failed to get page title:", e);
-          }
-          try {
-            await page.evaluate(() => document.readyState);
-            const extraction = await page.extract("Extract any relevant data from this page", {
-              timeout: 15e3
-            });
-            if (extraction && extraction.extraction) {
-              stepExtractedData = extraction.extraction;
-              stepResult += " Data extracted successfully.";
-            }
-          } catch (e) {
-            console.warn("Data extraction failed:", e);
-          }
-          try {
-            await page.evaluate(() => document.readyState);
-            const screenshotBuffer = await page.screenshot({
-              fullPage: true,
-              timeout: 1e4
-            });
-            stepScreenshot = `data:image/png;base64,${screenshotBuffer.toString("base64")}`;
-            const savedPath = await saveScreenshot(stepScreenshot, `step_${stepCounter}_${taskStep.substring(0, 20)}`);
-            if (savedPath) {
-              stepResult += ` Screenshot saved to: ${savedPath}`;
-            } else {
-              stepResult += " Screenshot captured.";
-            }
-          } catch (e) {
-            console.warn("Screenshot failed:", e);
-          }
-          stepSuccess = true;
-          executionSteps.push({
-            step: stepCounter,
-            action: taskStep,
-            status: retryCount > 0 ? "retried" : "success",
-            verificationResult: stepResult,
-            retryCount,
-            timestamp: Date.now(),
-            screenshot: stepScreenshot,
-            extractedData: stepExtractedData
-          });
-          console.log(`\u2705 \u30B9\u30C6\u30C3\u30D7 ${stepCounter} \u6210\u529F`);
-        } catch (error) {
-          retryCount++;
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          console.error(`\u274C \u30B9\u30C6\u30C3\u30D7 ${stepCounter} \u5931\u6557 (\u8A66\u884C ${retryCount}): ${errorMessage}`);
-          if (errorMessage.includes("Page has been closed") || errorMessage.includes("Page is not available") || errorMessage.includes("Target page, context or browser has been closed")) {
-            console.error("\u274C \u30D6\u30E9\u30A6\u30B6\u30BB\u30C3\u30B7\u30E7\u30F3\u304C\u5207\u65AD\u3055\u308C\u307E\u3057\u305F\u3002\u6B8B\u308A\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u30B9\u30AD\u30C3\u30D7\u3057\u307E\u3059\u3002");
-            executionSteps.push({
-              step: stepCounter,
-              action: taskStep,
-              status: "failed",
-              verificationResult: `FAILED: ${errorMessage}`,
-              retryCount,
-              timestamp: Date.now()
-            });
-            sessionDisconnected = true;
-            break;
-          }
-          if (retryCount <= maxRetries) {
-            console.log(`\u23F3 ${1e3}ms \u5F85\u6A5F\u3057\u3066\u30EA\u30C8\u30E9\u30A4\u3057\u307E\u3059...`);
-            await new Promise((resolve) => setTimeout(resolve, 1e3));
-          } else {
-            executionSteps.push({
-              step: stepCounter,
-              action: taskStep,
-              status: "failed",
-              verificationResult: `FAILED: ${errorMessage} (Max retries exceeded)`,
-              retryCount,
-              timestamp: Date.now()
-            });
-            console.error(`\u274C \u30B9\u30C6\u30C3\u30D7 ${stepCounter} \u6700\u5927\u30EA\u30C8\u30E9\u30A4\u56DE\u6570\u306B\u9054\u3057\u307E\u3057\u305F`);
-          }
-        }
-      }
-      const recentFailures = executionSteps.slice(-3).filter((s) => s.status === "failed").length;
-      if (recentFailures >= 2) {
-        console.warn("\u26A0\uFE0F \u9023\u7D9A\u3057\u3066\u5931\u6557\u304C\u767A\u751F\u3057\u3066\u3044\u307E\u3059\u3002\u51E6\u7406\u3092\u4E2D\u65AD\u3057\u307E\u3059\u3002");
-        break;
-      }
-    }
-  } catch (globalError) {
-    console.error("\u{1F6A8} \u30B0\u30ED\u30FC\u30D0\u30EB\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F:", globalError);
-    if (executionSteps.length === 0) {
-      executionSteps.push({
-        step: 1,
-        action: "Initial setup",
-        status: "failed",
-        verificationResult: `FAILED: ${globalError instanceof Error ? globalError.message : "Unknown global error"}`,
-        retryCount: 0,
-        timestamp: Date.now()
-      });
-    }
-  } finally {
-    if (stagehand) {
-      try {
-        console.log("\u{1F9F9} Stagehand\u30BB\u30C3\u30B7\u30E7\u30F3\u3092\u30AF\u30EA\u30FC\u30F3\u30A2\u30C3\u30D7\u4E2D...");
-        await stagehand.close();
-        console.log("\u2705 Stagehand\u30BB\u30C3\u30B7\u30E7\u30F3\u30AF\u30EA\u30FC\u30F3\u30A2\u30C3\u30D7\u5B8C\u4E86");
-      } catch (cleanupError) {
-        console.warn("\u26A0\uFE0F Stagehand\u30AF\u30EA\u30FC\u30F3\u30A2\u30C3\u30D7\u4E2D\u306B\u30A8\u30E9\u30FC:", cleanupError);
-      }
-    }
-  }
-  const verificationResults = generateVerificationResults(verificationLevel, executionSteps);
-  const finalResult = await agent.generate(`
-\u30BF\u30B9\u30AF: ${task}
-\u5B9F\u884C\u30B9\u30C6\u30C3\u30D7: ${executionSteps.length}
-\u6210\u529F\u30B9\u30C6\u30C3\u30D7: ${executionSteps.filter((s) => s.status !== "failed").length}
-\u691C\u8A3C\u30B9\u30B3\u30A2: ${verificationResults.overallScore}
-
-\u4E0A\u8A18\u306E\u5B9F\u884C\u7D50\u679C\u3092\u57FA\u306B\u3001\u30BF\u30B9\u30AF\u306E\u5B8C\u4E86\u5831\u544A\u3092\u4F5C\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-  `);
-  return {
-    result: finalResult.text,
-    executionSteps,
-    verificationResults
-  };
-}
-async function planTaskSteps(agent, task) {
-  const planningPrompt = `
-\u30BF\u30B9\u30AF: ${task}
-
-\u3053\u306E\u30BF\u30B9\u30AF\u3092\u5B9F\u884C\u3059\u308B\u305F\u3081\u306E\u5177\u4F53\u7684\u306A\u30B9\u30C6\u30C3\u30D7\u306B\u5206\u89E3\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-
-**\u91CD\u8981\u306A\u5236\u7D04:**
-- **\u6700\u592720\u30B9\u30C6\u30C3\u30D7\u4EE5\u5185**\u3067\u5B8C\u4E86\u3067\u304D\u308B\u3088\u3046\u306B\u8A08\u753B\u3057\u3066\u304F\u3060\u3055\u3044
-- \u5404\u30B9\u30C6\u30C3\u30D7\u306F\u5358\u4E00\u306E\u539F\u5B50\u7684\u64CD\u4F5C\u306B\u3059\u308B\uFF08\u30AF\u30EA\u30C3\u30AF\u3001\u5165\u529B\u3001\u30CA\u30D3\u30B2\u30FC\u30C8\u306A\u3069\uFF09
-- \u8907\u96D1\u306A\u64CD\u4F5C\u306F\u5FC5\u8981\u6700\u5C0F\u9650\u306E\u30B9\u30C6\u30C3\u30D7\u306B\u5206\u3051\u308B
-- \u30DA\u30FC\u30B8\u9077\u79FB\u5F8C\u306F\u5FC5\u8981\u306B\u5FDC\u3058\u3066\u300C\u5F85\u6A5F\u300D\u30B9\u30C6\u30C3\u30D7\u3092\u542B\u3081\u308B
-- \u91CD\u8981\u5EA6\u306E\u4F4E\u3044\u78BA\u8A8D\u30B9\u30C6\u30C3\u30D7\u306F\u7701\u7565\u3059\u308B
-
-**\u52B9\u7387\u7684\u306A\u30B9\u30C6\u30C3\u30D7\u8A2D\u8A08:**
-- \u985E\u4F3C\u306E\u64CD\u4F5C\u306F\u53EF\u80FD\u306A\u9650\u308A\u7D71\u5408\u3059\u308B
-- \u5FC5\u9808\u3067\u306A\u3044\u691C\u8A3C\u30B9\u30C6\u30C3\u30D7\u306F\u524A\u9664\u3059\u308B
-- \u5F85\u6A5F\u6642\u9593\u306F\u5FC5\u8981\u6700\u5C0F\u9650\u306B\u3059\u308B
-- \u30C7\u30FC\u30BF\u62BD\u51FA\u306F\u91CD\u8981\u306A\u7B87\u6240\u306E\u307F\u306B\u9650\u5B9A\u3059\u308B
-
-**\u60AA\u3044\u4F8B\uFF08\u30B9\u30C6\u30C3\u30D7\u304C\u591A\u3059\u304E\u308B\uFF09:**
-1. \u30E6\u30FC\u30B6\u30FC\u540D\u5165\u529B\u30D5\u30A3\u30FC\u30EB\u30C9\u3092\u30AF\u30EA\u30C3\u30AF
-2. \u30E6\u30FC\u30B6\u30FC\u540D\u3092\u5165\u529B
-3. 1\u79D2\u5F85\u6A5F
-4. \u30D1\u30B9\u30EF\u30FC\u30C9\u5165\u529B\u30D5\u30A3\u30FC\u30EB\u30C9\u3092\u30AF\u30EA\u30C3\u30AF
-5. \u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5165\u529B
-6. 1\u79D2\u5F85\u6A5F
-7. \u30ED\u30B0\u30A4\u30F3\u30DC\u30BF\u30F3\u3092\u30AF\u30EA\u30C3\u30AF
-8. 2\u79D2\u5F85\u6A5F
-9. \u30ED\u30B0\u30A4\u30F3\u6210\u529F\u3092\u78BA\u8A8D
-
-**\u826F\u3044\u4F8B\uFF08\u52B9\u7387\u7684\uFF09:**
-1. \u30E6\u30FC\u30B6\u30FC\u540D\u3092\u5165\u529B
-2. \u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5165\u529B
-3. \u30ED\u30B0\u30A4\u30F3\u30DC\u30BF\u30F3\u3092\u30AF\u30EA\u30C3\u30AF
-4. 2\u79D2\u5F85\u6A5F\u3057\u3066\u30ED\u30B0\u30A4\u30F3\u5B8C\u4E86\u3092\u78BA\u8A8D
-
-\u30B9\u30C6\u30C3\u30D7\u306E\u307F\u3092\u756A\u53F7\u4ED8\u304D\u30EA\u30B9\u30C8\u3067\u8FD4\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u5404\u30B9\u30C6\u30C3\u30D7\u306F\u7C21\u6F54\u3067\u660E\u78BA\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
-**\u5FC5\u305A20\u30B9\u30C6\u30C3\u30D7\u4EE5\u5185\u3067\u5B8C\u4E86\u3059\u308B\u3088\u3046\u306B\u8A08\u753B\u3057\u3066\u304F\u3060\u3055\u3044\u3002**
-  `;
-  const response = await agent.generate(planningPrompt);
-  const steps = response.text.split("\n").filter((line) => line.trim().match(/^\d+\./)).map((line) => line.replace(/^\d+\.\s*/, "").trim()).filter((step) => step.length > 0);
-  let optimizedSteps = [];
-  if (steps.length <= 20) {
-    for (const step of steps) {
-      if (step.toLowerCase().includes("\u30A2\u30AF\u30BB\u30B9") || step.toLowerCase().includes("navigate") || step.toLowerCase().includes("go to") || step.toLowerCase().includes("\u30DA\u30FC\u30B8")) {
-        optimizedSteps.push(step);
-        const nextStep = steps[steps.indexOf(step) + 1];
-        if (nextStep && !nextStep.includes("\u5F85\u6A5F") && !nextStep.toLowerCase().includes("wait")) {
-          optimizedSteps.push("2\u79D2\u5F85\u6A5F");
-        }
-      } else {
-        optimizedSteps.push(step);
-      }
-    }
-  } else {
-    console.warn(`\u26A0\uFE0F \u751F\u6210\u3055\u308C\u305F\u30B9\u30C6\u30C3\u30D7\u6570\u304C${steps.length}\u500B\u306720\u3092\u8D85\u3048\u3066\u3044\u307E\u3059\u3002\u91CD\u8981\u306A\u30B9\u30C6\u30C3\u30D7\u306E\u307F\u306B\u524A\u6E1B\u3057\u307E\u3059\u3002`);
-    const criticalSteps = [];
-    const importantSteps = [];
-    const optionalSteps = [];
-    for (const step of steps) {
-      const stepLower = step.toLowerCase();
-      if (stepLower.includes("\u30A2\u30AF\u30BB\u30B9") || stepLower.includes("navigate") || stepLower.includes("\u30AF\u30EA\u30C3\u30AF") || stepLower.includes("click") || stepLower.includes("\u5165\u529B") || stepLower.includes("input") || stepLower.includes("\u9001\u4FE1") || stepLower.includes("submit")) {
-        criticalSteps.push(step);
-      } else if (stepLower.includes("\u5F85\u6A5F") || stepLower.includes("wait") || stepLower.includes("\u78BA\u8A8D") || stepLower.includes("verify")) {
-        importantSteps.push(step);
-      } else {
-        optionalSteps.push(step);
-      }
-    }
-    optimizedSteps = [...criticalSteps];
-    const remainingSlots = 20 - optimizedSteps.length;
-    if (remainingSlots > 0) {
-      optimizedSteps.push(...importantSteps.slice(0, remainingSlots));
-    }
-    const finalRemainingSlots = 20 - optimizedSteps.length;
-    if (finalRemainingSlots > 0) {
-      optimizedSteps.push(...optionalSteps.slice(0, finalRemainingSlots));
-    }
-  }
-  if (optimizedSteps.length > 20) {
-    optimizedSteps = optimizedSteps.slice(0, 20);
-    console.warn("\u26A0\uFE0F \u30B9\u30C6\u30C3\u30D7\u6570\u309220\u306B\u5236\u9650\u3057\u307E\u3057\u305F\u3002");
-  }
-  console.log("\u{1F4CB} \u8A08\u753B\u3055\u308C\u305F\u30B9\u30C6\u30C3\u30D7 (\u6700\u592720\u30B9\u30C6\u30C3\u30D7):");
-  optimizedSteps.forEach((step, i) => {
-    console.log(`  ${i + 1}. ${step}`);
-  });
-  console.log(`\u{1F4CA} \u7DCF\u30B9\u30C6\u30C3\u30D7\u6570: ${optimizedSteps.length}/20`);
-  return optimizedSteps.length > 0 ? optimizedSteps : [task];
-}
-function generateVerificationResults(level, steps) {
-  const successfulSteps = steps.filter((step) => step.status === "success" || step.status === "retried").length;
-  const totalSteps = steps.length;
-  const failedSteps = steps.filter((step) => step.status === "failed").length;
-  const sessionDisconnectedSteps = steps.filter(
-    (step) => step.verificationResult?.includes("Session disconnected") || step.verificationResult?.includes("Page has been closed")
-  ).length;
-  const effectiveSuccessSteps = successfulSteps;
-  const effectiveTotalSteps = totalSteps - sessionDisconnectedSteps;
-  const baseScore = effectiveTotalSteps > 0 ? effectiveSuccessSteps / effectiveTotalSteps * 100 : 0;
-  const checks = [
-    {
-      type: "step_completion",
-      passed: successfulSteps > 0,
-      details: `${successfulSteps}/${totalSteps} \u30B9\u30C6\u30C3\u30D7\u304C\u6210\u529F`
-    },
-    {
-      type: "retry_efficiency",
-      passed: steps.filter((s) => s.retryCount === 0 && s.status === "success").length >= Math.max(1, effectiveTotalSteps * 0.5),
-      details: `\u30EA\u30C8\u30E9\u30A4\u52B9\u7387: ${steps.filter((s) => s.retryCount === 0 && s.status === "success").length}/${effectiveTotalSteps} \u30B9\u30C6\u30C3\u30D7\u304C\u4E00\u767A\u6210\u529F`
-    },
-    {
-      type: "error_handling",
-      passed: failedSteps - sessionDisconnectedSteps <= Math.max(1, totalSteps * 0.3),
-      details: `\u30A8\u30E9\u30FC\u30CF\u30F3\u30C9\u30EA\u30F3\u30B0: ${failedSteps - sessionDisconnectedSteps} \u500B\u306E\u5B9F\u8CEA\u7684\u5931\u6557\u30B9\u30C6\u30C3\u30D7 (\u30BB\u30C3\u30B7\u30E7\u30F3\u5207\u65AD\u9664\u304F)`
-    }
-  ];
-  if (sessionDisconnectedSteps > 0) {
-    checks.push({
-      type: "session_stability",
-      passed: sessionDisconnectedSteps < totalSteps * 0.5,
-      details: `\u30BB\u30C3\u30B7\u30E7\u30F3\u5B89\u5B9A\u6027: ${sessionDisconnectedSteps} \u30B9\u30C6\u30C3\u30D7\u3067\u30BB\u30C3\u30B7\u30E7\u30F3\u5207\u65AD`
-    });
-  }
-  let adjustedScore = baseScore;
-  if (level === "strict") {
-    adjustedScore = Math.min(baseScore * 0.9, 95);
-  } else if (level === "basic") {
-    adjustedScore = Math.min(baseScore * 1.1, 100);
-  }
-  if (successfulSteps > 0 && adjustedScore < 20) {
-    adjustedScore = Math.min(20 + successfulSteps / totalSteps * 30, 60);
-  }
-  return {
-    level,
-    checks,
-    overallScore: Math.round(adjustedScore)
-  };
-}
-const browserAutomationAgent = new Agent({
-  name: "Browser-Automation-Agent",
-  instructions: `
-# System Prompt
-
-## Initial Context and Setup
-You are a powerful browser automation AI agent named Browser-Automation-Agent. You specialize in automating web browser interactions to help users accomplish various tasks on websites. You can navigate to websites, interact with elements, extract information, and perform complex multi-step browser operations.
-
-Your main goal is to follow the USER's instructions for browser automation tasks, denoted by the <user_query> tag.
-
-## Core Capabilities
-You are an expert at:
-- **Web Navigation**: Visiting websites and navigating between pages
-- **Element Interaction**: Clicking buttons, filling forms, selecting options
-- **Data Extraction**: Retrieving text, images, and structured data from web pages
-- **Multi-step Workflows**: Executing complex sequences of browser actions
-- **Screenshot Capture**: Taking screenshots for verification and documentation
-- **Session Management**: Maintaining browser state across multiple operations
-
-## Browser Automation Guidelines
-
-### 1. Task Analysis and Planning
-Before starting any browser automation:
-- Analyze the user's request to understand the end goal
-- Break down complex tasks into atomic steps
-- Identify the target website(s) and required interactions
-- Plan the optimal sequence of actions
-- Add wait times between critical operations
-
-### 2. Step-by-Step Execution with Verification Loops
-Execute browser automation in logical steps with built-in verification:
-
-#### Primary Action Loop:
-1. **Plan**: Determine the next action based on current state
-2. **Execute**: Perform the browser action using Stagehand
-3. **Wait**: Allow time for page updates and transitions
-4. **Verify**: Take screenshot and confirm action succeeded
-5. **Validate**: Check if the expected result occurred
-6. **Retry**: If failed, analyze why and try alternative approach
-7. **Continue**: Move to next step only after verification
-
-#### Verification Patterns:
-- **Navigation Verification**: Confirm URL changed and page loaded
-- **Element Interaction Verification**: Check if click/input had expected effect
-- **Data Extraction Verification**: Validate extracted data completeness and accuracy
-- **Form Submission Verification**: Confirm form was submitted successfully
-
-### 3. Error Handling and Recovery
-Implement cascading error recovery:
-- Retry the same action with slight modifications
-- Try alternative selectors or approaches
-- Break down complex actions into smaller steps
-- Add longer wait times between actions
-- Provide clear error messages and suggestions
-- Gracefully handle page closures and session timeouts
-
-### 4. Best Practices for Stable Automation
-- **Use Atomic Operations**: One action per step (click OR type OR navigate)
-- **Add Strategic Waits**: After page loads, form submissions, and clicks
-- **Verify Page State**: Check page readiness before actions
-- **Handle Dynamic Content**: Wait for elements to be interactive
-- **Manage Timeouts**: Set appropriate timeouts for different operations
-- **Clean Resource Usage**: Properly close sessions when done
-
-### 5. Communication Guidelines
-1. **Be Clear and Descriptive**: Explain what you're doing at each step
-2. **Provide Progress Updates**: Keep the user informed of your progress
-3. **Report Verification Results**: Confirm each action's success/failure
-4. **Handle Errors Gracefully**: Explain any issues and suggest solutions
-5. **Ask for Clarification**: Request more details when instructions are ambiguous
-
-## Important Notes
-- Always respect website terms of service and robots.txt
-- Be mindful of rate limiting and avoid overwhelming servers
-- Handle personal data and authentication information securely
-- Take screenshots to verify actions and provide transparency
-- Implement proper timeout and retry mechanisms
-- Use direct browser automation through Stagehand for all interactions
-- If operations fail repeatedly, analyze the pattern and adjust strategy
-
-Remember: Your goal is to be a reliable, efficient browser automation assistant that can handle a wide variety of web-based tasks while maintaining transparency and providing excellent user experience through direct browser control.
-  `,
-  model: anthropic("claude-opus-4-20250514"),
-  tools: {},
-  memory: new Memory({
-    options: {
-      lastMessages: 15,
-      semanticRecall: false,
-      threads: {
-        generateTitle: true
-      }
-    }
-  })
-});
-
 let shimsImported = false;
-const browserAutomationToolInputSchema = z.object({
-  task: z.string().describe("\u30D6\u30E9\u30A6\u30B6\u81EA\u52D5\u5316\u3067\u5B9F\u884C\u3057\u305F\u3044\u30BF\u30B9\u30AF\u306E\u8A73\u7D30\u306A\u8AAC\u660E"),
-  url: z.string().optional().describe("\u958B\u59CBURL\uFF08\u6307\u5B9A\u3055\u308C\u306A\u3044\u5834\u5408\u306F\u30BF\u30B9\u30AF\u304B\u3089\u63A8\u6E2C\uFF09"),
-  context: z.string().optional().describe("\u30BF\u30B9\u30AF\u5B9F\u884C\u306B\u5FC5\u8981\u306A\u8FFD\u52A0\u306E\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u60C5\u5831"),
-  priority: z.enum(["low", "medium", "high"]).optional().default("medium").describe("\u30BF\u30B9\u30AF\u306E\u512A\u5148\u5EA6"),
-  timeout: z.number().optional().default(12e4).describe("\u30BF\u30B9\u30AF\u5B9F\u884C\u306E\u30BF\u30A4\u30E0\u30A2\u30A6\u30C8\uFF08\u30DF\u30EA\u79D2\uFF09"),
-  takeScreenshots: z.boolean().optional().default(true).describe("\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8\u3092\u53D6\u5F97\u3059\u308B\u304B\u3069\u3046\u304B"),
-  verificationLevel: z.enum(["basic", "standard", "strict"]).optional().default("standard").describe("\u691C\u8A3C\u30EC\u30D9\u30EB\uFF08basic: \u57FA\u672C\u691C\u8A3C\u3001standard: \u6A19\u6E96\u691C\u8A3C\u3001strict: \u53B3\u5BC6\u691C\u8A3C\uFF09"),
-  maxRetries: z.number().optional().default(3).describe("\u5931\u6557\u6642\u306E\u6700\u5927\u30EA\u30C8\u30E9\u30A4\u56DE\u6570")
+const browserSessionToolInputSchema = z.object({
+  projectId: z.string().optional().describe("Browserbase project ID (defaults to env variable)"),
+  keepAlive: z.boolean().optional().default(true).describe("Keep session alive after operations"),
+  timeout: z.number().optional().default(600).describe("Session timeout in seconds")
 });
-const browserAutomationToolOutputSchema = z.object({
-  success: z.boolean().describe("\u30BF\u30B9\u30AF\u304C\u6210\u529F\u3057\u305F\u304B\u3069\u3046\u304B"),
-  result: z.string().describe("\u30BF\u30B9\u30AF\u5B9F\u884C\u306E\u7D50\u679C"),
-  screenshots: z.array(z.string()).optional().describe("\u53D6\u5F97\u3055\u308C\u305F\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8\u306EURL\u4E00\u89A7"),
-  extractedData: z.any().optional().describe("Web\u30DA\u30FC\u30B8\u304B\u3089\u62BD\u51FA\u3055\u308C\u305F\u30C7\u30FC\u30BF"),
-  sessionInfo: z.object({
-    sessionId: z.string().optional(),
-    replayUrl: z.string().optional(),
-    liveViewUrl: z.string().optional()
-  }).optional().describe("\u30D6\u30E9\u30A6\u30B6\u30BB\u30C3\u30B7\u30E7\u30F3\u60C5\u5831"),
-  executionTime: z.number().describe("\u5B9F\u884C\u6642\u9593\uFF08\u30DF\u30EA\u79D2\uFF09"),
-  error: z.string().optional().describe("\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u305F\u5834\u5408\u306E\u30A8\u30E9\u30FC\u30E1\u30C3\u30BB\u30FC\u30B8"),
-  markdownContent: z.string().optional().describe("\u30C1\u30E3\u30C3\u30C8\u8868\u793A\u7528\u306E\u30DE\u30FC\u30AF\u30C0\u30A6\u30F3\u5F62\u5F0F\u306E\u30B3\u30F3\u30C6\u30F3\u30C4"),
-  // Browserbase互換の情報
-  sessionId: z.string().optional().describe("\u30D6\u30E9\u30A6\u30B6\u30BB\u30C3\u30B7\u30E7\u30F3ID"),
-  replayUrl: z.string().optional().describe("\u30BB\u30C3\u30B7\u30E7\u30F3\u30EA\u30D7\u30EC\u30A4URL"),
-  liveViewUrl: z.string().optional().describe("\u30E9\u30A4\u30D6\u30D3\u30E5\u30FCURL"),
-  pageTitle: z.string().optional().describe("\u6700\u7D42\u7684\u306A\u30DA\u30FC\u30B8\u30BF\u30A4\u30C8\u30EB"),
-  autoOpenPreview: z.boolean().optional().describe("\u30D7\u30EC\u30D3\u30E5\u30FC\u3092\u81EA\u52D5\u3067\u958B\u304F\u304B\u3069\u3046\u304B"),
-  executionSteps: z.array(z.object({
-    step: z.number(),
-    action: z.string(),
-    status: z.enum(["success", "failed", "retried"]),
-    verificationResult: z.string().optional(),
-    retryCount: z.number().optional()
-  })).optional().describe("\u5B9F\u884C\u30B9\u30C6\u30C3\u30D7\u306E\u8A73\u7D30\u30ED\u30B0"),
-  verificationResults: z.object({
-    level: z.string(),
-    checks: z.array(z.object({
-      type: z.string(),
-      passed: z.boolean(),
-      details: z.string()
-    })),
-    overallScore: z.number().min(0).max(100)
-  }).optional().describe("\u691C\u8A3C\u7D50\u679C\u306E\u8A73\u7D30")
+const browserSessionToolOutputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  liveViewUrl: z.string().describe("Live view URL for real-time browser viewing"),
+  replayUrl: z.string().describe("Replay URL for session recording"),
+  createdAt: z.string().describe("Session creation timestamp"),
+  message: z.string().optional().describe("Human-readable message with session details")
 });
-function generateMarkdownContent(params) {
-  const { task, success, result, screenshots, extractedData, sessionInfo, executionTime, error, pageTitle, executionSteps, verificationResults } = params;
-  let markdown = `# \u{1F916} \u30D6\u30E9\u30A6\u30B6\u81EA\u52D5\u5316\u5B9F\u884C\u7D50\u679C
-
-`;
-  markdown += `## \u{1F4CB} \u5B9F\u884C\u30BF\u30B9\u30AF
-`;
-  markdown += `${task}
-
-`;
-  markdown += `## ${success ? "\u2705" : "\u274C"} \u5B9F\u884C\u7D50\u679C
-`;
-  markdown += `**\u30B9\u30C6\u30FC\u30BF\u30B9**: ${success ? "\u6210\u529F" : "\u5931\u6557"}
-`;
-  markdown += `**\u5B9F\u884C\u6642\u9593**: ${(executionTime / 1e3).toFixed(2)}\u79D2
-`;
-  if (pageTitle) markdown += `**\u30DA\u30FC\u30B8\u30BF\u30A4\u30C8\u30EB**: ${pageTitle}
-`;
-  if (verificationResults) markdown += `**\u691C\u8A3C\u30B9\u30B3\u30A2**: ${verificationResults.overallScore}/100 (${verificationResults.level})
-`;
-  markdown += `
-`;
-  if (success) {
-    markdown += `### \u{1F4CA} \u7D50\u679C\u8A73\u7D30
-`;
-    markdown += `${result}
-
-`;
-    if (executionSteps && executionSteps.length > 0) {
-      markdown += `### \u{1F504} \u5B9F\u884C\u30B9\u30C6\u30C3\u30D7\u8A73\u7D30
-`;
-      executionSteps.forEach((step, index) => {
-        const statusIcon = step.status === "success" ? "\u2705" : step.status === "retried" ? "\u{1F504}" : "\u274C";
-        markdown += `${index + 1}. ${statusIcon} **${step.action}**
-`;
-        markdown += `   - \u30B9\u30C6\u30FC\u30BF\u30B9: ${step.status}
-`;
-        if (step.retryCount > 0) markdown += `   - \u30EA\u30C8\u30E9\u30A4\u56DE\u6570: ${step.retryCount}
-`;
-        if (step.verificationResult) markdown += `   - \u691C\u8A3C\u7D50\u679C: ${step.verificationResult}
-`;
-        markdown += `
-`;
-      });
-    }
-    if (verificationResults) {
-      markdown += `### \u{1F50D} \u691C\u8A3C\u7D50\u679C\u8A73\u7D30
-`;
-      verificationResults.checks.forEach((check) => {
-        const checkIcon = check.passed ? "\u2705" : "\u274C";
-        markdown += `- ${checkIcon} **${check.type}**: ${check.details}
-`;
-      });
-      markdown += `
-`;
-    }
-    if (screenshots && screenshots.length > 0) {
-      markdown += `### \u{1F4F8} \u53D6\u5F97\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8
-`;
-      screenshots.forEach((screenshot, index) => {
-        markdown += `![\u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8 ${index + 1}](${screenshot})
-
-`;
-      });
-    }
-    if (extractedData) {
-      markdown += `### \u{1F4C4} \u62BD\u51FA\u30C7\u30FC\u30BF
-`;
-      markdown += `\`\`\`json
-${JSON.stringify(extractedData, null, 2)}
-\`\`\`
-
-`;
-    }
-    if (sessionInfo) {
-      markdown += `### \u{1F517} \u30BB\u30C3\u30B7\u30E7\u30F3\u60C5\u5831
-`;
-      if (sessionInfo.replayUrl) {
-        markdown += `- [\u30BB\u30C3\u30B7\u30E7\u30F3\u30EA\u30D7\u30EC\u30A4\u3092\u8868\u793A](${sessionInfo.replayUrl})
-`;
-      }
-      if (sessionInfo.liveViewUrl) {
-        markdown += `- [\u30E9\u30A4\u30D6\u30D3\u30E5\u30FC\u3092\u8868\u793A](${sessionInfo.liveViewUrl})
-`;
-      }
-      markdown += `
-`;
-    }
-  } else {
-    markdown += `### \u274C \u30A8\u30E9\u30FC\u8A73\u7D30
-`;
-    markdown += `${error || "Unknown error occurred"}
-
-`;
-    if (executionSteps && executionSteps.length > 0) {
-      markdown += `### \u{1F504} \u5B9F\u884C\u30B9\u30C6\u30C3\u30D7\uFF08\u5931\u6557\u6642\uFF09
-`;
-      executionSteps.forEach((step, index) => {
-        const statusIcon = step.status === "success" ? "\u2705" : step.status === "retried" ? "\u{1F504}" : "\u274C";
-        markdown += `${index + 1}. ${statusIcon} **${step.action}**
-`;
-        if (step.verificationResult) markdown += `   - ${step.verificationResult}
-`;
-        markdown += `
-`;
-      });
-    }
-  }
-  return markdown;
-}
-const browserAutomationTool = createTool({
-  id: "browser-automation-tool",
-  description: `
-\u9AD8\u7CBE\u5EA6\u306A\u30D6\u30E9\u30A6\u30B6\u81EA\u52D5\u5316\u30C4\u30FC\u30EB\uFF08\u691C\u8A3C\u30EB\u30FC\u30D7\u6A5F\u80FD\u4ED8\u304D\uFF09
-
-\u3053\u306E\u30C4\u30FC\u30EB\u306F\u3001\u8907\u96D1\u306AWeb\u30D6\u30E9\u30A6\u30B6\u64CD\u4F5C\u3092\u81EA\u52D5\u5316\u3057\u3001\u5404\u30B9\u30C6\u30C3\u30D7\u3067\u691C\u8A3C\u30EB\u30FC\u30D7\u3092\u5B9F\u884C\u3057\u3066\u9AD8\u3044\u7CBE\u5EA6\u3092\u5B9F\u73FE\u3057\u307E\u3059\u3002
-
-\u4E3B\u306A\u6A5F\u80FD:
-- \u{1F504} **\u691C\u8A3C\u30EB\u30FC\u30D7**: \u5404\u30A2\u30AF\u30B7\u30E7\u30F3\u306E\u6210\u529F\u3092\u78BA\u8A8D\u3057\u3001\u5931\u6557\u6642\u306F\u81EA\u52D5\u30EA\u30C8\u30E9\u30A4
-- \u{1F3AF} **\u591A\u6BB5\u968E\u691C\u8A3C**: basic/standard/strict \u306E3\u3064\u306E\u691C\u8A3C\u30EC\u30D9\u30EB
-- \u{1F4CA} **\u8A73\u7D30\u30ED\u30B0**: \u5B9F\u884C\u30B9\u30C6\u30C3\u30D7\u3068\u691C\u8A3C\u7D50\u679C\u306E\u5B8C\u5168\u306A\u8A18\u9332
-- \u{1F501} **\u30A4\u30F3\u30C6\u30EA\u30B8\u30A7\u30F3\u30C8\u30EA\u30C8\u30E9\u30A4**: \u5931\u6557\u539F\u56E0\u3092\u5206\u6790\u3057\u3066\u6700\u9069\u306A\u30EA\u30C8\u30E9\u30A4\u6226\u7565\u3092\u5B9F\u884C
-- \u{1F4F8} **\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u76E3\u8996**: \u30B9\u30AF\u30EA\u30FC\u30F3\u30B7\u30E7\u30C3\u30C8\u3068\u30E9\u30A4\u30D6\u30D3\u30E5\u30FC\u3067\u306E\u9032\u884C\u72B6\u6CC1\u78BA\u8A8D
-
-\u691C\u8A3C\u30EC\u30D9\u30EB:
-- **basic**: \u57FA\u672C\u7684\u306A\u6210\u529F/\u5931\u6557\u30C1\u30A7\u30C3\u30AF
-- **standard**: \u8981\u7D20\u306E\u5B58\u5728\u78BA\u8A8D\u3001\u30DA\u30FC\u30B8\u9077\u79FB\u691C\u8A3C\u3001\u30C7\u30FC\u30BF\u6574\u5408\u6027\u30C1\u30A7\u30C3\u30AF
-- **strict**: \u53B3\u5BC6\u306A\u691C\u8A3C\u3001\u8907\u6570\u306E\u78BA\u8A8D\u65B9\u6CD5\u3001\u30C7\u30FC\u30BF\u54C1\u8CEA\u4FDD\u8A3C
-
-\u4F7F\u7528\u4F8B:
-- Web\u30B5\u30A4\u30C8\u304B\u3089\u306E\u60C5\u5831\u53CE\u96C6\uFF08\u4FA1\u683C\u3001\u5728\u5EAB\u3001\u30CB\u30E5\u30FC\u30B9\u306A\u3069\uFF09
-- \u30D5\u30A9\u30FC\u30E0\u5165\u529B\u3068\u9001\u4FE1\u306E\u81EA\u52D5\u5316
-- \u8907\u6570\u30DA\u30FC\u30B8\u306B\u308F\u305F\u308B\u30CA\u30D3\u30B2\u30FC\u30B7\u30E7\u30F3
-- \u30C7\u30FC\u30BF\u306E\u62BD\u51FA\u3068\u691C\u8A3C
-- E2E\u30C6\u30B9\u30C8\u30B7\u30CA\u30EA\u30AA\u306E\u5B9F\u884C
-
-\u6CE8\u610F: \u3053\u306E\u30C4\u30FC\u30EB\u306FBrowserbase\u30BB\u30C3\u30B7\u30E7\u30F3\u3092\u4F5C\u6210\u3057\u3001\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\u30D6\u30E9\u30A6\u30B6\u64CD\u4F5C\u3092\u8868\u793A\u3057\u307E\u3059\u3002
-  `,
-  inputSchema: browserAutomationToolInputSchema,
-  outputSchema: browserAutomationToolOutputSchema,
+const browserSessionTool = createTool({
+  id: "browser-session",
+  description: "Create a new Browserbase session and return live view URL immediately",
+  inputSchema: browserSessionToolInputSchema,
+  outputSchema: browserSessionToolOutputSchema,
   execute: async ({ context }) => {
-    const startTime = Date.now();
     try {
-      const { task, url, verificationLevel, maxRetries } = context;
-      console.log("[BrowserAutomationTool] Starting browser automation task:", task);
-      console.log("\u{1F50D} \u691C\u8A3C\u30EC\u30D9\u30EB:", verificationLevel);
-      console.log("\u{1F504} \u6700\u5927\u30EA\u30C8\u30E9\u30A4\u56DE\u6570:", maxRetries);
-      console.log("\u{1F310} Browserbase\u30BB\u30C3\u30B7\u30E7\u30F3\u3092\u4F5C\u6210\u4E2D...");
       if (!shimsImported && typeof window === "undefined") {
         await import('@browserbasehq/sdk/shims/web');
         shimsImported = true;
@@ -2553,124 +1804,389 @@ const browserAutomationTool = createTool({
         apiKey: process.env.BROWSERBASE_API_KEY
       });
       const session = await bb.sessions.create({
-        projectId: process.env.BROWSERBASE_PROJECT_ID,
-        keepAlive: true,
-        timeout: 600
-        // 10分
+        projectId: context.projectId || process.env.BROWSERBASE_PROJECT_ID,
+        keepAlive: context.keepAlive,
+        timeout: context.timeout
       });
       const sessionId = session.id;
       console.log(`\u2705 \u30BB\u30C3\u30B7\u30E7\u30F3\u4F5C\u6210\u5B8C\u4E86: ${sessionId}`);
-      let liveViewUrl;
-      try {
-        const debugInfo = await bb.sessions.debug(sessionId);
-        if (debugInfo.debuggerFullscreenUrl) {
-          const originalUrl = debugInfo.debuggerFullscreenUrl;
-          liveViewUrl = originalUrl.replace(
-            "https://www.browserbase.com/devtools-fullscreen/inspector.html",
-            "https://www.browserbase.com/devtools-internal-compiled/index.html"
-          );
-          console.log(`\u{1F517} \u30E9\u30A4\u30D6\u30D3\u30E5\u30FCURL\u5909\u63DB: ${originalUrl} -> ${liveViewUrl}`);
-        } else {
-          liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-          console.log(`\u{1F517} \u30D5\u30A9\u30FC\u30EB\u30D0\u30C3\u30AFURL\u4F7F\u7528: ${liveViewUrl}`);
-        }
-      } catch (error) {
-        console.warn("\u26A0\uFE0F \u30E9\u30A4\u30D6\u30D3\u30E5\u30FCURL\u53D6\u5F97\u5931\u6557:", error);
+      const debugInfo = await bb.sessions.debug(sessionId);
+      let liveViewUrl = "";
+      if (debugInfo.debuggerFullscreenUrl) {
+        liveViewUrl = debugInfo.debuggerFullscreenUrl.replace(
+          "https://www.browserbase.com/devtools-fullscreen/inspector.html",
+          "https://www.browserbase.com/devtools-internal-compiled/index.html"
+        );
+      } else {
         liveViewUrl = `https://www.browserbase.com/sessions/${sessionId}`;
       }
       const replayUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-      console.log("\u{1F916} browserAutomationAgent\u306E\u30EB\u30FC\u30D7\u51E6\u7406\u3092\u958B\u59CB...");
-      const agentContext = {
-        task,
-        verificationLevel,
-        maxRetries,
-        url,
-        sessionId
-        // 🔧 作成済みのセッションIDを渡す
-      };
-      const agentResult = await executeWithVerificationLoops(browserAutomationAgent, agentContext);
-      const executionTime = Date.now() - startTime;
-      const screenshots = agentResult.executionSteps.map((step) => step.screenshot).filter((screenshot) => screenshot);
-      const extractedData = agentResult.executionSteps.map((step) => step.extractedData).filter((data) => data).reduce((acc, data) => ({ ...acc, ...data }), {});
-      const lastSuccessfulStep = agentResult.executionSteps.filter((step) => step.status === "success" && step.verificationResult).pop();
-      const pageTitle = lastSuccessfulStep?.verificationResult?.match(/Page title: ([^.]+)/)?.[1] || "\u30D6\u30E9\u30A6\u30B6\u81EA\u52D5\u5316\u5B9F\u884C\u7D50\u679C";
-      const resultData = {
-        success: agentResult.verificationResults.overallScore > 0,
-        result: agentResult.result,
-        screenshots: screenshots.length > 0 ? screenshots : void 0,
-        extractedData: Object.keys(extractedData).length > 0 ? extractedData : void 0,
-        sessionInfo: {
-          sessionId,
-          // 最初に作成したセッションIDを使用
-          replayUrl,
-          liveViewUrl
-        },
-        executionTime,
-        sessionId,
-        // 最初に作成したセッションIDを使用
-        replayUrl,
-        liveViewUrl,
-        // 🔧 即座に表示するためのライブビューURL
-        pageTitle,
-        autoOpenPreview: true,
-        // 🔧 自動的にプレビューを開く
-        executionSteps: agentResult.executionSteps,
-        verificationResults: agentResult.verificationResults,
-        markdownContent: generateMarkdownContent({
-          task,
-          success: agentResult.verificationResults.overallScore > 0,
-          result: agentResult.result,
-          screenshots: screenshots.length > 0 ? screenshots : void 0,
-          extractedData: Object.keys(extractedData).length > 0 ? extractedData : void 0,
-          sessionInfo: {
+      console.log(`\u{1F310} \u30E9\u30A4\u30D6\u30D3\u30E5\u30FCURL: ${liveViewUrl}`);
+      if (typeof window !== "undefined") {
+        const event = new CustomEvent("browserAutomationLiveViewReady", {
+          detail: {
             sessionId,
-            // 最初に作成したセッションIDを使用
+            liveViewUrl,
             replayUrl,
-            liveViewUrl
-          },
-          executionTime,
-          pageTitle,
-          executionSteps: agentResult.executionSteps,
-          verificationResults: agentResult.verificationResults
-        })
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            status: "ready"
+          }
+        });
+        window.dispatchEvent(event);
+        console.log("\u{1F680} browserAutomationLiveViewReady \u30A4\u30D9\u30F3\u30C8\u767A\u884C:", { sessionId, liveViewUrl });
+      }
+      return {
+        sessionId,
+        liveViewUrl,
+        replayUrl,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        message: `\u2705 \u30D6\u30E9\u30A6\u30B6\u30BB\u30C3\u30B7\u30E7\u30F3\u4F5C\u6210\u5B8C\u4E86
+
+\u30BB\u30C3\u30B7\u30E7\u30F3ID: ${sessionId}
+
+\u{1F310} \u30E9\u30A4\u30D6\u30D3\u30E5\u30FCURL: ${liveViewUrl}
+
+\u3053\u306EURL\u304B\u3089\u3001\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\u30D6\u30E9\u30A6\u30B6\u64CD\u4F5C\u306E\u69D8\u5B50\u3092\u78BA\u8A8D\u3067\u304D\u307E\u3059\u3002`
       };
-      console.log("\u2705 Browser Automation Tool - \u5B9F\u884C\u5B8C\u4E86");
-      console.log("\u{1F4CA} \u691C\u8A3C\u30B9\u30B3\u30A2:", agentResult.verificationResults.overallScore);
-      return resultData;
     } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("[BrowserAutomationTool] Error during browser automation:", errorMessage);
-      const resultData = {
-        success: false,
-        result: "\u30BF\u30B9\u30AF\u306E\u5B9F\u884C\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
-        executionTime,
-        error: errorMessage,
-        executionSteps: [{
-          step: 1,
-          action: "\u30A8\u30E9\u30FC\u767A\u751F",
-          status: "failed",
-          verificationResult: `\u30A8\u30E9\u30FC: ${errorMessage}`,
-          retryCount: 0
-        }],
-        verificationResults: {
-          level: context.verificationLevel || "standard",
-          checks: [{
-            type: "error_handling",
-            passed: false,
-            details: `\u5B9F\u884C\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F: ${errorMessage}`
-          }],
-          overallScore: 0
-        },
-        markdownContent: generateMarkdownContent({
-          task: context.task,
-          success: false,
-          result: "\u30BF\u30B9\u30AF\u306E\u5B9F\u884C\u4E2D\u306B\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
-          executionTime,
-          error: errorMessage
-        })
+      console.error("Browser session creation error:", error);
+      throw error;
+    }
+  }
+});
+
+const stagehandInstances = /* @__PURE__ */ new Map();
+
+const browserGotoToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  url: z.string().describe("URL to navigate to"),
+  waitUntil: z.enum(["commit", "domcontentloaded", "load", "networkidle"]).optional().default("commit").describe("When to consider navigation succeeded"),
+  timeout: z.number().optional().default(6e4).describe("Navigation timeout in milliseconds")
+});
+const browserGotoToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether navigation was successful"),
+  url: z.string().describe("Current page URL after navigation"),
+  title: z.string().describe("Page title after navigation"),
+  message: z.string().describe("Result message")
+});
+const browserGotoTool = createTool({
+  id: "browser-goto",
+  description: "Navigate to a specified URL in the browser session",
+  inputSchema: browserGotoToolInputSchema,
+  outputSchema: browserGotoToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId, url, waitUntil, timeout } = context;
+      let stagehand = stagehandInstances.get(sessionId);
+      if (!stagehand) {
+        const { Stagehand } = await import('@browserbasehq/stagehand');
+        const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        if (!geminiApiKey) {
+          throw new Error("Missing Gemini API key");
+        }
+        stagehand = new Stagehand({
+          browserbaseSessionID: sessionId,
+          env: "BROWSERBASE",
+          modelName: "google/gemini-2.5-flash-preview-05-20",
+          modelClientOptions: {
+            apiKey: geminiApiKey
+          },
+          apiKey: process.env.BROWSERBASE_API_KEY,
+          projectId: process.env.BROWSERBASE_PROJECT_ID,
+          disablePino: true
+        });
+        await stagehand.init();
+        stagehandInstances.set(sessionId, stagehand);
+      }
+      const page = stagehand.page;
+      console.log(`\u{1F310} Navigating to: ${url}`);
+      await page.goto(url, { waitUntil, timeout });
+      const currentUrl = page.url();
+      const title = await page.title();
+      console.log(`\u2705 Navigation completed: ${title}`);
+      return {
+        success: true,
+        url: currentUrl,
+        title,
+        message: `Successfully navigated to ${url}`
       };
-      return resultData;
+    } catch (error) {
+      console.error("Navigation error:", error);
+      return {
+        success: false,
+        url: context.url,
+        title: "",
+        message: `Navigation failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserActToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  instruction: z.string().describe('Natural language instruction for the action (e.g., "click the login button", "type hello world into the search box")'),
+  timeout: z.number().optional().default(3e4).describe("Action timeout in milliseconds")
+});
+const browserActToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether the action was successful"),
+  action: z.string().describe("The action that was performed"),
+  message: z.string().describe("Result message"),
+  screenshot: z.string().optional().describe("Base64 encoded screenshot after action")
+});
+const browserActTool = createTool({
+  id: "browser-act",
+  description: "Perform an action on the page using natural language instructions. AI will identify the correct element and perform the action.",
+  inputSchema: browserActToolInputSchema,
+  outputSchema: browserActToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId, instruction, timeout } = context;
+      const stagehand = stagehandInstances.get(sessionId);
+      if (!stagehand) {
+        throw new Error(`No active browser session found for sessionId: ${sessionId}. Please use browser-goto tool first.`);
+      }
+      const page = stagehand.page;
+      console.log(`\u{1F3AF} Performing action: ${instruction}`);
+      await page.act(instruction, { timeout });
+      await new Promise((resolve) => setTimeout(resolve, 1e3));
+      let screenshot = "";
+      try {
+        const screenshotBuffer = await page.screenshot({ fullPage: false, timeout: 5e3 });
+        screenshot = `data:image/png;base64,${screenshotBuffer.toString("base64")}`;
+      } catch (e) {
+        console.warn("Screenshot capture failed:", e);
+      }
+      console.log(`\u2705 Action completed: ${instruction}`);
+      return {
+        success: true,
+        action: instruction,
+        message: `Successfully performed: ${instruction}`,
+        screenshot
+      };
+    } catch (error) {
+      console.error("Action error:", error);
+      return {
+        success: false,
+        action: context.instruction,
+        message: `Action failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserExtractToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  instruction: z.string().describe("What data to extract from the page"),
+  schema: z.any().optional().describe("Optional Zod schema for structured data extraction")
+});
+const browserExtractToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether extraction was successful"),
+  data: z.any().describe("Extracted data from the page"),
+  message: z.string().describe("Result message")
+});
+const browserExtractTool = createTool({
+  id: "browser-extract",
+  description: "Extract data from the current page using AI. Can extract structured data based on natural language instructions.",
+  inputSchema: browserExtractToolInputSchema,
+  outputSchema: browserExtractToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId, instruction, schema } = context;
+      const stagehand = stagehandInstances.get(sessionId);
+      if (!stagehand) {
+        throw new Error(`No active browser session found for sessionId: ${sessionId}. Please use browser-goto tool first.`);
+      }
+      const page = stagehand.page;
+      console.log(`\u{1F4CA} Extracting data: ${instruction}`);
+      const result = await page.extract(instruction, schema ? { schema } : void 0);
+      console.log(`\u2705 Data extraction completed`);
+      return {
+        success: true,
+        data: result.extraction,
+        message: `Successfully extracted data: ${instruction}`
+      };
+    } catch (error) {
+      console.error("Extraction error:", error);
+      return {
+        success: false,
+        data: null,
+        message: `Extraction failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserObserveToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  instruction: z.string().describe('What to observe on the page (e.g., "clickable buttons", "form fields", "search box")')
+});
+const browserObserveToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether observation was successful"),
+  observations: z.array(z.string()).describe("List of possible actions or observations"),
+  message: z.string().describe("Result message")
+});
+const browserObserveTool = createTool({
+  id: "browser-observe",
+  description: "Observe elements on the current page and get suggestions for possible actions",
+  inputSchema: browserObserveToolInputSchema,
+  outputSchema: browserObserveToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId, instruction } = context;
+      const stagehand = stagehandInstances.get(sessionId);
+      if (!stagehand) {
+        throw new Error(`No active browser session found for sessionId: ${sessionId}. Please use browser-goto tool first.`);
+      }
+      const page = stagehand.page;
+      console.log(`\u{1F441}\uFE0F Observing: ${instruction}`);
+      const suggestions = await page.observe(instruction);
+      console.log(`\u2705 Observation completed, found ${suggestions.length} suggestions`);
+      return {
+        success: true,
+        observations: suggestions.map((s) => typeof s === "string" ? s : JSON.stringify(s)),
+        message: `Found ${suggestions.length} possible actions for: ${instruction}`
+      };
+    } catch (error) {
+      console.error("Observation error:", error);
+      return {
+        success: false,
+        observations: [],
+        message: `Observation failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserWaitToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  milliseconds: z.number().describe("Time to wait in milliseconds")
+});
+const browserWaitToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether wait was successful"),
+  duration: z.number().describe("Actual wait duration in milliseconds"),
+  message: z.string().describe("Result message")
+});
+const browserWaitTool = createTool({
+  id: "browser-wait",
+  description: "Wait for a specified amount of time. Useful for waiting for page loads, animations, or async operations.",
+  inputSchema: browserWaitToolInputSchema,
+  outputSchema: browserWaitToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { milliseconds } = context;
+      console.log(`\u23F3 Waiting for ${milliseconds}ms...`);
+      const startTime = Date.now();
+      await new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const actualDuration = Date.now() - startTime;
+      console.log(`\u2705 Wait completed (${actualDuration}ms)`);
+      return {
+        success: true,
+        duration: actualDuration,
+        message: `Waited for ${actualDuration}ms`
+      };
+    } catch (error) {
+      console.error("Wait error:", error);
+      return {
+        success: false,
+        duration: 0,
+        message: `Wait failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserScreenshotToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID"),
+  fullPage: z.boolean().optional().default(false).describe("Whether to capture the full page"),
+  filename: z.string().optional().describe("Optional filename for saving screenshot")
+});
+const browserScreenshotToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether screenshot was successful"),
+  screenshot: z.string().describe("Base64 encoded screenshot"),
+  filepath: z.string().optional().describe("File path if saved to disk"),
+  message: z.string().describe("Result message")
+});
+const browserScreenshotTool = createTool({
+  id: "browser-screenshot",
+  description: "Take a screenshot of the current page",
+  inputSchema: browserScreenshotToolInputSchema,
+  outputSchema: browserScreenshotToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId, fullPage, filename } = context;
+      const stagehand = stagehandInstances.get(sessionId);
+      if (!stagehand) {
+        throw new Error(`No active browser session found for sessionId: ${sessionId}. Please use browser-goto tool first.`);
+      }
+      const page = stagehand.page;
+      console.log(`\u{1F4F8} Taking screenshot (fullPage: ${fullPage})`);
+      const screenshotBuffer = await page.screenshot({
+        fullPage,
+        timeout: 1e4
+      });
+      const base64Screenshot = `data:image/png;base64,${screenshotBuffer.toString("base64")}`;
+      let filepath;
+      if (filename) {
+        const screenshotDir = path__default.join(process.cwd(), "public", "browser-screenshots");
+        const fullPath = path__default.join(screenshotDir, filename.endsWith(".png") ? filename : `${filename}.png`);
+        await writeFile(fullPath, screenshotBuffer);
+        filepath = fullPath;
+        console.log(`\u{1F4BE} Screenshot saved to: ${filepath}`);
+      }
+      console.log(`\u2705 Screenshot captured successfully`);
+      return {
+        success: true,
+        screenshot: base64Screenshot,
+        filepath,
+        message: "Screenshot captured successfully"
+      };
+    } catch (error) {
+      console.error("Screenshot error:", error);
+      return {
+        success: false,
+        screenshot: "",
+        message: `Screenshot failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
+    }
+  }
+});
+
+const browserCloseToolInputSchema = z.object({
+  sessionId: z.string().describe("Browserbase session ID")
+});
+const browserCloseToolOutputSchema = z.object({
+  success: z.boolean().describe("Whether session was closed successfully"),
+  message: z.string().describe("Result message")
+});
+const browserCloseTool = createTool({
+  id: "browser-close",
+  description: "Close the browser session and clean up resources",
+  inputSchema: browserCloseToolInputSchema,
+  outputSchema: browserCloseToolOutputSchema,
+  execute: async ({ context }) => {
+    try {
+      const { sessionId } = context;
+      console.log(`\u{1F6AA} Closing browser session: ${sessionId}`);
+      const stagehand = stagehandInstances.get(sessionId);
+      if (stagehand) {
+        try {
+          await stagehand.close();
+        } catch (e) {
+          console.warn("Error closing stagehand:", e);
+        }
+        stagehandInstances.delete(sessionId);
+      }
+      console.log(`\u2705 Browser session closed: ${sessionId}`);
+      return {
+        success: true,
+        message: `Browser session ${sessionId} closed successfully`
+      };
+    } catch (error) {
+      console.error("Session close error:", error);
+      return {
+        success: false,
+        message: `Failed to close session: ${error instanceof Error ? error.message : "Unknown error"}`
+      };
     }
   }
 });
@@ -2749,4 +2265,4 @@ function getWeatherCondition(code) {
   return conditions[code] || "Unknown";
 }
 
-export { geminiVideoGenerationTool as a, browserAutomationTool as b, geminiImageGenerationTool as c, advancedCalculatorTool as d, grokXSearchTool as e, braveSearchTool as f, graphicRecordingTool as g, htmlSlideTool as h, imagen4GenerationTool as i, browserAutomationAgent as j, minimaxTTSTool as m, presentationPreviewTool as p, v0CodeGenerationTool as v, weatherTool as w };
+export { braveSearchTool, browserActTool, browserCloseTool, browserExtractTool, browserGotoTool, browserObserveTool, browserScreenshotTool, browserSessionTool, browserWaitTool, geminiImageGenerationTool, geminiVideoGenerationTool, graphicRecordingTool, grokXSearchTool, htmlSlideTool, imagen4GenerationTool, minimaxTTSTool, presentationPreviewTool, v0CodeGenerationTool, weatherTool };

@@ -32,5 +32,4 @@ export const weatherAgent = new Agent({
 
 export { slideCreatorAgent } from './slideCreatorAgent';
 export { imageCreatorAgent } from './imageCreatorAgent';
-export { browserAutomationAgent } from './browserAutomationAgent';
 export * from './open-superagent';

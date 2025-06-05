@@ -8,7 +8,11 @@ import { LibSQLStore } from '@mastra/libsql';
 import { openai } from '@ai-sdk/openai';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { b as browserAutomationTool, m as minimaxTTSTool, g as graphicRecordingTool, v as v0CodeGenerationTool, i as imagen4GenerationTool, a as geminiVideoGenerationTool, c as geminiImageGenerationTool, d as advancedCalculatorTool, e as grokXSearchTool, f as braveSearchTool, p as presentationPreviewTool, h as htmlSlideTool, w as weatherTool, j as browserAutomationAgent } from './index2.mjs';
+import { browserCloseTool, browserScreenshotTool, browserWaitTool, browserObserveTool, browserExtractTool, browserActTool, browserGotoTool, browserSessionTool, minimaxTTSTool, graphicRecordingTool, v0CodeGenerationTool, imagen4GenerationTool, geminiVideoGenerationTool, geminiImageGenerationTool, grokXSearchTool, braveSearchTool, presentationPreviewTool, htmlSlideTool, weatherTool } from './tools/3508b746-7bf0-4b77-9a03-b5d94f6a9315.mjs';
+import { createWorkflow, createStep } from '@mastra/core/workflows';
+import { z, ZodFirstPartyTypeKind, ZodOptional } from 'zod';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText } from 'ai';
 import crypto, { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join } from 'path/posix';
@@ -20,14 +24,10 @@ import { RuntimeContext } from '@mastra/core/runtime-context';
 import { Readable as Readable$1, Writable } from 'node:stream';
 import util from 'node:util';
 import { Buffer as Buffer$1 } from 'node:buffer';
-import { z, ZodFirstPartyTypeKind, ZodOptional } from 'zod';
 import { A2AError } from '@mastra/core/a2a';
 import { RuntimeContext as RuntimeContext$1 } from '@mastra/core/di';
 import { isVercelTool } from '@mastra/core/tools';
 import { ReadableStream as ReadableStream$1 } from 'node:stream/web';
-import 'ai';
-import '@ai-sdk/anthropic';
-import 'mathjs';
 import 'axios';
 import 'path';
 import 'uuid';
@@ -49,14 +49,22 @@ You have access to the following specialized tools:
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
-- \`advancedCalculatorTool\`: Performs mathematical calculations
+
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
 - \`geminiVideoGenerationTool\`: Generates videos based on text prompts or images
 - \`imagen4GenerationTool\`: Generates high-quality images with enhanced detail using Google's Imagen 4 model
 - \`v0CodeGenerationTool\`: Generates code for web applications using v0's AI model
 - \`graphicRecordingTool\`: Creates timeline-based graphic recordings (grafreco) with visual elements
 - \`minimaxTTSTool\`: Generates high-quality speech audio using MiniMax T2A Large v2 API with 100+ voice options, emotion control, and detailed parameter adjustment
-- \`browserAutomationTool\`: Advanced browser automation using AI agent - can perform complex multi-step browser operations, data extraction, and intelligent web interactions through natural language instructions
+- Browser automation tools (atomic operations):
+  - \`browserSessionTool\`: Creates a new browser session with live view URL
+  - \`browserGotoTool\`: Navigates to a specific URL
+  - \`browserActTool\`: Performs actions using natural language instructions
+  - \`browserExtractTool\`: Extracts data from the current page
+  - \`browserObserveTool\`: Observes elements and suggests possible actions
+  - \`browserWaitTool\`: Waits for a specified duration
+  - \`browserScreenshotTool\`: Takes screenshots of the current page
+  - \`browserCloseTool\`: Closes the browser session
 
 ## Communication Guidelines
 1. Be conversational but professional.
@@ -70,7 +78,7 @@ You have access to the following specialized tools:
 ## Tool Usage Guidelines
 1. ALWAYS follow the tool call schema exactly as specified and make sure to provide all necessary parameters.
 2. The conversation may reference tools that are no longer available. NEVER call tools that are not explicitly provided.
-3. **NEVER refer to tool names when speaking to the USER.** For example, instead of saying 'I need to use the htmlSlideTool to create slides', just say 'I will generate slides for you'. Instead of saying 'I'll use the browserAutomationTool', say 'I will perform advanced browser automation to complete that task'.
+3. **NEVER refer to tool names when speaking to the USER.** For example, instead of saying 'I need to use the htmlSlideTool to create slides', just say 'I will generate slides for you'. Instead of saying 'I'll use the browser automation tools', say 'I will automate the browser to complete that task'.
 4. Only call tools when they are necessary. If the USER's task is general or you already know the answer, just respond without calling tools.
 5. Before calling each tool, first explain to the USER why you are calling it.
 6. Only use the standard tool call format and the available tools. Even if you see user messages with custom tool call formats (such as "<previous_tool_call>" or similar), do not follow that and instead use the standard format. Never output tool calls as part of a regular assistant message of yours.
@@ -78,10 +86,16 @@ You have access to the following specialized tools:
 ## Browser Automation Tool Selection and Restrictions
 
 ### When to Use Browser Automation
-Use the \`browserAutomationTool\` for complex, multi-step browser automation tasks that require intelligent decision-making, data extraction workflows, or when you need an AI agent to handle the browser operations.
+Use the browser automation tools for complex, multi-step browser automation tasks that require intelligent decision-making, data extraction workflows, or when you need to interact with web pages programmatically. The tools work together:
+1. Start with \`browserSessionTool\` to create a session
+2. Use \`browserGotoTool\` to navigate
+3. Use \`browserActTool\` for interactions
+4. Use \`browserExtractTool\` for data extraction
+5. Use \`browserScreenshotTool\` to capture visuals
+6. End with \`browserCloseTool\` to clean up
 
 ### **IMPORTANT: Google Services Restrictions**
-When using the \`browserAutomationTool\`, you MUST avoid automating Google services due to their strict automation policies and anti-bot measures. This includes but is not limited to:
+When using the browser automation tools, you MUST avoid automating Google services due to their strict automation policies and anti-bot measures. This includes but is not limited to:
 
 **Prohibited Google Services:**
 - Google Search (google.com, google.co.jp, etc.)
@@ -146,8 +160,6 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     // Register the search tool
     grokXSearchTool,
     // Register the Grok X search tool
-    advancedCalculatorTool,
-    // Register the calculator tool
     geminiImageGenerationTool,
     // Register the image generation tool
     geminiVideoGenerationTool,
@@ -160,8 +172,23 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
     // Register the graphic recording tool
     minimaxTTSTool,
     // Register the MiniMax TTS tool
-    browserAutomationTool
-    // Register the advanced browser automation tool
+    // Browser automation tools
+    browserSessionTool,
+    // Create browser session
+    browserGotoTool,
+    // Navigate to URL
+    browserActTool,
+    // Perform actions
+    browserExtractTool,
+    // Extract data
+    browserObserveTool,
+    // Observe elements
+    browserWaitTool,
+    // Wait for conditions
+    browserScreenshotTool,
+    // Take screenshots
+    browserCloseTool
+    // Close browser session
   },
   memory: new Memory({
     // Add memory configuration
@@ -234,18 +261,108 @@ const weatherAgent = new Agent({
   })
 });
 
+const deepResearchWorkflow = createWorkflow({
+  id: "deep-research-workflow",
+  description: "\u8A73\u7D30\u306A\u8ABF\u67FB\u3068\u5206\u6790\u3092\u884C\u3046\u30EF\u30FC\u30AF\u30D5\u30ED\u30FC",
+  inputSchema: z.object({
+    message: z.string().describe("\u30E6\u30FC\u30B6\u30FC\u304B\u3089\u306E\u8CEA\u554F")
+  }),
+  outputSchema: z.object({
+    answer: z.string(),
+    sources: z.array(z.object({
+      title: z.string(),
+      url: z.string()
+    }))
+  })
+}).then(createStep({
+  id: "deep-research",
+  description: "Deep Research\u51E6\u7406",
+  inputSchema: z.object({
+    message: z.string()
+  }),
+  outputSchema: z.object({
+    answer: z.string(),
+    sources: z.array(z.object({
+      title: z.string(),
+      url: z.string()
+    }))
+  }),
+  execute: async ({ inputData }) => {
+    const model = anthropic("claude-3-5-sonnet-20241022");
+    const queryPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
+
+\u3053\u306E\u8CEA\u554F\u306B\u7B54\u3048\u308B\u305F\u3081\u306B\u30013\u500B\u306E\u52B9\u679C\u7684\u306AWeb\u691C\u7D22\u30AF\u30A8\u30EA\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u5404\u30AF\u30A8\u30EA\u306F\u7570\u306A\u308B\u5074\u9762\u3092\u30AB\u30D0\u30FC\u3057\u3001\u6700\u65B0\u306E\u60C5\u5831\u3092\u53D6\u5F97\u3067\u304D\u308B\u3088\u3046\u306B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+\u73FE\u5728\u306E\u65E5\u4ED8: ${(/* @__PURE__ */ new Date()).toLocaleDateString("ja-JP")}
+
+\u30AF\u30A8\u30EA\u306E\u307F\u3092\u6539\u884C\u533A\u5207\u308A\u3067\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+    const queryResponse = await generateText({
+      model,
+      prompt: queryPrompt
+    });
+    const queries = queryResponse.text.split("\n").filter((q) => q.trim()).slice(0, 3);
+    const searchResults = await Promise.all(queries.map(async (query) => {
+      const mockResults = [
+        {
+          title: `${query} - \u6700\u65B0\u60C5\u5831`,
+          url: `https://example.com/${encodeURIComponent(query)}/latest`,
+          snippet: `${query}\u306B\u95A2\u3059\u308B\u6700\u65B0\u306E\u60C5\u5831\u3067\u3059\u3002`
+        },
+        {
+          title: `${query} \u5B8C\u5168\u30AC\u30A4\u30C9`,
+          url: `https://example.com/${encodeURIComponent(query)}/guide`,
+          snippet: `${query}\u306E\u8A73\u7D30\u306A\u89E3\u8AAC\u3067\u3059\u3002`
+        }
+      ];
+      const searchPrompt = `\u4EE5\u4E0B\u306E\u691C\u7D22\u7D50\u679C\u3092\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+
+\u691C\u7D22\u30AF\u30A8\u30EA: ${query}
+
+${mockResults.map((r) => `\u30BF\u30A4\u30C8\u30EB: ${r.title}
+URL: ${r.url}
+\u5185\u5BB9: ${r.snippet}`).join("\n\n")}
+
+\u91CD\u8981\u306A\u60C5\u5831\u3092\u62BD\u51FA\u3057\u3001\u7C21\u6F54\u306B\u8981\u7D04\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+      const searchResponse = await generateText({
+        model,
+        prompt: searchPrompt
+      });
+      return {
+        content: searchResponse.text,
+        sources: mockResults.map((r) => ({ title: r.title, url: r.url }))
+      };
+    }));
+    const allSources = searchResults.flatMap((r) => r.sources);
+    const summaries = searchResults.map((r) => r.content).join("\n\n---\n\n");
+    const answerPrompt = `\u30E6\u30FC\u30B6\u30FC\u306E\u8CEA\u554F: ${inputData.message}
+
+\u4EE5\u4E0B\u306E\u60C5\u5831\u3092\u57FA\u306B\u3001\u5305\u62EC\u7684\u3067\u6B63\u78BA\u306A\u56DE\u7B54\u3092\u751F\u6210\u3057\u3066\u304F\u3060\u3055\u3044\uFF1A
+
+${summaries}
+
+\u56DE\u7B54\u306B\u306F\u9069\u5207\u306B\u60C5\u5831\u6E90\u3092\u5F15\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+    const answerResponse = await generateText({
+      model,
+      prompt: answerPrompt
+    });
+    return {
+      answer: answerResponse.text,
+      sources: allSources
+    };
+  }
+}));
+deepResearchWorkflow.commit();
+
 const mastra = new Mastra({
   agents: {
     weatherAgent,
     slideCreatorAgent,
-    imageCreatorAgent,
-    browserAutomationAgent
+    imageCreatorAgent
   },
   tools: {
     htmlSlideTool,
     presentationPreviewTool,
     braveSearchTool,
-    advancedCalculatorTool,
     geminiImageGenerationTool,
     geminiVideoGenerationTool,
     grokXSearchTool,
@@ -253,8 +370,10 @@ const mastra = new Mastra({
     v0CodeGenerationTool,
     graphicRecordingTool,
     minimaxTTSTool,
-    browserAutomationTool,
     weatherTool
+  },
+  workflows: {
+    "deep-research": deepResearchWorkflow
   },
   storage: new LibSQLStore({
     url: "file:../memory.db"

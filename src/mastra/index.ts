@@ -2,7 +2,7 @@
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { LibSQLStore } from '@mastra/libsql';
-import { weatherAgent, slideCreatorAgent, imageCreatorAgent, browserAutomationAgent } from './agents';
+import { weatherAgent, slideCreatorAgent, imageCreatorAgent } from './agents';
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
@@ -14,9 +14,9 @@ import {
   v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
-  browserAutomationTool,
   weatherTool
 } from './tools';
+import { deepResearchWorkflow } from './workflows';
 
 // @ts-ignore - Type definition issue with tools property
 export const mastra = new Mastra({
@@ -24,7 +24,6 @@ export const mastra = new Mastra({
     weatherAgent,
     slideCreatorAgent, 
     imageCreatorAgent,
-    browserAutomationAgent
   },
   tools: { 
     htmlSlideTool, 
@@ -37,9 +36,11 @@ export const mastra = new Mastra({
     v0CodeGenerationTool,
     graphicRecordingTool,
     minimaxTTSTool,
-    browserAutomationTool,
-    weatherTool
+    weatherTool,
   } as any,
+  workflows: {
+    'deep-research': deepResearchWorkflow,
+  },
   storage: new LibSQLStore({
     url: "file:../memory.db",
   }),

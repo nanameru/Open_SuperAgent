@@ -38,6 +38,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   const [isExportingHybridPPTX, setIsExportingHybridPPTX] = useState<boolean>(false);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   const presentationContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
   
   useEffect(() => {
     setEditedHtml(htmlContent);
@@ -51,10 +52,31 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
+    isDraggingRef.current = true;
     document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
     
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      
+      const viewportWidth = window.innerWidth;
+      const widthPercentage = Math.min(Math.max(((viewportWidth - e.clientX) / viewportWidth) * 100, 20), 80);
+      
+      setPanelWidth(widthPercentage);
+    };
+    
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      isDraggingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
   const handleDragMove = useCallback((e: MouseEvent) => {
@@ -504,17 +526,17 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
       {/* リサイズハンドル */}
       <div 
         ref={resizeHandleRef}
-        className={`fixed inset-y-0 z-50 w-2 cursor-ew-resize bg-transparent hover:bg-primary/20 transition-colors group
-                    ${isDragging ? 'bg-primary/20' : ''}`}
+        className={`fixed inset-y-0 z-50 w-3 cursor-ew-resize bg-border hover:bg-primary/30 transition-colors group
+                    ${isDragging ? 'bg-primary/40' : ''}`}
         style={{ 
-          left: `calc(100% - ${panelWidth}% - 4px)`,
+          left: `calc(100% - ${panelWidth}% - 6px)`,
           touchAction: 'none'
         }}
         onMouseDown={handleDragStart}
       >
         <div className="h-full flex items-center justify-center">
-          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-col gap-1">
+            <GripVertical className="h-5 w-5 text-muted-foreground/70 group-hover:text-primary transition-colors" />
           </div>
         </div>
       </div>
@@ -526,24 +548,13 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
         style={{ width: `${panelWidth}%` }}
       >
         {/* ヘッダー */}
-        <CardHeader className="pb-3 bg-gradient-to-r from-background to-muted/30">
+        <CardHeader className="pb-0.5 pt-1 px-2 bg-gradient-to-r from-background to-muted/30">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex flex-col">
-                <CardTitle className="text-lg truncate max-w-xs">{title}</CardTitle>
-                <Badge variant="secondary" className="w-fit text-xs">
-                  プレゼンテーション
-                </Badge>
-              </div>
+            <div className="flex items-center space-x-1">
+              <FileText className="h-3 w-3 text-primary" />
+              <CardTitle className="text-xs truncate max-w-xs">{title}</CardTitle>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="panel-width" className="text-xs text-muted-foreground">
-                  幅:
-                </Label>
+                          <div className="flex items-center space-x-1">
                 <Input
                   id="panel-width"
                   type="number"
@@ -556,19 +567,18 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
                       setPanelWidth(newWidth);
                     }
                   }}
-                  className="w-16 h-8 text-xs"
+                  className="w-12 h-5 text-xs px-1"
                 />
                 <span className="text-xs text-muted-foreground">%</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={onClose}
+                  className="h-5 w-5 p-0"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </Button>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={onClose}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
         </CardHeader>
 
@@ -577,101 +587,97 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
         {/* タブコンテンツ */}
         <CardContent className="flex-1 p-0 overflow-hidden">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'preview' | 'code')} className="h-full flex flex-col">
-            <div className="px-6 pt-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="preview" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
+            <div className="px-1 py-0.5">
+              <TabsList className="grid w-full grid-cols-2 h-8">
+                <TabsTrigger value="preview" className="flex items-center gap-0.5 text-xs py-0">
+                  <FileText className="h-2.5 w-2.5" />
                   プレビュー
                 </TabsTrigger>
-                <TabsTrigger value="code" className="flex items-center gap-2">
-                  <Code className="h-4 w-4" />
+                <TabsTrigger value="code" className="flex items-center gap-0.5 text-xs py-0">
+                  <Code className="h-2.5 w-2.5" />
                   HTML編集
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <TabsContent value="preview" className="flex-1 p-6 pt-4 m-0">
-              <div className="mb-4 flex justify-end space-x-2">
+            <TabsContent value="preview" className="flex-1 p-0 m-0 flex flex-col">
+              <div className="mb-0.5 flex justify-end space-x-0.5 flex-shrink-0 px-0.5">
                 <Button
                   onClick={exportToNutrientPPTX}
                   variant="default"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                   disabled={isExportingHybridPPTX}
                 >
-                  <Presentation className="h-4 w-4" />
-                  {isExportingHybridPPTX ? 'エクスポート中...' : 'Nutrient PPTX（推奨）'}
+                  <Presentation className="h-3 w-3" />
+                  {isExportingHybridPPTX ? 'エクスポート中...' : 'Nutrient PPTX'}
                 </Button>
                 <Button
                   onClick={exportToHybridPPTX}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                   disabled={isExportingHybridPPTX}
                 >
-                  <Presentation className="h-4 w-4" />
-                  {isExportingHybridPPTX ? 'エクスポート中...' : 'ハイブリッドPPTX'}
+                  <Presentation className="h-3 w-3" />
+                  {isExportingHybridPPTX ? 'エクスポート中...' : 'ハイブリッド'}
                 </Button>
                 <Button
                   onClick={exportToAdvancedPPTX}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                   disabled={isExportingAdvancedPPTX}
                 >
-                  <Presentation className="h-4 w-4" />
-                  {isExportingAdvancedPPTX ? 'エクスポート中...' : 'PPTXとして出力（編集可能）'}
+                  <Presentation className="h-3 w-3" />
+                  {isExportingAdvancedPPTX ? 'エクスポート中...' : '編集可能'}
                 </Button>
                 <Button
                   onClick={exportToPPTX}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                   disabled={isExportingPPTX}
                 >
-                  <Presentation className="h-4 w-4" />
-                  {isExportingPPTX ? 'エクスポート中...' : 'PPTXとして出力（画像）'}
+                  <Presentation className="h-3 w-3" />
+                  {isExportingPPTX ? 'エクスポート中...' : '画像'}
                 </Button>
                 <Button
                   onClick={downloadHtml}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                 >
-                  <Download className="h-4 w-4" />
-                  HTMLをダウンロード
+                  <Download className="h-3 w-3" />
+                  HTML
                 </Button>
               </div>
-              <Card className="h-full border-2 border-dashed border-muted-foreground/20 bg-muted/5">
-                <CardContent className="p-2 h-full">
-                  <div className="bg-background shadow-sm rounded-lg h-full overflow-hidden border" ref={presentationContainerRef}>
-                    <PresentationViewer 
-                      htmlContent={previewHtml} 
-                      height="100%" 
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="flex-1 bg-background rounded-md overflow-hidden border border-muted-foreground/10" ref={presentationContainerRef}>
+                <PresentationViewer 
+                  htmlContent={previewHtml} 
+                  height="100%" 
+                />
+              </div>
             </TabsContent>
 
-            <TabsContent value="code" className="flex-1 p-6 pt-4 m-0 flex flex-col">
-              <div className="mb-4 flex justify-end space-x-2">
+            <TabsContent value="code" className="flex-1 p-1 pt-1 m-0 flex flex-col">
+              <div className="mb-1 flex justify-end space-x-1 flex-shrink-0">
                 <Button
                   onClick={applyChanges}
                   variant="default"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-3 w-3" />
                   プレビューに反映
                 </Button>
                 <Button
                   onClick={downloadHtml}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-3 w-3" />
                   HTMLをダウンロード
                 </Button>
               </div>
@@ -680,7 +686,7 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
                   <Textarea
                     value={editedHtml}
                     onChange={(e) => setEditedHtml(e.target.value)}
-                    className="font-mono text-sm bg-muted/30 border-0 rounded-none w-full h-full resize-none overflow-y-auto focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
+                    className="font-mono text-xs bg-muted/30 border-0 rounded-none w-full h-full resize-none overflow-y-auto focus-visible:ring-0 focus-visible:ring-offset-0 p-2"
                     placeholder="HTMLコードを編集..."
                     style={{ minHeight: '100%' }}
                   />
