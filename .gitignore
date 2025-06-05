@@ -55,3 +55,6 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
+
+# Stagewise拡張機能を除外
+app/components/StagewiseDevToolbar.tsx
