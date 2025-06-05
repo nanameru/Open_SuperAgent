@@ -55,3 +55,6 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
+
+# Mastra build output
+.mastra/output/
