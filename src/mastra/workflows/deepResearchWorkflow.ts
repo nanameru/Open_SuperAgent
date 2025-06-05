@@ -2,6 +2,7 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
+import { braveSearchTool } from '../tools/braveSearchTool';
 
 // Deep Researchワークフローの定義
 export const deepResearchWorkflow = createWorkflow({
@@ -33,7 +34,7 @@ export const deepResearchWorkflow = createWorkflow({
       })),
     }),
     execute: async ({ inputData }) => {
-      const model = anthropic('claude-3-5-sonnet-20241022');
+      const model = anthropic('claude-opus-4-20250514');
       
       // ステップ1: クエリ生成
       const queryPrompt = `ユーザーの質問: ${inputData.message}
@@ -54,27 +55,32 @@ export const deepResearchWorkflow = createWorkflow({
         .filter(q => q.trim())
         .slice(0, 3);
 
-      // ステップ2: 各クエリに対してモック検索と要約
+      // ステップ2: 各クエリに対してBrave検索と要約
       const searchResults = await Promise.all(queries.map(async (query) => {
-        // モック検索結果
-        const mockResults = [
-          {
-            title: `${query} - 最新情報`,
-            url: `https://example.com/${encodeURIComponent(query)}/latest`,
-            snippet: `${query}に関する最新の情報です。`,
-          },
-          {
-            title: `${query} 完全ガイド`,
-            url: `https://example.com/${encodeURIComponent(query)}/guide`,
-            snippet: `${query}の詳細な解説です。`,
-          },
-        ];
+        // Brave Search APIを使用して実際の検索を実行
+        let searchApiResults;
+        try {
+          const braveResults = await braveSearchTool.execute({
+            context: { query, count: 5 }
+          });
+          searchApiResults = braveResults.results;
+        } catch (error) {
+          console.warn(`Brave Search failed for query "${query}": ${error.message}`);
+          // フォールバック: モック結果を使用
+          searchApiResults = [
+            {
+              title: `${query} - 検索結果`,
+              url: `https://example.com/search?q=${encodeURIComponent(query)}`,
+              description: `${query}に関する情報が見つかりませんでした。`,
+            },
+          ];
+        }
 
         const searchPrompt = `以下の検索結果を要約してください：
 
 検索クエリ: ${query}
 
-${mockResults.map(r => `タイトル: ${r.title}\nURL: ${r.url}\n内容: ${r.snippet}`).join('\n\n')}
+${searchApiResults.map(r => `タイトル: ${r.title}\nURL: ${r.url}\n内容: ${r.description || 'No description available'}`).join('\n\n')}
 
 重要な情報を抽出し、簡潔に要約してください。`;
 
@@ -85,7 +91,7 @@ ${mockResults.map(r => `タイトル: ${r.title}\nURL: ${r.url}\n内容: ${r.sni
 
         return {
           content: searchResponse.text,
-          sources: mockResults.map(r => ({ title: r.title, url: r.url })),
+          sources: searchApiResults.map(r => ({ title: r.title, url: r.url })),
         };
       }));
 
