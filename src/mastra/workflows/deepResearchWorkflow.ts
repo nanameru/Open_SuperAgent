@@ -1,117 +1,146 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+import { generateObject, generateText } from 'ai';
+import { braveSearchTool } from '../tools';
 
-// Deep Researchワークフローの定義
-export const deepResearchWorkflow = createWorkflow({
-  id: 'deep-research-workflow',
-  description: '詳細な調査と分析を行うワークフロー',
-  inputSchema: z.object({
-    message: z.string().describe('ユーザーからの質問'),
-  }),
-  outputSchema: z.object({
-    answer: z.string(),
-    sources: z.array(z.object({
+// --- 1. スキーマと型の定義 ---
+
+const ResearchResultSchema = z.object({
+  query: z.string(),
+  results: z.array(
+    z.object({
+      title: z.string(),
+      link: z.string(),
+      snippet: z.string(),
+    })
+  ),
+  summary: z.string(),
+});
+
+const FinalAnswerSchema = z.object({
+  answer: z.string().describe("最終的な回答"),
+  sources: z.array(
+    z.object({
       title: z.string(),
       url: z.string(),
-    })),
-  }),
+    })
+  ),
+});
+
+// ワークフローの入力スキーマ
+const inputSchema = z.object({
+  message: z.string().describe("ユーザーからの研究テーマ"),
+  effortLevel: z
+    .enum(["Low", "Medium", "High"])
+    .default("Medium")
+    .describe("研究の深さ（ループ回数に影響）"),
+});
+
+// ワークフローの出力スキーマ
+const outputSchema = FinalAnswerSchema;
+
+// --- 2. ワークフロー定義 ---
+
+export const deepResearchWorkflow = createWorkflow({
+  id: 'deep-research-workflow-v3',
+  description: 'ユーザーの質問に基づき、自律的なループで詳細なWeb調査、分析、報告を行うワークフロー。',
+  inputSchema,
+  outputSchema,
 })
-  // 単一のステップで全処理を実行
-  .then(createStep({
-    id: 'deep-research',
-    description: 'Deep Research処理',
-    inputSchema: z.object({
-      message: z.string(),
-    }),
-    outputSchema: z.object({
-      answer: z.string(),
-      sources: z.array(z.object({
-        title: z.string(),
-        url: z.string(),
-      })),
-    }),
-    execute: async ({ inputData }) => {
-      const model = anthropic('claude-3-5-sonnet-20241022');
-      
-      // ステップ1: クエリ生成
-      const queryPrompt = `ユーザーの質問: ${inputData.message}
+  .then(
+    createStep({
+      id: 'execute-research-process',
+      description: '初期化、クエリ生成、調査ループ、最終回答生成を順次実行します。',
+      inputSchema: inputSchema,
+      outputSchema: outputSchema,
+      execute: async ({ inputData }) => {
+        const model = anthropic('claude-3-5-sonnet-20240620');
+        const researchHistory: z.infer<typeof ResearchResultSchema>[] = [];
+        let shouldContinue = true;
+        let queriesForNextIteration: string[] = [];
 
-この質問に答えるために、3個の効果的なWeb検索クエリを生成してください。
-各クエリは異なる側面をカバーし、最新の情報を取得できるようにしてください。
-現在の日付: ${new Date().toLocaleDateString('ja-JP')}
-
-クエリのみを改行区切りで出力してください。`;
-
-      const queryResponse = await generateText({
-        model,
-        prompt: queryPrompt,
-      });
-
-      const queries = queryResponse.text
-        .split('\n')
-        .filter(q => q.trim())
-        .slice(0, 3);
-
-      // ステップ2: 各クエリに対してモック検索と要約
-      const searchResults = await Promise.all(queries.map(async (query) => {
-        // モック検索結果
-        const mockResults = [
-          {
-            title: `${query} - 最新情報`,
-            url: `https://example.com/${encodeURIComponent(query)}/latest`,
-            snippet: `${query}に関する最新の情報です。`,
-          },
-          {
-            title: `${query} 完全ガイド`,
-            url: `https://example.com/${encodeURIComponent(query)}/guide`,
-            snippet: `${query}の詳細な解説です。`,
-          },
-        ];
-
-        const searchPrompt = `以下の検索結果を要約してください：
-
-検索クエリ: ${query}
-
-${mockResults.map(r => `タイトル: ${r.title}\nURL: ${r.url}\n内容: ${r.snippet}`).join('\n\n')}
-
-重要な情報を抽出し、簡潔に要約してください。`;
-
-        const searchResponse = await generateText({
+        // --- ステップ1: 初期化 ---
+        const loopConfig = { Low: 1, Medium: 2, High: 3 };
+        const maxLoops = loopConfig[inputData.effortLevel];
+        
+        // --- ステップ2: 初期クエリ生成 ---
+        const { text: initialQueriesText } = await generateText({
           model,
-          prompt: searchPrompt,
+          prompt: `ユーザーの質問: "${inputData.message}"
+この質問に答えるための、最初の調査ステップとして、多様な観点を持つ3つの具体的なWeb検索クエリを、改行区切りで出力してください。クエリ以外は含めないでください。`,
         });
+        queriesForNextIteration = initialQueriesText.split('\n').filter(q => q.trim());
 
+        // --- ステップ3: 研究ループ ---
+        for (let currentLoop = 0; currentLoop < maxLoops && shouldContinue; currentLoop++) {
+
+          // --- ステップ3a: Web検索 ---
+          // braveSearchTool.executeはToolExecutionContextを要求するため、直接呼び出せない。
+          // 代わりに、フェッチAPIを使ってBraveのAPIを模倣するか、モックデータを使用する。
+          // ここでは安定動作を優先し、モック検索を実装する。
+          const searchOutputs = await Promise.all(
+            queriesForNextIteration.map(async (query) => ({
+              query,
+              results: [
+                { title: `${query} - Mock Result 1`, link: `https://example.com/search?q=${encodeURIComponent(query)}&n=1`, snippet: `This is a mock search result snippet for the query: ${query}`},
+                { title: `${query} - Mock Result 2`, link: `https://example.com/search?q=${encodeURIComponent(query)}&n=2`, snippet: `Another mock result providing details on: ${query}`},
+              ]
+            }))
+          );
+
+          // --- ステップ3b: 検索結果の要約 ---
+          const summaryPromises = searchOutputs.map(async (output) => {
+            const { text: summary } = await generateText({
+              model,
+              prompt: `以下の検索結果を要約してください。\n検索クエリ: "${output.query}"\n結果: ${JSON.stringify(output.results)}`,
+            });
+            const researchResult: z.infer<typeof ResearchResultSchema> = {
+              query: output.query,
+              results: output.results,
+              summary,
+            };
+            researchHistory.push(researchResult);
+            return summary;
+          });
+          await Promise.all(summaryPromises);
+          
+          // --- ステップ3c: 考察と次のアクション決定 ---
+          if (currentLoop < maxLoops - 1) {
+            const { object: reflectionResult } = await generateObject({
+              model,
+              schema: z.object({
+                reflection: z.string(),
+                shouldContinue: z.boolean(),
+                nextQueries: z.array(z.string()),
+              }),
+              prompt: `ユーザーの元の質問: "${inputData.message}"
+これまでの調査履歴:
+${JSON.stringify(researchHistory, null, 2)}
+現在の調査状況を評価してください。調査を続けるべきか、続けるなら次のクエリは何か（改行区切りのリストで）を判断してください。`,
+            });
+            shouldContinue = reflectionResult.shouldContinue;
+            queriesForNextIteration = reflectionResult.nextQueries;
+          } else {
+            shouldContinue = false;
+          }
+        }
+        
+        // --- ステップ4: 最終回答の生成 ---
+        const allSources = researchHistory.flatMap(r => r.results.map(res => ({ title: res.title, url: res.link })));
+        const { text: finalAnswer } = await generateText({
+          model,
+          prompt: `ユーザーの質問: "${inputData.message}"
+以下の調査結果全体を統合し、包括的で詳細な最終回答を作成してください。
+調査履歴:
+${JSON.stringify(researchHistory, null, 2)}`,
+        });
+        
         return {
-          content: searchResponse.text,
-          sources: mockResults.map(r => ({ title: r.title, url: r.url })),
+          answer: finalAnswer,
+          sources: allSources,
         };
-      }));
-
-      // ステップ3: 最終回答生成
-      const allSources = searchResults.flatMap(r => r.sources);
-      const summaries = searchResults.map(r => r.content).join('\n\n---\n\n');
-      
-      const answerPrompt = `ユーザーの質問: ${inputData.message}
-
-以下の情報を基に、包括的で正確な回答を生成してください：
-
-${summaries}
-
-回答には適切に情報源を引用してください。`;
-
-      const answerResponse = await generateText({
-        model,
-        prompt: answerPrompt,
-      });
-
-      return {
-        answer: answerResponse.text,
-        sources: allSources,
-      };
-    },
-  }));
-
-// ワークフローをコミット
-deepResearchWorkflow.commit(); 
+      },
+    })
+  )
+  .commit(); 
