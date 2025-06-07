@@ -102,6 +102,7 @@ function getWeatherCondition(code: number): string {
 }
 
 export { htmlSlideTool } from './htmlSlideTool';
+export { slideIterationTool } from './slideIterationTool';
 export { braveSearchTool } from './braveSearchTool';
 export { geminiImageGenerationTool } from './geminiImageGenerationTool';
 export { presentationPreviewTool } from './presentationPreviewTool';
