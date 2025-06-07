@@ -4,15 +4,47 @@ import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
 import { generateText } from 'ai'; // Import generateText
 
 export const htmlSlideTool = tool({
-  description: 'Generates the HTML content for a single slide section (within <section class="slide"></section>) using an LLM. It takes a general topic and a specific outline point for this particular slide.',
+  description: 'Generates professional HTML slides with enhanced prompt specifications, Reveal.js compatibility, and human review optimization. Supports detailed customization for slide structure, design, target audience, and tone.',
   parameters: z.object({
     topic: z.string().describe('The main topic or subject of the overall presentation.'),
     outline: z.string().optional().describe('The specific theme, topic, or key points for THIS slide.'),
     slideCount: z.number().default(1).describe('The number of slides to generate with this call. Expected to be 1 by the calling agent.'),
     slideIndex: z.number().optional().describe('Current slide number in sequence (for pagination).'),
     totalSlides: z.number().optional().describe('Total slides in the presentation (for pagination).'),
-    layoutType: z.enum(['default', 'image-left', 'image-right', 'full-graphic', 'quote', 'comparison', 'timeline', 'list', 'title', 'section-break', 'data-visualization', 'photo-with-caption']).optional().describe('The desired slide layout type.'),
+    
+    // Enhanced prompt specifications
+    targetAudience: z.object({
+      level: z.enum(['beginner', 'intermediate', 'advanced', 'expert']).optional().default('intermediate').describe('Technical/knowledge level of the audience.'),
+      role: z.string().optional().describe('Professional role or context (e.g., "executives", "developers", "students", "general public").'),
+      industry: z.string().optional().describe('Industry or domain context (e.g., "healthcare", "finance", "education", "technology").'),
+      size: z.enum(['small-group', 'medium-group', 'large-audience', 'webinar']).optional().default('medium-group').describe('Audience size context.'),
+    }).optional().describe('Target audience specifications for content adaptation.'),
+    
+    presentationContext: z.object({
+      purpose: z.enum(['educate', 'persuade', 'inform', 'entertain', 'sell', 'report']).optional().default('inform').describe('Primary purpose of the presentation.'),
+      setting: z.enum(['conference', 'meeting', 'classroom', 'webinar', 'pitch', 'report']).optional().default('meeting').describe('Presentation setting/context.'),
+      duration: z.number().optional().describe('Total presentation duration in minutes.'),
+      tone: z.enum(['professional', 'casual', 'academic', 'inspiring', 'urgent', 'friendly']).optional().default('professional').describe('Overall tone and style.'),
+    }).optional().describe('Presentation context and purpose.'),
+    
+    contentSpecification: z.object({
+      complexity: z.enum(['simple', 'moderate', 'detailed', 'comprehensive']).optional().default('moderate').describe('Content complexity level.'),
+      focusAreas: z.array(z.string()).optional().describe('Key focus areas or themes to emphasize.'),
+      keyMessage: z.string().optional().describe('Primary message or takeaway for this slide.'),
+      supportingData: z.string().optional().describe('Supporting data, statistics, or evidence to include.'),
+    }).optional().describe('Detailed content specifications.'),
+    
+    // Enhanced design and layout options
+    layoutType: z.enum(['default', 'image-left', 'image-right', 'full-graphic', 'quote', 'comparison', 'timeline', 'list', 'title', 'section-break', 'data-visualization', 'photo-with-caption', 'reveal-title', 'reveal-content', 'reveal-transition']).optional().describe('The desired slide layout type, including Reveal.js specific layouts.'),
     diagramType: z.enum(['auto', 'bar', 'pie', 'flow', 'venn', 'pyramid', 'quadrant', 'mind-map', 'timeline', 'comparison', 'icons', 'none']).optional().default('auto').describe('Type of diagram to include in the slide.'),
+    
+    revealJsOptions: z.object({
+      transition: z.enum(['slide', 'fade', 'convex', 'concave', 'zoom']).optional().default('slide').describe('Reveal.js transition effect.'),
+      backgroundType: z.enum(['color', 'gradient', 'image', 'video']).optional().default('color').describe('Background type for Reveal.js.'),
+      verticalSlide: z.boolean().optional().default(false).describe('Whether this is a vertical (nested) slide in Reveal.js.'),
+      notes: z.string().optional().describe('Speaker notes for Reveal.js presenter mode.'),
+    }).optional().describe('Reveal.js specific configuration options.'),
+    
     colorScheme: z.object({
       primaryColor: z.string().optional().describe('Primary color hex code (e.g., #0056B1).'),
       accentColor: z.string().optional().describe('Accent color hex code (e.g., #FFB400).'),
@@ -22,86 +54,160 @@ export const htmlSlideTool = tool({
     fontFamily: z.string().optional().describe('Font family to use for the slide.'),
     forceInclude: z.string().optional().describe('Specific content that must be included in the slide (e.g., quote, stat, diagram).'),
     variant: z.number().optional().default(1).describe('Generate a specific variant (1, 2, 3) for different design options of the same content.'),
+    
+    // Human review and feedback options
+    humanReviewMode: z.boolean().optional().default(true).describe('Enable human review mode with editable regions and semantic markup.'),
+    feedbackContext: z.string().optional().describe('Previous feedback or refinement requests for iterative improvement.'),
+    refinementTarget: z.enum(['content', 'design', 'layout', 'tone', 'clarity']).optional().describe('Specific area to focus refinement on.'),
   }),
-  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
+  execute: async ({ 
+    topic, outline, slideCount, slideIndex, totalSlides, 
+    targetAudience, presentationContext, contentSpecification,
+    layoutType, diagramType, revealJsOptions,
+    colorScheme, designElements, fontFamily, forceInclude, variant,
+    humanReviewMode, feedbackContext, refinementTarget
+  }) => {
     // slideCount is expected to be 1 when called by slideCreatorAgent.
     // The outline parameter is the specific point for this single slide.
 
     const uniqueSlideClass = `slide-${Math.random().toString(36).substring(7)}-v${variant || 1}`;
 
-    // Arguments for the new flexible prompt.
+    // Enhanced arguments with new parameters
     const promptArgs = {
       topic: topic,
-      outline: outline || topic, // If outline is not provided, use the main topic.
+      outline: outline || topic,
       slideIndex: slideIndex?.toString() || 'current', 
       totalSlides: totalSlides?.toString() || 'N',
-      primaryColor: colorScheme?.primaryColor || '#0056B1', // Default primary color
-      accentColor: colorScheme?.accentColor || '#FFB400',  // Default accent color
-      bgColor: colorScheme?.bgColor || '#F5F7FA',      // Default background color
-      fontFamily: fontFamily || "'Noto Sans JP', 'Hiragino Sans', sans-serif", // Default font family
-      layoutType: layoutType || 'default',   // Default layout type
-      diagramType: diagramType || 'auto',    // Default diagram type
-      extras: designElements?.join(', ') || 'modern-design',  // Added modern-design by default
+      
+      // Enhanced context
+      audienceLevel: targetAudience?.level || 'intermediate',
+      audienceRole: targetAudience?.role || 'general audience',
+      audienceIndustry: targetAudience?.industry || 'general',
+      audienceSize: targetAudience?.size || 'medium-group',
+      
+      presentationPurpose: presentationContext?.purpose || 'inform',
+      presentationSetting: presentationContext?.setting || 'meeting', 
+      presentationTone: presentationContext?.tone || 'professional',
+      presentationDuration: presentationContext?.duration || null,
+      
+      contentComplexity: contentSpecification?.complexity || 'moderate',
+      keyMessage: contentSpecification?.keyMessage || '',
+      focusAreas: contentSpecification?.focusAreas?.join(', ') || '',
+      supportingData: contentSpecification?.supportingData || '',
+      
+      // Design and technical
+      primaryColor: colorScheme?.primaryColor || '#0056B1',
+      accentColor: colorScheme?.accentColor || '#FFB400',
+      bgColor: colorScheme?.bgColor || '#F5F7FA',
+      fontFamily: fontFamily || "'Noto Sans JP', 'Hiragino Sans', sans-serif",
+      layoutType: layoutType || 'default',
+      diagramType: diagramType || 'auto',
+      extras: designElements?.join(', ') || 'modern-design',
+      
+      // Reveal.js specific
+      revealTransition: revealJsOptions?.transition || 'slide',
+      revealBackground: revealJsOptions?.backgroundType || 'color',
+      isVerticalSlide: revealJsOptions?.verticalSlide || false,
+      speakerNotes: revealJsOptions?.notes || '',
+      
+      // Human review and feedback
+      humanReview: humanReviewMode ?? true,
+      feedbackContext: feedbackContext || '',
+      refinementFocus: refinementTarget || '',
+      
       uniqueClass: uniqueSlideClass,
       variant: variant || 1,
       forceInclude: forceInclude || ''
     };
 
-    const baseDesignPrompt = `あなたはプロフェッショナルな「プレゼンテーションデザイナー」です。
-企業の経営陣やカンファレンスでも使用できる高品質なスライドを HTML/CSS で作成してください。
+    const baseDesignPrompt = `あなたは高度な「プレゼンテーションデザイナー」として、SlidesAI.io、Presentations.AI、Reveal.jsのベストプラクティスを適用した最高品質のスライドを作成してください。
 
-【重要】出力形式の絶対的ルール
-必ず以下の形式で出力してください：
+【重要】出力形式の絶対的ルール（Reveal.js互換）
+必ず以下のReveal.js互換形式で出力してください：
 1. 最初に<style>タグから始める
 2. </style>タグで閉じる
-3. 次に<section class="slide ${promptArgs.uniqueClass}">から始める
-4. </section>タグで閉じる
-5. これ以外の要素（HTMLタグ、説明文、コメントなど）は一切含めない
+3. 次に<section class="slide ${promptArgs.uniqueClass}" data-transition="${promptArgs.revealTransition}" data-background-type="${promptArgs.revealBackground}">から始める
+4. 人間レビュー用コメント配置（humanReview: ${promptArgs.humanReview}）
+5. </section>タグで閉じる
+6. これ以外の要素（HTMLタグ、説明文、コメントなど）は一切含めない
 
-【入力パラメータ】
+【コンテキスト仕様】
 ・メインテーマ          : ${promptArgs.topic}
 ・このスライドの要点    : ${promptArgs.outline}
 ・スライド番号 / 総枚数 : ${promptArgs.slideIndex} / ${promptArgs.totalSlides}
-・テーマカラー          : ${promptArgs.primaryColor}
-・アクセントカラー      : ${promptArgs.accentColor}
-・背景カラー            : ${promptArgs.bgColor}
-・フォントファミリー    : ${promptArgs.fontFamily}
-・レイアウトタイプ      : ${promptArgs.layoutType}
-・図解タイプ            : ${promptArgs.diagramType}
-・追加要素              : ${promptArgs.extras}
-・必須含有要素          : ${promptArgs.forceInclude}
-・バリアント           : ${promptArgs.variant}
 
-【最優先事項】
-1. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
-2. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
-3. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
-4. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
-5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
+【対象読者分析】
+・知識レベル           : ${promptArgs.audienceLevel} (beginner/intermediate/advanced/expert)
+・読者の役割           : ${promptArgs.audienceRole}
+・業界・分野           : ${promptArgs.audienceIndustry}
+・読者規模             : ${promptArgs.audienceSize}
 
-【出力要件】
-1. **必ず<style>タグから始め、</style>タグで閉じる**
-2. **必ず<section class="slide ${promptArgs.uniqueClass}">から始め、</section>タグで閉じる**
-3. **上記以外のタグや文字は一切出力しない**
-4. CSS はクラス \`.${promptArgs.uniqueClass}\` にスコープし、他要素へ影響させない
-5. **スライドの寸法を16:9のアスペクト比に固定する**
-   - width: 100%
-   - height: 0
-   - padding-bottom: 56.25% (16:9のアスペクト比)
-   - または適切なvw/vhユニットを使用
-6. 生成する HTML 構造は **layoutType** に応じて以下を参考に柔軟に変形すること。
-   - 'default'           : 大きな見出し + 簡潔な本文 + 視覚的図解 + 箇条書き（3項目程度）
-   - 'image-left'        : 左側に図解・イラスト / 右側に簡潔な本文とポイント
-   - 'image-right'       : 右側に図解・イラスト / 左側に簡潔な本文とポイント
-   - 'full-graphic'      : 背景全体に図解・グラデーション・パターンを配置、その上に重要メッセージを配置
-   - 'quote'             : 引用を中央に大きく配置、引用者情報は右下に小さく
-   - 'comparison'        : 左右または上下で項目を比較する2カラムレイアウト
-   - 'timeline'          : 水平または垂直のタイムライン図解を中心に配置
-   - 'list'              : 箇条書きを中心としたシンプルな構成（最大5-6項目）
-   - 'title'             : メインタイトルスライド（プレゼン冒頭用）
-   - 'section-break'     : セクション区切りを示す大見出しのみのスライド
-   - 'data-visualization': データビジュアライゼーションを中心としたスライド
-   - 'photo-with-caption' : 印象的な写真またはイラストと簡潔なキャプション
+【プレゼンテーション仕様】
+・目的                 : ${promptArgs.presentationPurpose} (educate/persuade/inform/entertain/sell/report)
+・設定・環境           : ${promptArgs.presentationSetting} (conference/meeting/classroom/webinar/pitch/report)
+・トーン               : ${promptArgs.presentationTone} (professional/casual/academic/inspiring/urgent/friendly)
+・推定時間             : ${promptArgs.presentationDuration ? promptArgs.presentationDuration + '分' : '指定なし'}
+
+【コンテンツ詳細仕様】
+・複雑度               : ${promptArgs.contentComplexity} (simple/moderate/detailed/comprehensive)
+・キーメッセージ       : ${promptArgs.keyMessage}
+・重点分野             : ${promptArgs.focusAreas}
+・裏付けデータ         : ${promptArgs.supportingData}
+
+【デザイン・技術仕様】
+・テーマカラー         : ${promptArgs.primaryColor}
+・アクセントカラー     : ${promptArgs.accentColor}
+・背景カラー           : ${promptArgs.bgColor}
+・フォントファミリー   : ${promptArgs.fontFamily}
+・レイアウトタイプ     : ${promptArgs.layoutType}
+・図解タイプ           : ${promptArgs.diagramType}
+・追加要素             : ${promptArgs.extras}
+・必須含有要素         : ${promptArgs.forceInclude}
+・バリアント          : ${promptArgs.variant}
+
+【Reveal.js仕様】
+・トランジション効果   : ${promptArgs.revealTransition} (slide/fade/convex/concave/zoom)
+・背景タイプ           : ${promptArgs.revealBackground} (color/gradient/image/video)
+・垂直スライド         : ${promptArgs.isVerticalSlide ? 'はい' : 'いいえ'}
+・スピーカーノート     : ${promptArgs.speakerNotes}
+
+【反復改善・フィードバック】
+・前回フィードバック   : ${promptArgs.feedbackContext}
+・改善焦点             : ${promptArgs.refinementFocus} (content/design/layout/tone/clarity)
+
+【最優先事項（SlidesAI.io / Presentations.AI / Reveal.js ベストプラクティス統合）】
+1. **プロ品質のスライドデザイン** - SlidesAI.ioレベルの洗練性とReveal.jsの技術力を融合
+2. **読者中心設計** - ${promptArgs.audienceLevel}レベルの${promptArgs.audienceRole}に最適化
+3. **視覚的情報伝達** - 図解・アイコン・視覚要素で${promptArgs.presentationPurpose}を効果的に実現
+4. **人間編集最適化** - 後編集しやすいセマンティック構造と明確なコメント配置
+5. **Reveal.js完全互換** - data属性とクラス設計でReveal.jsエコシステムと完全連携
+6. **反復改善対応** - フィードバック（${promptArgs.feedbackContext}）を反映し、${promptArgs.refinementFocus}を重点改善
+
+【Reveal.js互換出力要件】
+1. **Reveal.js仕様のsectionタグ**: <section class="slide ${promptArgs.uniqueClass}" data-transition="${promptArgs.revealTransition}" data-background="${promptArgs.revealBackground}">
+2. **人間レビューモード**: ${promptArgs.humanReview ? 'HTML内に<!-- EDIT: [セクション名] --> コメントを配置' : 'コメントなしの最適化済み出力'}
+3. **セマンティック構造**: Reveal.js標準のdata属性とARIA属性を適切に配置
+4. **スピーカーノート**: ${promptArgs.speakerNotes ? '<aside class="notes">' + promptArgs.speakerNotes + '</aside>' : ''}を末尾に配置
+5. **CSS スコープ化**: 必ずクラス \`.${promptArgs.uniqueClass}\` にスコープし、他要素へ影響させない
+6. **16:9アスペクト比**: width: 100vw; height: 100vh; または適切なReveal.js準拠寸法
+7. **レスポンシブ対応**: Reveal.jsのビューポート変更に対応した柔軟なサイジング
+
+【拡張レイアウトタイプ（Reveal.js最適化）】
+   - 'default'             : 大きな見出し + 簡潔な本文 + 視覚的図解 + 箇条書き（3項目程度）
+   - 'image-left'          : 左側に図解・イラスト / 右側に簡潔な本文とポイント
+   - 'image-right'         : 右側に図解・イラスト / 左側に簡潔な本文とポイント
+   - 'full-graphic'        : 背景全体に図解・グラデーション・パターンを配置、その上に重要メッセージを配置
+   - 'quote'               : 引用を中央に大きく配置、引用者情報は右下に小さく
+   - 'comparison'          : 左右または上下で項目を比較する2カラムレイアウト
+   - 'timeline'            : 水平または垂直のタイムライン図解を中心に配置
+   - 'list'                : 箇条書きを中心としたシンプルな構成（最大5-6項目）
+   - 'title'               : メインタイトルスライド（プレゼン冒頭用）
+   - 'section-break'       : セクション区切りを示す大見出しのみのスライド
+   - 'data-visualization'  : データビジュアライゼーションを中心としたスライド
+   - 'photo-with-caption'  : 印象的な写真またはイラストと簡潔なキャプション
+   - 'reveal-title'        : Reveal.js標準のタイトルスライド（data-background対応）
+   - 'reveal-content'      : Reveal.js標準のコンテンツスライド（fragment対応）
+   - 'reveal-transition'   : Reveal.js遷移エフェクト最適化スライド
 
 7. **図解とビジュアル要素（必須）**
    **diagramType** ('${promptArgs.diagramType}') に基づいて適切な図解を SVG で生成：
@@ -189,7 +295,37 @@ export const htmlSlideTool = tool({
 14. **必須含有要素の組み込み**
     「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-15. **絶対禁止事項**
+15. **人間レビュー・編集最適化**
+    ${promptArgs.humanReview ? `
+    - HTML内に <!-- EDIT: [タイトル] --> <!-- EDIT: [本文] --> <!-- EDIT: [図解] --> 等のコメントを配置
+    - 各セクションを明確に分離し、編集しやすい構造にする
+    - data-editable="true" 属性を編集可能要素に付与
+    - クラス名は意味的で理解しやすい命名規則を使用` : `
+    - 最適化された出力（コメントなし）
+    - 高パフォーマンス重視の軽量マークアップ`}
+
+16. **反復改善・フィードバック対応**
+    ${promptArgs.feedbackContext ? `
+    前回フィードバック対応:
+    - フィードバック内容: ${promptArgs.feedbackContext}
+    - 改善焦点: ${promptArgs.refinementFocus}
+    - 上記の点を重点的に改善し、より良いスライドを生成する` : `
+    - 初回生成のため、全体的なバランスを重視
+    - 今後の改善のためのベースライン品質を確保`}
+
+17. **読者・コンテキスト適応**
+    - 読者レベル（${promptArgs.audienceLevel}）に適した語彙・概念の複雑さ
+    - プレゼン目的（${promptArgs.presentationPurpose}）に最適化された構成
+    - 設定・環境（${promptArgs.presentationSetting}）に適した視覚的インパクト
+    - トーン（${promptArgs.presentationTone}）に合致した色調・フォント選択
+
+18. **Reveal.js統合ベストプラクティス**
+    - data-background-* 属性でReveal.jsの背景機能と連携
+    - class="fragment" でコンテンツのアニメーション表示対応
+    - data-fragment-index でアニメーション順序制御
+    - <aside class="notes"> でスピーカーノート統合
+
+19. **絶対禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更
@@ -251,7 +387,7 @@ ${baseDesignPrompt}`;
         && generatedHtml.trim().includes('</style>')
         && generatedHtml.trim().includes('<section class="slide')) {
         slideHtmlAndCss = generatedHtml.trim();
-        message = `Successfully generated HTML and CSS for the slide focusing on "${outline || topic}"${variantInfo}.`;
+        message = `Successfully generated enhanced HTML slide with Reveal.js compatibility and human review optimization for "${outline || topic}"${variantInfo}. Target audience: ${promptArgs.audienceLevel} ${promptArgs.audienceRole}. Purpose: ${promptArgs.presentationPurpose}. ${promptArgs.feedbackContext ? 'Applied feedback: ' + promptArgs.refinementFocus : 'Ready for iterative refinement.'}`;
       } else {
         console.warn("[htmlSlideTool] LLM output did not match expected <style> + <section> format. Using fallback.", generatedHtml);
         // Fallback if LLM output is not as expected, to prevent breaking agent flow.
@@ -269,7 +405,33 @@ ${baseDesignPrompt}`;
       message: message,
       variant: variant || 1,
       layoutType: layoutType || 'default', 
-      diagramType: diagramType || 'auto'
+      diagramType: diagramType || 'auto',
+      
+      // Enhanced metadata for improved workflow
+      enhancedFeatures: {
+        revealJsCompatible: true,
+        humanReviewMode: promptArgs.humanReview,
+        targetAudience: {
+          level: promptArgs.audienceLevel,
+          role: promptArgs.audienceRole,
+          industry: promptArgs.audienceIndustry
+        },
+        presentationContext: {
+          purpose: promptArgs.presentationPurpose,
+          setting: promptArgs.presentationSetting,
+          tone: promptArgs.presentationTone
+        },
+        feedbackApplied: !!promptArgs.feedbackContext,
+        refinementFocus: promptArgs.refinementFocus
+      },
+      
+      // Reveal.js specific metadata
+      revealJsMetadata: {
+        transition: promptArgs.revealTransition,
+        backgroundType: promptArgs.revealBackground,
+        isVerticalSlide: promptArgs.isVerticalSlide,
+        hasNotes: !!promptArgs.speakerNotes
+      }
     };
   },
 }); 

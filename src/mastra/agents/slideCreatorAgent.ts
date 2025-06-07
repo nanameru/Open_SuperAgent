@@ -1,7 +1,8 @@
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai'; // Assuming OpenAI for the LLM
 import { 
-  htmlSlideTool, 
+  htmlSlideTool,
+  slideRefinementTool,
   presentationPreviewTool,
   braveSearchTool,
   geminiImageGenerationTool,
@@ -35,7 +36,8 @@ Your main goal is to follow the USER's instructions at each message, denoted by 
 
 ## Available Tools
 You have access to the following specialized tools:
-- \`htmlSlideTool\`: Generates HTML slides based on topic, outline, and slide count
+- \`htmlSlideTool\`: Generates enhanced HTML slides with Reveal.js compatibility, detailed audience targeting, and human review optimization
+- \`slideRefinementTool\`: Refines and improves existing slides based on feedback for iterative improvement workflows
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
@@ -165,7 +167,8 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
   `,
   model: openai('gpt-4.1'), // Specify the model, e.g., gpt-4o or another model
   tools: { 
-    htmlSlideTool, // Register the tool with the agent
+    htmlSlideTool, // Register the enhanced slide tool with the agent
+    slideRefinementTool, // Register the slide refinement tool for iterative improvement
     presentationPreviewTool, // Register the preview tool with the agent
     braveSearchTool, // Register the search tool
     grokXSearchTool, // Register the Grok X search tool
