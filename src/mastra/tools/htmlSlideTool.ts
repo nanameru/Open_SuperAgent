@@ -2,6 +2,150 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
 import { generateText } from 'ai'; // Import generateText
+import { JSDOM } from 'jsdom';
+
+// Enhanced User Input Analysis Function
+async function analyzeUserInput(userInput: string, topic: string) {
+  const analysisPrompt = `Analyze the following user input for presentation design requirements:
+
+User Input: "${userInput}"
+Topic: "${topic}"
+
+Extract and determine:
+1. Purpose (education, sales, report, proposal, etc.)
+2. Target Audience (executives, students, technical team, general public, etc.)
+3. Tone (professional, casual, academic, creative, technical)
+4. Suggested Layout (based on content type)
+5. Color scheme suggestions
+6. Design theme
+
+Respond in JSON format:
+{
+  "purpose": "string",
+  "audience": "string", 
+  "tone": "professional|casual|academic|creative|technical",
+  "detectedTheme": "string",
+  "suggestedLayout": "default|image-left|image-right|full-graphic|quote|comparison|timeline|list|title|section-break|data-visualization|photo-with-caption",
+  "suggestedColors": {
+    "primaryColor": "#hex",
+    "accentColor": "#hex", 
+    "bgColor": "#hex"
+  }
+}`;
+
+  try {
+    const { text } = await generateText({
+      model: anthropic('claude-opus-4-20250514'),
+      prompt: analysisPrompt,
+    });
+    
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (error) {
+    console.warn('[htmlSlideTool] Failed to analyze user input:', error);
+    return {
+      purpose: 'general',
+      audience: 'general',
+      tone: 'professional',
+      detectedTheme: '',
+      suggestedLayout: 'default',
+      suggestedColors: { primaryColor: '#0056B1', accentColor: '#FFB400', bgColor: '#F5F7FA' }
+    };
+  }
+}
+
+// HTML/CSS Validation Function
+function validateHTML(htmlContent: string) {
+  const issues = [];
+  
+  try {
+    const dom = new JSDOM(htmlContent);
+    const document = dom.window.document;
+    
+    // Check for basic structure
+    const hasStyle = htmlContent.includes('<style>') && htmlContent.includes('</style>');
+    const hasSection = htmlContent.includes('<section') && htmlContent.includes('</section>');
+    
+    if (!hasStyle) issues.push('Missing <style> tags');
+    if (!hasSection) issues.push('Missing <section> tags');
+    
+    // Check for accessibility
+    const images = document.querySelectorAll('img');
+    images.forEach((img, index) => {
+      if (!img.alt && !img.getAttribute('aria-label')) {
+        issues.push(`Image ${index + 1} missing alt text`);
+      }
+    });
+    
+    // Check for semantic elements
+    const hasHeadings = document.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 0;
+    if (!hasHeadings) issues.push('No semantic headings found');
+    
+    return { valid: issues.length === 0, issues };
+  } catch (error) {
+    return { valid: false, issues: ['HTML parsing failed: ' + error.message] };
+  }
+}
+
+// Accessibility Checking Function
+function checkAccessibility(htmlContent: string) {
+  const issues = [];
+  
+  try {
+    const dom = new JSDOM(htmlContent);
+    const document = dom.window.document;
+    
+    // Color contrast simulation (basic)
+    const styles = htmlContent.match(/color\s*:\s*([^;]+)/gi) || [];
+    const bgColors = htmlContent.match(/background(-color)?\s*:\s*([^;]+)/gi) || [];
+    
+    // Check for interactive elements accessibility
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach((button, index) => {
+      if (!button.textContent?.trim() && !button.getAttribute('aria-label')) {
+        issues.push(`Button ${index + 1} missing accessible text`);
+      }
+    });
+    
+    // Check for proper heading hierarchy
+    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    if (headings.length > 0) {
+      const firstHeading = headings[0];
+      if (firstHeading.tagName !== 'H1') {
+        issues.push('Should start with H1 heading');
+      }
+    }
+    
+    // Check for focus indicators
+    if (!htmlContent.includes('focus') && htmlContent.includes('button')) {
+      issues.push('Consider adding focus indicators for interactive elements');
+    }
+    
+    return { accessible: issues.length === 0, issues };
+  } catch (error) {
+    return { accessible: false, issues: ['Accessibility check failed: ' + error.message] };
+  }
+}
+
+// Generate Reveal.js Compatible HTML
+function generateRevealJsStructure(content: string, uniqueClass: string) {
+  // Convert default structure to Reveal.js format
+  const revealJsTemplate = `<style>
+${content.match(/<style>([\s\S]*?)<\/style>/)?.[1] || ''}
+.reveal .slides section.${uniqueClass} {
+  text-align: left;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+</style>
+<section class="slide ${uniqueClass}" data-background-color="#f5f7fa">
+${content.match(/<section[^>]*>([\s\S]*?)<\/section>/)?.[1] || content}
+</section>`;
+  
+  return revealJsTemplate;
+}
 
 export const htmlSlideTool = tool({
   description: 'Generates the HTML content for a single slide section (within <section class="slide"></section>) using an LLM. It takes a general topic and a specific outline point for this particular slide.',
@@ -22,29 +166,57 @@ export const htmlSlideTool = tool({
     fontFamily: z.string().optional().describe('Font family to use for the slide.'),
     forceInclude: z.string().optional().describe('Specific content that must be included in the slide (e.g., quote, stat, diagram).'),
     variant: z.number().optional().default(1).describe('Generate a specific variant (1, 2, 3) for different design options of the same content.'),
+    framework: z.enum(['default', 'reveal-js']).optional().default('default').describe('HTML slide framework to use.'),
+    userInput: z.string().optional().describe('Original user input for automatic design analysis.'),
+    enableValidation: z.boolean().optional().default(true).describe('Enable HTML/CSS validation and accessibility checking.'),
+    previousFeedback: z.string().optional().describe('User feedback from previous slide generations for improvement.'),
+    targetAudience: z.string().optional().describe('Target audience for the presentation (auto-detected or manually specified).'),
+    presentationPurpose: z.string().optional().describe('Purpose of the presentation (auto-detected or manually specified).'),
+    tone: z.enum(['professional', 'casual', 'academic', 'creative', 'technical']).optional().describe('Desired tone of the presentation (auto-detected or manually specified).'),
   }),
-  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
+  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant, framework, userInput, enableValidation, previousFeedback, targetAudience, presentationPurpose, tone }) => {
     // slideCount is expected to be 1 when called by slideCreatorAgent.
     // The outline parameter is the specific point for this single slide.
 
     const uniqueSlideClass = `slide-${Math.random().toString(36).substring(7)}-v${variant || 1}`;
 
-    // Arguments for the new flexible prompt.
+    // Enhanced design analysis from user input
+    let enhancedDesignData = {
+      purpose: presentationPurpose,
+      audience: targetAudience,
+      tone: tone,
+      detectedTheme: '',
+      suggestedLayout: layoutType,
+      suggestedColors: colorScheme
+    };
+
+    if (userInput && !presentationPurpose) {
+      enhancedDesignData = await analyzeUserInput(userInput, topic);
+    }
+
+    // Arguments for the enhanced flexible prompt.
     const promptArgs = {
       topic: topic,
       outline: outline || topic, // If outline is not provided, use the main topic.
       slideIndex: slideIndex?.toString() || 'current', 
       totalSlides: totalSlides?.toString() || 'N',
-      primaryColor: colorScheme?.primaryColor || '#0056B1', // Default primary color
-      accentColor: colorScheme?.accentColor || '#FFB400',  // Default accent color
-      bgColor: colorScheme?.bgColor || '#F5F7FA',      // Default background color
+      primaryColor: enhancedDesignData.suggestedColors?.primaryColor || colorScheme?.primaryColor || '#0056B1',
+      accentColor: enhancedDesignData.suggestedColors?.accentColor || colorScheme?.accentColor || '#FFB400',
+      bgColor: enhancedDesignData.suggestedColors?.bgColor || colorScheme?.bgColor || '#F5F7FA',
       fontFamily: fontFamily || "'Noto Sans JP', 'Hiragino Sans', sans-serif", // Default font family
-      layoutType: layoutType || 'default',   // Default layout type
+      layoutType: enhancedDesignData.suggestedLayout || layoutType || 'default',
       diagramType: diagramType || 'auto',    // Default diagram type
       extras: designElements?.join(', ') || 'modern-design',  // Added modern-design by default
       uniqueClass: uniqueSlideClass,
       variant: variant || 1,
-      forceInclude: forceInclude || ''
+      forceInclude: forceInclude || '',
+      // Enhanced design analysis data
+      purpose: enhancedDesignData.purpose || 'general',
+      audience: enhancedDesignData.audience || 'general',
+      tone: enhancedDesignData.tone || tone || 'professional',
+      detectedTheme: enhancedDesignData.detectedTheme || '',
+      framework: framework || 'default',
+      previousFeedback: previousFeedback || ''
     };
 
     const baseDesignPrompt = `あなたはプロフェッショナルな「プレゼンテーションデザイナー」です。
@@ -71,6 +243,12 @@ export const htmlSlideTool = tool({
 ・追加要素              : ${promptArgs.extras}
 ・必須含有要素          : ${promptArgs.forceInclude}
 ・バリアント           : ${promptArgs.variant}
+・プレゼン目的          : ${promptArgs.purpose}
+・対象オーディエンス    : ${promptArgs.audience}
+・トーン               : ${promptArgs.tone}
+・検出テーマ           : ${promptArgs.detectedTheme}
+・フレームワーク        : ${promptArgs.framework}
+・前回フィードバック    : ${promptArgs.previousFeedback}
 
 【最優先事項】
 1. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
@@ -78,6 +256,13 @@ export const htmlSlideTool = tool({
 3. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
 4. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
 5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
+6. **オーディエンス最適化** - 対象オーディエンス（${promptArgs.audience}）に適したデザインと内容レベル
+7. **目的に応じた構成** - プレゼン目的（${promptArgs.purpose}）に最適化された情報構造
+8. **トーンの一貫性** - 指定されたトーン（${promptArgs.tone}）を視覚的・内容的に反映
+
+【フィードバック反映】
+前回のフィードバック: ${promptArgs.previousFeedback}
+このフィードバックを踏まえ、指摘された点を改善してください。
 
 【出力要件】
 1. **必ず<style>タグから始め、</style>タグで閉じる**
@@ -264,12 +449,45 @@ ${baseDesignPrompt}`;
       // Keep the default error HTML and message in case of an exception
     }
 
+    // Enhanced validation and processing
+    let validationResults = { valid: true, issues: [] };
+    let accessibilityResults = { accessible: true, issues: [] };
+    let finalHtmlContent = slideHtmlAndCss;
+
+    if (enableValidation && slideHtmlAndCss) {
+      // Validate HTML structure
+      validationResults = validateHTML(slideHtmlAndCss);
+      
+      // Check accessibility
+      accessibilityResults = checkAccessibility(slideHtmlAndCss);
+      
+      // Add validation warnings to message if issues found
+      if (!validationResults.valid || !accessibilityResults.accessible) {
+        const allIssues = [...validationResults.issues, ...accessibilityResults.issues];
+        message += ` \n⚠️ Validation Issues: ${allIssues.join(', ')}`;
+      }
+    }
+
+    // Framework-specific processing
+    if (framework === 'reveal-js') {
+      finalHtmlContent = generateRevealJsStructure(slideHtmlAndCss, uniqueSlideClass);
+      message += ' (Reveal.js compatible format)';
+    }
+
     return {
-      htmlContent: slideHtmlAndCss, // This key is expected by slideCreatorAgent
+      htmlContent: finalHtmlContent, // This key is expected by slideCreatorAgent
       message: message,
       variant: variant || 1,
-      layoutType: layoutType || 'default', 
-      diagramType: diagramType || 'auto'
+      layoutType: enhancedDesignData.suggestedLayout || layoutType || 'default', 
+      diagramType: diagramType || 'auto',
+      // Enhanced return data
+      validation: validationResults,
+      accessibility: accessibilityResults,
+      enhancedDesign: enhancedDesignData,
+      framework: framework || 'default',
+      appliedTone: enhancedDesignData.tone || tone || 'professional',
+      detectedPurpose: enhancedDesignData.purpose,
+      targetAudience: enhancedDesignData.audience
     };
   },
 }); 
