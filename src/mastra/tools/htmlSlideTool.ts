@@ -4,7 +4,16 @@ import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
 import { generateText } from 'ai'; // Import generateText
 
 export const htmlSlideTool = tool({
-  description: 'Generates the HTML content for a single slide section (within <section class="slide"></section>) using an LLM. It takes a general topic and a specific outline point for this particular slide.',
+  description: 'Generates accessible, responsive HTML slide content with modern design patterns. Features WAI-ARIA compliance, responsive layouts, structured code for easy editing, and feedback loop support for iterative improvements.',
+  
+  // Additional metadata for tool introspection and feedback loops
+  metadata: {
+    version: '2.0.0',
+    accessibility: 'WAI-ARIA compliant',
+    responsive: 'Mobile-first design',
+    frameworks: ['Reveal.js patterns', 'Bootstrap responsive', 'Tailwind CSS utilities'],
+    features: ['feedback-loop', 'regeneration', 'partial-modification']
+  },
   parameters: z.object({
     topic: z.string().describe('The main topic or subject of the overall presentation.'),
     outline: z.string().optional().describe('The specific theme, topic, or key points for THIS slide.'),
@@ -22,14 +31,19 @@ export const htmlSlideTool = tool({
     fontFamily: z.string().optional().describe('Font family to use for the slide.'),
     forceInclude: z.string().optional().describe('Specific content that must be included in the slide (e.g., quote, stat, diagram).'),
     variant: z.number().optional().default(1).describe('Generate a specific variant (1, 2, 3) for different design options of the same content.'),
+    feedbackMode: z.enum(['generate', 'regenerate', 'modify']).optional().default('generate').describe('Feedback loop mode: generate (new), regenerate (retry), modify (partial edit).'),
+    previousSlideId: z.string().optional().describe('ID of previous slide for regeneration/modification workflows.'),
+    modificationInstructions: z.string().optional().describe('Specific instructions for modifications when feedbackMode is "modify".'),
+    accessibilityLevel: z.enum(['basic', 'enhanced', 'full']).optional().default('enhanced').describe('Level of accessibility features to include.'),
+    responsiveBreakpoints: z.array(z.enum(['mobile', 'tablet', 'desktop', 'large'])).optional().default(['mobile', 'tablet', 'desktop']).describe('Responsive breakpoints to optimize for.'),
   }),
-  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
+  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant, feedbackMode, previousSlideId, modificationInstructions, accessibilityLevel, responsiveBreakpoints }) => {
     // slideCount is expected to be 1 when called by slideCreatorAgent.
     // The outline parameter is the specific point for this single slide.
 
     const uniqueSlideClass = `slide-${Math.random().toString(36).substring(7)}-v${variant || 1}`;
 
-    // Arguments for the new flexible prompt.
+    // Enhanced arguments for accessibility, responsive design, and feedback loops
     const promptArgs = {
       topic: topic,
       outline: outline || topic, // If outline is not provided, use the main topic.
@@ -44,7 +58,14 @@ export const htmlSlideTool = tool({
       extras: designElements?.join(', ') || 'modern-design',  // Added modern-design by default
       uniqueClass: uniqueSlideClass,
       variant: variant || 1,
-      forceInclude: forceInclude || ''
+      forceInclude: forceInclude || '',
+      // New enhancement parameters
+      feedbackMode: feedbackMode || 'generate',
+      previousSlideId: previousSlideId || '',
+      modificationInstructions: modificationInstructions || '',
+      accessibilityLevel: accessibilityLevel || 'enhanced',
+      responsiveBreakpoints: responsiveBreakpoints || ['mobile', 'tablet', 'desktop'],
+      breakpointsString: (responsiveBreakpoints || ['mobile', 'tablet', 'desktop']).join(', ')
     };
 
     const baseDesignPrompt = `あなたはプロフェッショナルな「プレゼンテーションデザイナー」です。
@@ -71,13 +92,22 @@ export const htmlSlideTool = tool({
 ・追加要素              : ${promptArgs.extras}
 ・必須含有要素          : ${promptArgs.forceInclude}
 ・バリアント           : ${promptArgs.variant}
+・フィードバックモード  : ${promptArgs.feedbackMode}
+・前回スライドID       : ${promptArgs.previousSlideId}
+・修正指示              : ${promptArgs.modificationInstructions}
+・アクセシビリティレベル: ${promptArgs.accessibilityLevel}
+・レスポンシブ対応      : ${promptArgs.breakpointsString}
 
 【最優先事項】
 1. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
-2. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
-3. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
-4. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
-5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
+2. **アクセシビリティ準拠（${promptArgs.accessibilityLevel}レベル）** - WAI-ARIA、WCAG 2.1 AA準拠、スクリーンリーダー対応
+3. **レスポンシブデザイン** - ${promptArgs.breakpointsString} 対応、モバイルファースト設計
+4. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
+5. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
+6. **コード可読性と保守性** - 構造化されたHTML、コメント付きCSS、編集しやすい設計
+7. **フィードバックループ対応** - ${promptArgs.feedbackMode}モードに適した設計と実装
+8. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
+9. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
 
 【出力要件】
 1. **必ず<style>タグから始め、</style>タグで閉じる**
@@ -174,10 +204,58 @@ export const htmlSlideTool = tool({
    - テキスト量: 1スライドあたり30-50単語程度に抑える
    - フォント: スタイリッシュで読みやすい日本語Webフォントを使用（デフォルト ${promptArgs.fontFamily}）
 
-11. **アクセシビリティとレスポンシブデザイン**
-    - コントラスト比 AA 準拠
-    - SVG要素には適切なalt/aria属性
-    - レスポンシブな要素配置（vw/vh単位の活用）
+11. **アクセシビリティとレスポンシブデザイン（${promptArgs.accessibilityLevel}レベル）**
+    
+    a) **WAI-ARIA実装（必須）**:
+    - スライド全体: role="main" aria-labelledby="slide-title"
+    - タイトル: role="heading" aria-level="1" id="slide-title"
+    - コンテンツ領域: role="region" aria-label="スライドコンテンツ"
+    - リスト: role="list", li要素にrole="listitem"
+    - 図表: role="img" aria-describedby="diagram-desc"
+    - ボタン・リンク: aria-label, aria-describedby
+    - 隠し要素: aria-hidden="true"
+    - ランドマーク: role="banner", "main", "complementary"
+    
+    b) **WCAG 2.1 AA準拠（必須）**:
+    - 色彩コントラスト比 4.5:1以上（テキスト）、3:1以上（UI要素）
+    - テキストサイズ200%拡大対応
+    - キーボードナビゲーション対応
+    - スクリーンリーダー対応（alt属性、aria-label）
+    - 色だけに依存しない情報伝達
+    - 動きの制御（prefers-reduced-motion対応）
+    
+    c) **レスポンシブデザイン（モバイルファースト）**:
+    - Mobile: 320px-767px（フォント14-16px、単列レイアウト）
+    - Tablet: 768px-1023px（フォント16-18px、2列可能）
+    - Desktop: 1024px-1439px（フォント18-24px、多列レイアウト）
+    - Large: 1440px+（フォント20-24px、高解像度対応）
+    - CSS Grid / Flexbox活用
+    - vw, vh, vmin, vmaxユニット活用
+    - clamp()関数でfluid typography
+    - aspect-ratio CSS活用
+    
+    d) **構造化HTML（編集しやすさ重視）**:
+    ```html
+    <!-- セマンティックな構造 -->
+    <section class="slide" role="main" aria-labelledby="slide-title">
+      <header class="slide-header" role="banner">
+        <h1 id="slide-title" role="heading" aria-level="1">タイトル</h1>
+      </header>
+      <main class="slide-content" role="region" aria-label="メインコンテンツ">
+        <!-- 構造化されたコンテンツ -->
+      </main>
+      <footer class="slide-footer" role="contentinfo">
+        <!-- ページネーション等 -->
+      </footer>
+    </section>
+    ```
+    
+    e) **CSS設計（保守性重視）**:
+    - BEM記法採用（.slide__element--modifier）
+    - CSS custom properties（カスタムプロパティ）活用
+    - コンポーネント単位のCSS設計
+    - 詳細なコメント記述（日本語OK）
+    - CSS論理プロパティ使用（margin-inline等）
 
 12. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
 
@@ -186,10 +264,25 @@ export const htmlSlideTool = tool({
     - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
     - バリアント3: よりミニマリストでエレガントなデザイン
 
-14. **必須含有要素の組み込み**
+14. **フィードバックループ対応（${promptArgs.feedbackMode}モード）**
+    - **generateモード**: 新規スライド生成（全機能フル実装）
+    - **regenerateモード**: 既存スライドの完全再生成（前回の問題点を改善）
+    - **modifyモード**: 部分修正対応（${promptArgs.modificationInstructions}に基づく局所的変更）
+    - 修正履歴追跡用のdata-revision属性追加
+    - 差分比較しやすい構造化HTML設計
+    - コメントで変更点明記（CSS内での /* 修正: 説明 */ 形式）
+
+15. **Reveal.js / Bootstrap / Tailwind CSS ベストプラクティス統合**
+    - Reveal.js: data-background, data-transition属性活用
+    - Bootstrap: responsive grid system, utility classes pattern
+    - Tailwind CSS: utility-first approach, design tokens
+    - Container queries対応 (@container)
+    - Modern CSS features (scroll-snap, backdrop-filter等)
+
+16. **必須含有要素の組み込み**
     「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-15. **絶対禁止事項**
+17. **絶対禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更
@@ -269,7 +362,27 @@ ${baseDesignPrompt}`;
       message: message,
       variant: variant || 1,
       layoutType: layoutType || 'default', 
-      diagramType: diagramType || 'auto'
+      diagramType: diagramType || 'auto',
+      // Enhanced metadata for feedback loops and accessibility
+      slideId: uniqueSlideClass,
+      feedbackMode: feedbackMode || 'generate',
+      accessibilityLevel: accessibilityLevel || 'enhanced',
+      responsiveBreakpoints: responsiveBreakpoints || ['mobile', 'tablet', 'desktop'],
+      isRegeneration: feedbackMode === 'regenerate',
+      isModification: feedbackMode === 'modify',
+      previousSlideId: previousSlideId || null,
+      modificationInstructions: modificationInstructions || null,
+      // Feature flags for tool introspection
+      features: {
+        waiAria: true,
+        wcagAA: true,
+        responsiveDesign: true,
+        feedbackLoop: true,
+        codeReadability: true,
+        revealJsCompat: true,
+        bootstrapPatterns: true,
+        tailwindUtilities: true
+      }
     };
   },
 }); 

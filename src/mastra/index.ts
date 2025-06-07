@@ -4,7 +4,8 @@ import { createLogger } from '@mastra/core/logger';
 import { LibSQLStore } from '@mastra/libsql';
 import { weatherAgent, slideCreatorAgent, imageCreatorAgent } from './agents';
 import { 
-  htmlSlideTool, 
+  htmlSlideTool,
+  slideModificationTool,
   presentationPreviewTool,
   braveSearchTool,
   geminiImageGenerationTool,
@@ -26,7 +27,8 @@ export const mastra = new Mastra({
     imageCreatorAgent,
   },
   tools: { 
-    htmlSlideTool, 
+    htmlSlideTool,
+    slideModificationTool,
     presentationPreviewTool,
     braveSearchTool,
     geminiImageGenerationTool,
