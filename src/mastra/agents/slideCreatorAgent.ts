@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { openai } from '@ai-sdk/openai'; // Assuming OpenAI for the LLM
+import { google } from '@ai-sdk/google'; // Use Google Gemini
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
@@ -165,7 +165,7 @@ When executing tasks:
 
 Remember that you are a general-purpose assistant, not limited to coding tasks. Your goal is to be as helpful as possible across a wide variety of tasks using the tools at your disposal.
   `,
-  model: openai('gpt-4.1'), // Specify the model, e.g., gpt-4o or another model
+  model: google('gemini-2.5-pro-preview-06-05'), // Specify the model
   tools: { 
     htmlSlideTool, // Register the tool with the agent
     presentationPreviewTool, // Register the preview tool with the agent

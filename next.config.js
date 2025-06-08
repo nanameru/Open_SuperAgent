@@ -2,9 +2,8 @@
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
-  experimental: {
-    // instrumentationHook: true, // 非推奨のため削除
-    turbo: {
+  // swcMinify: false, // Webpackのminifyエラーを回避
+  turbopack: {
       rules: {
         // Turbopack用のルール設定
         '*.md': {
@@ -26,8 +25,13 @@ const nextConfig = {
         },
       },
     },
+  experimental: {
+    // instrumentationHook: true, // 非推奨のため削除
   },
   webpack: (config, { isServer }) => {
+    // Webpackの最小化を無効化
+    config.optimization.minimize = false;
+    
     // クライアントサイドでのNode.jsモジュールの使用を無効化
     if (!isServer) {
       config.resolve.fallback = {
