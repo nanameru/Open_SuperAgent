@@ -13,6 +13,7 @@ import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useDeepResearch } from './hooks/useDeepResearch';
 import { ArrowPathIcon, MagnifyingGlassIcon, LightBulbIcon } from '@heroicons/react/24/outline';
+import { ModelProvider, useModel } from './components/ModelContext';
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -62,6 +63,7 @@ interface BrowserbaseToolState {
 type UIMessage = Message | ToolMessage;
 
 export default function AppPage() {
+  const { currentModel } = useModel();
   // ツール実行メッセージを格納する状態
   const [toolMessages, setToolMessages] = useState<ToolMessage[]>([]);
   // 現在の会話ID（ストリームの再接続用）
@@ -140,6 +142,9 @@ export default function AppPage() {
   } = useChat({
     api: '/api/slide-creator/chat', // Mastra slideCreatorAgent を使用するエンドポイント
     id: conversationId,
+    body: {
+      model: currentModel, // 現在のモデル設定を送信
+    },
     onFinish: (message) => {
       console.log('[Page] チャット完了:', message);
     },

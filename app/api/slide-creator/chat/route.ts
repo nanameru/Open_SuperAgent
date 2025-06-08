@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { slideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
+import { createSlideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
 import { mastra } from '@/src/mastra';
 import { Message } from 'ai';
 import { streamText } from 'ai';
+import { getCurrentModel } from '../../set-model/route';
 
 // 開発環境のみログを出力する関数
 function devLog(message: string, data?: any) {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   // リクエスト情報は詳細なログを出力しない
   
   try {
-    const { messages } = await req.json();
+    const { messages, model: requestModel } = await req.json();
     
     // メッセージの検証と処理
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -33,6 +34,19 @@ export async function POST(req: NextRequest) {
     // 最新のユーザーメッセージを取得
     const lastUserMessage = messages.filter((m: Message) => m.role === 'user').pop();
     const userContent = lastUserMessage?.content || '';
+    
+    // モデル設定を取得（リクエスト > getCurrentModel > デフォルト の優先順位）
+    let currentModel;
+    if (requestModel && requestModel.provider && requestModel.modelName) {
+      currentModel = requestModel;
+      devLog(`Using model from request: ${currentModel.provider} - ${currentModel.modelName}`);
+    } else {
+      currentModel = getCurrentModel();
+      devLog(`Using model from storage: ${currentModel.provider} - ${currentModel.modelName}`);
+    }
+    
+    // 選択されたモデルでslideCreatorAgentを動的に作成
+    const slideCreatorAgent = createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
     
     // Deep Research処理の検出
     if (userContent.startsWith('[Deep Research]')) {
@@ -63,11 +77,26 @@ export async function POST(req: NextRequest) {
           throw new Error('Deep Research workflow failed');
         }
         
-        // 結果をストリーミング形式で返す
-        // slideCreatorAgentのmodelを直接使用する代わりに、anthropicモデルを使用
-        const { anthropic } = await import('@ai-sdk/anthropic');
-        const model = anthropic('claude-3-5-sonnet-20241022');
+        // Deep Research用にモデルを動的に作成
+        let model;
+        switch (currentModel.provider) {
+          case 'openai':
+            const { openai } = await import('@ai-sdk/openai');
+            model = openai(currentModel.modelName);
+            break;
+          case 'claude':
+            const { anthropic } = await import('@ai-sdk/anthropic');
+            model = anthropic(currentModel.modelName);
+            break;
+          case 'gemini':
+            const { google } = await import('@ai-sdk/google');
+            model = google(currentModel.modelName);
+            break;
+          default:
+            throw new Error(`Unsupported provider: ${currentModel.provider}`);
+        }
         
+        // 結果をストリーミング形式で返す
         const response = streamText({
           model,
           messages: [
@@ -96,7 +125,7 @@ export async function POST(req: NextRequest) {
     // 受信したメッセージの内容をログ出力 (最初の100文字程度)
     // 詳細なログは出力しない
     
-    // Mastraエージェントを使用してストリーミングレスポンスを取得
+    // 動的に作成されたslideCreatorAgentを使用してストリーミングレスポンスを取得
     const mastraStreamResult = await slideCreatorAgent.stream(messages);
     
     // Stream オブジェクトの詳細をログ出力
@@ -123,6 +152,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     // エラー詳細も簡素化
     const message = error instanceof Error ? error.message : 'Internal server error';
+    devLog('Chat API error:', message);
     return NextResponse.json(
       { error: 'Chat API error', details: message },
       { status: 500 }

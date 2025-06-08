@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { ModelSelector } from './ModelSelector';
 
 export const MainHeader = () => {
   return (
@@ -11,6 +12,14 @@ export const MainHeader = () => {
         <div className="mr-4 hidden md:flex">
           <SidebarTrigger />
         </div>
+        
+        {/* Model selector */}
+        <div className="flex-1 flex justify-center">
+          <ModelSelector />
+        </div>
+        
+        {/* Right side spacer */}
+        <div className="mr-4 hidden md:flex w-10"></div>
       </div>
     </header>
   );

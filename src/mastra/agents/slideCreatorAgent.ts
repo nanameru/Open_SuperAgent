@@ -1,5 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { google } from '@ai-sdk/google'; // Use Google Gemini
+import { openai } from '@ai-sdk/openai'; // Import OpenAI
+import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
@@ -24,9 +26,27 @@ import { browserScreenshotTool } from '../tools/browserScreenshotTool';
 import { browserCloseTool } from '../tools/browserCloseTool';
 import { Memory } from '@mastra/memory'; // Import Memory
 
-export const slideCreatorAgent = new Agent({
-  name: 'Open-SuperAgent',
-  instructions: `
+// 動的にモデルを作成する関数
+function createModel(provider: string, modelName: string) {
+  switch (provider) {
+    case 'openai':
+      return openai(modelName);
+    case 'claude':
+      return anthropic(modelName);
+    case 'gemini':
+      return google(modelName);
+    default:
+      throw new Error(`Unsupported provider: ${provider}`);
+  }
+}
+
+// slideCreatorAgentを動的に作成する関数
+export function createSlideCreatorAgent(provider: string = 'gemini', modelName: string = 'gemini-2.5-pro-preview-06-05') {
+  const model = createModel(provider, modelName);
+  
+  return new Agent({
+    name: 'Open-SuperAgent',
+    instructions: `
 # System Prompt
 
 ## Initial Context and Setup
@@ -164,38 +184,42 @@ When executing tasks:
 5. When possible, enhance your responses with visual elements (images, videos, screenshots, etc.) that add value
 
 Remember that you are a general-purpose assistant, not limited to coding tasks. Your goal is to be as helpful as possible across a wide variety of tasks using the tools at your disposal.
-  `,
-  model: google('gemini-2.5-pro-preview-06-05'), // Specify the model
-  tools: { 
-    htmlSlideTool, // Register the tool with the agent
-    presentationPreviewTool, // Register the preview tool with the agent
-    braveSearchTool, // Register the search tool
-    grokXSearchTool, // Register the Grok X search tool
-    claudeCodeTool, // Register the GitHub issue tool
-    githubListIssuesTool, // Register the GitHub list issues tool
-    geminiImageGenerationTool, // Register the image generation tool
-    geminiVideoGenerationTool, // Register the video generation tool
-    imagen4GenerationTool, // Register the Imagen 4 generation tool
-    v0CodeGenerationTool, // Register the v0 code generation tool
-    graphicRecordingTool, // Register the graphic recording tool
-    minimaxTTSTool, // Register the MiniMax TTS tool
-    // Browser automation tools
-    browserSessionTool, // Create browser session
-    browserGotoTool, // Navigate to URL
-    browserActTool, // Perform actions
-    browserExtractTool, // Extract data
-    browserObserveTool, // Observe elements
-    browserWaitTool, // Wait for conditions
-    browserScreenshotTool, // Take screenshots
-    browserCloseTool // Close browser session
-  },
-  memory: new Memory({ // Add memory configuration
-    options: {
-      lastMessages: 10, // Remember the last 10 messages
-      semanticRecall: false, // You can enable this for more advanced recall based on meaning
-      threads: {
-        generateTitle: false, // Whether to auto-generate titles for auto-generate titles for conversation threads
-      },
+    `,
+    model, // 動的に作成されたモデルを使用
+    tools: { 
+      htmlSlideTool, // Register the tool with the agent
+      presentationPreviewTool, // Register the preview tool with the agent
+      braveSearchTool, // Register the search tool
+      grokXSearchTool, // Register the Grok X search tool
+      claudeCodeTool, // Register the GitHub issue tool
+      githubListIssuesTool, // Register the GitHub list issues tool
+      geminiImageGenerationTool, // Register the image generation tool
+      geminiVideoGenerationTool, // Register the video generation tool
+      imagen4GenerationTool, // Register the Imagen 4 generation tool
+      v0CodeGenerationTool, // Register the v0 code generation tool
+      graphicRecordingTool, // Register the graphic recording tool
+      minimaxTTSTool, // Register the MiniMax TTS tool
+      // Browser automation tools
+      browserSessionTool, // Create browser session
+      browserGotoTool, // Navigate to URL
+      browserActTool, // Perform actions
+      browserExtractTool, // Extract data
+      browserObserveTool, // Observe elements
+      browserWaitTool, // Wait for conditions
+      browserScreenshotTool, // Take screenshots
+      browserCloseTool // Close browser session
     },
-  }),
-}); 
+    memory: new Memory({ // Add memory configuration
+      options: {
+        lastMessages: 10, // Remember the last 10 messages
+        semanticRecall: false, // You can enable this for more advanced recall based on meaning
+        threads: {
+          generateTitle: false, // Whether to auto-generate titles for auto-generate titles for conversation threads
+        },
+      },
+    }),
+  });
+}
+
+// デフォルトのエージェント（後方互換性のため）
+export const slideCreatorAgent = createSlideCreatorAgent(); 
