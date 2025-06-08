@@ -5,8 +5,8 @@ import { mastra } from '@/src/mastra'; // Import mastra instance
 // IMPORTANT! Set the runtime to edge
 export const runtime = 'edge';
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
+// Allow streaming responses up to 300 seconds
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {

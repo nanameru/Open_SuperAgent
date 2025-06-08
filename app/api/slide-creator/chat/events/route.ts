@@ -15,7 +15,7 @@ function devLog(message: string, data?: any) {
 }
 
 // Vercel Serverless Function でストリームを許可するための設定
-export const maxDuration = 30;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic'; // 動的なレンダリングを強制
 
 export async function GET(req: NextRequest) {
