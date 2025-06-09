@@ -14,11 +14,12 @@ const browserGotoToolOutputSchema = z.object({
   url: z.string().describe('Current page URL after navigation'),
   title: z.string().describe('Page title after navigation'),
   message: z.string().describe('Result message'),
+  accessibilityTree: z.string().describe('Accessibility tree of the page for context'),
 });
 
 export const browserGotoTool = createTool({
   id: 'browser-goto',
-  description: 'Navigate to a specified URL in the browser session',
+  description: 'Navigate to a specified URL and get the accessibility tree',
   inputSchema: browserGotoToolInputSchema,
   outputSchema: browserGotoToolOutputSchema,
   execute: async ({ context }) => {
@@ -62,6 +63,9 @@ export const browserGotoTool = createTool({
       const currentUrl = page.url();
       const title = await page.title();
       
+      // Get the accessibility tree
+      const accessibilityTree = await page.accessibility.snapshot();
+      
       console.log(`✅ Navigation completed: ${title}`);
       
       return {
@@ -69,6 +73,7 @@ export const browserGotoTool = createTool({
         url: currentUrl,
         title,
         message: `Successfully navigated to ${url}`,
+        accessibilityTree: JSON.stringify(accessibilityTree).substring(0, 10000),
       };
     } catch (error) {
       console.error('Navigation error:', error);
@@ -77,6 +82,7 @@ export const browserGotoTool = createTool({
         url: context.url,
         title: '',
         message: `Navigation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        accessibilityTree: '',
       };
     }
   },

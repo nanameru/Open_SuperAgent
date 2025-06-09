@@ -13,11 +13,12 @@ const browserActToolOutputSchema = z.object({
   action: z.string().describe('The action that was performed'),
   message: z.string().describe('Result message'),
   screenshot: z.string().optional().describe('Base64 encoded screenshot after action'),
+  accessibilityTree: z.string().describe('Accessibility tree of the page after the action'),
 });
 
 export const browserActTool = createTool({
   id: 'browser-act',
-  description: 'Perform an action on the page using natural language instructions. AI will identify the correct element and perform the action.',
+  description: 'Perform an action on the page and get the updated accessibility tree.',
   inputSchema: browserActToolInputSchema,
   outputSchema: browserActToolOutputSchema,
   execute: async ({ context }) => {
@@ -41,6 +42,9 @@ export const browserActTool = createTool({
       // アクション後の待機
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // アクセシビリティツリーを取得
+      const accessibilityTree = await page.accessibility.snapshot();
+
       // スクリーンショットを取得
       let screenshot = '';
       try {
@@ -57,6 +61,7 @@ export const browserActTool = createTool({
         action: instruction,
         message: `Successfully performed: ${instruction}`,
         screenshot,
+        accessibilityTree: JSON.stringify(accessibilityTree).substring(0, 10000),
       };
     } catch (error) {
       console.error('Action error:', error);
@@ -64,6 +69,7 @@ export const browserActTool = createTool({
         success: false,
         action: context.instruction,
         message: `Action failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        accessibilityTree: '',
       };
     }
   },

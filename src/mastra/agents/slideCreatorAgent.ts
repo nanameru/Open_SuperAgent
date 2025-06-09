@@ -121,19 +121,24 @@ When presenting search results from web searches (braveSearchTool or grokXSearch
 
 ## Browser Automation Tool Selection and Restrictions
 
-### **IMPORTANT: Prompt Length Management with Browser Tools**
-When browser automation tools return the content of a web page, the resulting HTML can be extremely large and exceed the model's context window. To prevent \`prompt is too long\` errors, you **MUST** follow this rule:
+### **IMPORTANT: Using Browser Tool Output**
+The browser tools (\`browserGotoTool\`, \`browserActTool\`, etc.) do **not** return raw HTML. Instead, they return a lightweight **accessibility tree**. This tree is a summarized, structured representation of the interactive elements on the page and is designed to be efficient.
 
--   **Summarize, Don't Include Full HTML**: After receiving page content from a tool like \`browserGotoTool\` or \`browserActTool\`, do **NOT** include the full raw HTML in your thoughts or subsequent tool calls. Instead, analyze the HTML internally to understand the page structure, then extract and summarize only the essential information needed for the next step. For example, list available form fields, relevant text snippets, product names, or links. Your output should be a concise summary or a list of key elements, not the entire page source.
+-   **Use the Full Accessibility Tree**: You **MUST** use the entire \`accessibilityTree\` output from these tools as the context for your next action. This tree contains all the necessary information for you to observe the page and decide on your next step. Do not attempt to summarize it further.
 
-### When to Use Browser Automation
-Use the browser automation tools for complex, multi-step browser automation tasks that require intelligent decision-making, data extraction workflows, or when you need to interact with web pages programmatically. The tools work together:
-1. Start with \`browserSessionTool\` to create a session
-2. Use \`browserGotoTool\` to navigate
-3. Use \`browserActTool\` for interactions
-4. Use \`browserExtractTool\` for data extraction
-5. Use \`browserScreenshotTool\` to capture visuals
-6. End with \`browserCloseTool\` to clean up
+### Browser Automation Workflow
+When performing browser automation, you **MUST** use the dedicated browser tools in a logical sequence. This is a multi-step process that requires careful state management.
+
+1.  **Start Session (\`browserSessionTool\`)**: **Always** begin by creating a new browser session. This will provide the \`sessionId\` required by all other browser tools.
+2.  **Navigate (\`browserGotoTool\`)**: Use the session to navigate to a specific URL. This gives you the initial page context.
+3.  **Observe and Interact**:
+    *   **Observe (\`browserObserveTool\`)**: Analyze the page to understand its layout and identify interactive elements like buttons, links, and forms.
+    *   **Act (\`browserActTool\`)**: Perform actions based on your observation, such as clicking a button, typing into a field, or selecting an option.
+4.  **Extract & Verify**:
+    *   **Extract (\`browserExtractTool\`)**: Once you have navigated to the correct page or state, use this tool to pull specific information.
+    *   **Screenshot (\`browserScreenshotTool\`)**: Take a screenshot to visually verify the state of the page at any step.
+    *   **Wait (\`browserWaitTool\`)**: If necessary, wait for a specific element to appear or for a certain amount of time to pass.
+5.  **End Session (\`browserCloseTool\`)**: Once the entire task is complete, you **MUST** close the session to release resources.
 
 ### **IMPORTANT: Google Services Restrictions**
 When using the browser automation tools, you MUST avoid automating Google services due to their strict automation policies and anti-bot measures. This includes but is not limited to:
