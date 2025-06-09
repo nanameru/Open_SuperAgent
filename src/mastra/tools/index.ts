@@ -101,24 +101,79 @@ function getWeatherCondition(code: number): string {
   return conditions[code] || 'Unknown';
 }
 
-export { htmlSlideTool } from './htmlSlideTool';
-export { braveSearchTool } from './braveSearchTool';
-export { geminiImageGenerationTool } from './geminiImageGenerationTool';
-export { presentationPreviewTool } from './presentationPreviewTool';
-export { geminiVideoGenerationTool } from './geminiVideoGenerationTool';
-export { grokXSearchTool } from './grokXSearchTool';
-export { imagen4GenerationTool } from './imagen4GenerationTool';
-export { v0CodeGenerationTool } from './v0CodeGenerationTool';
-export { graphicRecordingTool } from './graphicRecordingTool';
-export { minimaxTTSTool } from './minimaxTTSTool';
-// Browser automation tools
-export { browserSessionTool } from './browserSessionTool';
-export { browserGotoTool } from './browserGotoTool';
-export { browserActTool } from './browserActTool';
-export { browserExtractTool } from './browserExtractTool';
-export { browserObserveTool } from './browserObserveTool';
-export { browserWaitTool } from './browserWaitTool';
-export { browserScreenshotTool } from './browserScreenshotTool';
-export { browserCloseTool } from './browserCloseTool';
-export { claudeCodeTool } from './claudeCodeTool';
-export { githubListIssuesTool } from './githubListIssuesTool';
+// Import all tools to make them available in this module's scope
+import { htmlSlideTool } from './htmlSlideTool';
+import { braveSearchTool } from './braveSearchTool';
+import { geminiImageGenerationTool } from './geminiImageGenerationTool';
+import { presentationPreviewTool } from './presentationPreviewTool';
+import { geminiVideoGenerationTool } from './geminiVideoGenerationTool';
+import { grokXSearchTool } from './grokXSearchTool';
+import { imagen4GenerationTool } from './imagen4GenerationTool';
+import { v0CodeGenerationTool } from './v0CodeGenerationTool';
+import { graphicRecordingTool } from './graphicRecordingTool';
+import { minimaxTTSTool } from './minimaxTTSTool';
+import { browserSessionTool } from './browserSessionTool';
+import { browserGotoTool } from './browserGotoTool';
+import { browserActTool } from './browserActTool';
+import { browserExtractTool } from './browserExtractTool';
+import { browserObserveTool } from './browserObserveTool';
+import { browserWaitTool } from './browserWaitTool';
+import { browserScreenshotTool } from './browserScreenshotTool';
+import { browserCloseTool } from './browserCloseTool';
+import { claudeCodeTool } from './claudeCodeTool';
+import { githubListIssuesTool } from './githubListIssuesTool';
+import { fileAppendTool } from './fileAppendTool';
+
+// Define the list of all tools
+export const allTools = [
+  weatherTool,
+  htmlSlideTool,
+  braveSearchTool,
+  geminiImageGenerationTool,
+  presentationPreviewTool,
+  geminiVideoGenerationTool,
+  grokXSearchTool,
+  imagen4GenerationTool,
+  v0CodeGenerationTool,
+  graphicRecordingTool,
+  minimaxTTSTool,
+  browserSessionTool,
+  browserGotoTool,
+  browserActTool,
+  browserExtractTool,
+  browserObserveTool,
+  browserWaitTool,
+  browserScreenshotTool,
+  browserCloseTool,
+  claudeCodeTool,
+  githubListIssuesTool,
+  fileAppendTool,
+];
+
+// Define the list of all tool names, handling both .name and .id properties
+export const allToolNames = allTools.map((t: any) => t.name || t.id);
+
+// Export all the tools to make them available to other modules
+export {
+  htmlSlideTool,
+  braveSearchTool,
+  geminiImageGenerationTool,
+  presentationPreviewTool,
+  geminiVideoGenerationTool,
+  grokXSearchTool,
+  imagen4GenerationTool,
+  v0CodeGenerationTool,
+  graphicRecordingTool,
+  minimaxTTSTool,
+  browserSessionTool,
+  browserGotoTool,
+  browserActTool,
+  browserExtractTool,
+  browserObserveTool,
+  browserWaitTool,
+  browserScreenshotTool,
+  browserCloseTool,
+  claudeCodeTool,
+  githubListIssuesTool,
+  fileAppendTool,
+};
