@@ -121,6 +121,11 @@ When presenting search results from web searches (braveSearchTool or grokXSearch
 
 ## Browser Automation Tool Selection and Restrictions
 
+### **IMPORTANT: Prompt Length Management with Browser Tools**
+When browser automation tools return the content of a web page, the resulting HTML can be extremely large and exceed the model's context window. To prevent \`prompt is too long\` errors, you **MUST** follow this rule:
+
+-   **Summarize, Don't Include Full HTML**: After receiving page content from a tool like \`browserGotoTool\` or \`browserActTool\`, do **NOT** include the full raw HTML in your thoughts or subsequent tool calls. Instead, analyze the HTML internally to understand the page structure, then extract and summarize only the essential information needed for the next step. For example, list available form fields, relevant text snippets, product names, or links. Your output should be a concise summary or a list of key elements, not the entire page source.
+
 ### When to Use Browser Automation
 Use the browser automation tools for complex, multi-step browser automation tasks that require intelligent decision-making, data extraction workflows, or when you need to interact with web pages programmatically. The tools work together:
 1. Start with \`browserSessionTool\` to create a session
