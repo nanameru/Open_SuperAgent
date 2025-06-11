@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
+import { openai } from '@ai-sdk/openai'; // Import OpenAI instead of Anthropic
 import { generateText } from 'ai'; // Import generateText
 
 export const htmlSlideTool = tool({
@@ -242,7 +242,7 @@ ${baseDesignPrompt}`;
     try {
       // console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}"`);
       const { text: generatedHtml } = await generateText({
-        model: anthropic('claude-opus-4-20250514'), // Use Anthropic model
+        model: openai.responses('o3-pro-2025-06-10'), // Use the Responses API for the reasoning model
         prompt: systemPrompt, // The detailed instructions form the system prompt
       });
 

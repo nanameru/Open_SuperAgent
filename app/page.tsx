@@ -675,46 +675,43 @@ export default function AppPage() {
             </div>
           )}
 
-          {/* メインのチャットメッセージ表示エリア */}
-          {error && (
-            <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50">
-              <p>
-                <strong>Error:</strong> {error.message || 'An error occurred.'}
-              </p>
-              <p className="text-sm mt-2">
-                Please check your API key and network connection.
-              </p>
-              <button
-                onClick={() => {
-                  // ツール状態をリセット
-                  setSlideToolState({
-                    isActive: false,
-                    htmlContent: '',
-                    title: '生成AIプレゼンテーション',
-                    forcePanelOpen: false
-                  });
-                  setImageToolState({
-                    isActive: false,
-                    images: [],
-                    prompt: '生成された画像',
-                    forcePanelOpen: false
-                  });
-                  setBrowserbaseToolState({
-                    isActive: false,
-                    sessionId: '',
-                    replayUrl: '',
-                    liveViewUrl: undefined,
-                    screenshot: undefined,
-                    pageTitle: undefined,
-                    elementText: undefined,
-                    forcePanelOpen: false
-                  });
-                  console.log("ツール状態をリセットしました");
-                }}
-                className="mt-2 px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-              >
-                状態をリセット
-              </button>
+
+
+                          {error && (
+              <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
+                <p>Error: {error.message}</p>
+                <p>Please check your API key and network connection.</p>
+                <button 
+                  onClick={() => {
+                    // ツール状態をリセット
+                    setSlideToolState({
+                      isActive: false,
+                      htmlContent: '',
+                      title: '生成AIプレゼンテーション',
+                      forcePanelOpen: false
+                    });
+                    setImageToolState({
+                      isActive: false,
+                      images: [],
+                      prompt: '生成された画像',
+                      forcePanelOpen: false
+                    });
+                    setBrowserbaseToolState({
+                      isActive: false,
+                      sessionId: '',
+                      replayUrl: '',
+                      liveViewUrl: undefined,
+                      screenshot: undefined,
+                      pageTitle: undefined,
+                      elementText: undefined,
+                      forcePanelOpen: false
+                    });
+                    console.log("ツール状態をリセットしました");
+                  }}
+                  className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+                >
+                  状態をリセット
+                </button>
             </div>
           )}
         </div>

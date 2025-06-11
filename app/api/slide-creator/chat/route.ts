@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSlideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
+import { createSlideCreatorAgent, createModel } from '@/src/mastra/agents/slideCreatorAgent';
 import { mastra } from '@/src/mastra';
 import { Message } from 'ai';
 import { streamText } from 'ai';
@@ -45,6 +45,18 @@ export async function POST(req: NextRequest) {
       devLog(`Using model from storage: ${currentModel.provider} - ${currentModel.modelName}`);
     }
     
+    // OpenAIモデルの場合は、Agentを介さずに直接streamTextを呼び出す
+    if (currentModel.provider === 'openai') {
+      devLog('Bypassing agent for OpenAI model, using streamText directly.');
+      const model = createModel(currentModel.provider, currentModel.modelName);
+      const response = await streamText({
+        model: model,
+        messages: messages,
+        // ここで必要に応じてツールを渡すこともできますが、まずはテキスト生成を優先します
+      });
+      return response.toDataStreamResponse();
+    }
+    
     // 選択されたモデルでslideCreatorAgentを動的に作成
     const slideCreatorAgent = createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
     
@@ -78,23 +90,7 @@ export async function POST(req: NextRequest) {
         }
         
         // Deep Research用にモデルを動的に作成
-        let model;
-        switch (currentModel.provider) {
-          case 'openai':
-            const { openai } = await import('@ai-sdk/openai');
-            model = openai(currentModel.modelName);
-            break;
-          case 'claude':
-            const { anthropic } = await import('@ai-sdk/anthropic');
-            model = anthropic(currentModel.modelName);
-            break;
-          case 'gemini':
-            const { google } = await import('@ai-sdk/google');
-            model = google(currentModel.modelName);
-            break;
-          default:
-            throw new Error(`Unsupported provider: ${currentModel.provider}`);
-        }
+        const model = createModel(currentModel.provider, currentModel.modelName);
         
         // 結果をストリーミング形式で返す
         const response = streamText({

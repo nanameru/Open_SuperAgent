@@ -21,7 +21,8 @@ interface Model {
 
 const models: Model[] = [
   { id: 'gpt-4.1', provider: 'openai', name: 'gpt-4.1', displayName: 'GPT-4.1' },
-  { id: 'o3', provider: 'openai', name: 'o3', displayName: 'o3' },
+  { id: 'o3-2025-04-16', provider: 'openai', name: 'o3-2025-04-16', displayName: 'o3' },
+  { id: 'o3-pro-2025-06-10', provider: 'openai', name: 'o3-pro-2025-06-10', displayName: 'o3 Pro' },
   { id: 'o4-mini-2025-04-16', provider: 'openai', name: 'o4-mini-2025-04-16', displayName: 'o4-mini' },
   { id: 'claude-opus-4-20250514', provider: 'claude', name: 'claude-opus-4-20250514', displayName: 'Claude Opus 4' },
   { id: 'claude-sonnet-4-20250514', provider: 'claude', name: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4' },

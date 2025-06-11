@@ -23,7 +23,7 @@ export const imageCreatorAgent = new Agent({
     
     If the image generation fails, inform the user clearly about the error reported by the tool.
   `,
-  model: openai('gpt-4.1'), // Changed to use the same model as slideCreatorAgent
+  model: openai.responses('o3-pro-2025-06-10'), // Changed to use the same model as slideCreatorAgent
   tools: { 
     geminiImageGenerationTool // Register the tool with the agent
   },

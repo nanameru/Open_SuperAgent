@@ -42,8 +42,8 @@ export const browserActTool = createTool({
       // アクション後の待機
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // アクセシビリティツリーを取得
-      const accessibilityTree = await page.accessibility.snapshot();
+      // Get a simplified accessibility tree focusing on interactive elements
+      const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: true });
 
       // スクリーンショットを取得
       let screenshot = '';
@@ -56,13 +56,16 @@ export const browserActTool = createTool({
       
       console.log(`✅ Action completed: ${instruction}`);
       
-      return {
+      const output = {
         success: true,
         action: instruction,
         message: `Successfully performed: ${instruction}`,
         screenshot,
-        accessibilityTree: JSON.stringify(accessibilityTree).substring(0, 10000),
+        accessibilityTree: JSON.stringify(accessibilityTree),
       };
+
+      console.log('--- BROWSER ACT TOOL OUTPUT ---', JSON.stringify(output, null, 2));
+      return output;
     } catch (error) {
       console.error('Action error:', error);
       return {

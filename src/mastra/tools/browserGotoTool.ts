@@ -63,18 +63,21 @@ export const browserGotoTool = createTool({
       const currentUrl = page.url();
       const title = await page.title();
       
-      // Get the accessibility tree
-      const accessibilityTree = await page.accessibility.snapshot();
+      // Get a simplified accessibility tree focusing on interactive elements
+      const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: true });
       
       console.log(`✅ Navigation completed: ${title}`);
       
-      return {
+      const output = {
         success: true,
         url: currentUrl,
         title,
         message: `Successfully navigated to ${url}`,
-        accessibilityTree: JSON.stringify(accessibilityTree).substring(0, 10000),
+        accessibilityTree: JSON.stringify(accessibilityTree),
       };
+      
+      console.log('--- BROWSER GOTO TOOL OUTPUT ---', JSON.stringify(output, null, 2));
+      return output;
     } catch (error) {
       console.error('Navigation error:', error);
       return {

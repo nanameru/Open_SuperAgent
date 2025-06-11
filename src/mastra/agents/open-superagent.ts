@@ -17,7 +17,7 @@ Available tools:
 - htmlSlideTool: Create HTML slides based on a topic and outline.
 - braveSearchTool: Perform web searches using Brave Search.
 - geminiImageGenerationTool: Generate images using Google's Gemini API.`,
-  model: openai('gpt-4o-mini'), // You can choose a different model if preferred
+  model: openai('o3-2025-04-16'), // You can choose a different model if preferred
   tools: {
     weatherTool,
     htmlSlideTool,
