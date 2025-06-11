@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
-import { stagehandInstances } from './browserSharedInstances';
+import { stagehandInstances, contextIds } from './browserSharedInstances';
+import { Browserbase } from '@browserbasehq/sdk';
 
 const browserGotoToolInputSchema = z.object({
   sessionId: z.string().describe('Browserbase session ID'),
@@ -30,6 +31,8 @@ export const browserGotoTool = createTool({
       let stagehand = stagehandInstances.get(sessionId);
       
       if (!stagehand) {
+        const contextId = `ctx-${sessionId}`;
+
         // 初回はStagehandを初期化
         const { Stagehand } = await import('@browserbasehq/stagehand');
         
@@ -39,7 +42,7 @@ export const browserGotoTool = createTool({
         }
         
         stagehand = new Stagehand({
-          browserbaseSessionID: sessionId,
+          browserbaseSessionID: contextId,
           env: "BROWSERBASE",
           modelName: "google/gemini-2.5-flash-preview-05-20",
           modelClientOptions: {

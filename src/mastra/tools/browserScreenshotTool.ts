@@ -1,30 +1,29 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
-import { writeFile } from 'fs/promises';
+import { promises as fs } from 'fs';
 import path from 'path';
 import { stagehandInstances } from './browserSharedInstances';
 
 const browserScreenshotToolInputSchema = z.object({
   sessionId: z.string().describe('Browserbase session ID'),
   fullPage: z.boolean().optional().default(false).describe('Whether to capture the full page'),
-  filename: z.string().optional().describe('Optional filename for saving screenshot'),
+  filename: z.string().optional().describe('Optional filename for the screenshot file'),
 });
 
 const browserScreenshotToolOutputSchema = z.object({
-  success: z.boolean().describe('Whether screenshot was successful'),
-  screenshot: z.string().describe('Base64 encoded screenshot'),
-  filepath: z.string().optional().describe('File path if saved to disk'),
+  success: z.boolean().describe('Whether the screenshot was successful'),
+  screenshotUrl: z.string().describe('URL of the captured screenshot'),
   message: z.string().describe('Result message'),
 });
 
 export const browserScreenshotTool = createTool({
   id: 'browser-screenshot',
-  description: 'Take a screenshot of the current page',
+  description: 'Take a screenshot of the current page and get its URL.',
   inputSchema: browserScreenshotToolInputSchema,
   outputSchema: browserScreenshotToolOutputSchema,
   execute: async ({ context }) => {
     try {
-      const { sessionId, fullPage, filename } = context;
+      const { sessionId, fullPage, filename: userFilename } = context;
       
       // Stagehandインスタンスを取得
       const stagehand = stagehandInstances.get(sessionId);
@@ -43,32 +42,31 @@ export const browserScreenshotTool = createTool({
         timeout: 10000,
       });
       
-      const base64Screenshot = `data:image/png;base64,${screenshotBuffer.toString('base64')}`;
-      
-      // ファイルに保存する場合
-      let filepath: string | undefined;
-      if (filename) {
-        const screenshotDir = path.join(process.cwd(), 'public', 'browser-screenshots');
-        const fullPath = path.join(screenshotDir, filename.endsWith('.png') ? filename : `${filename}.png`);
+      // ファイル名とパスを設定
+      const filename = userFilename 
+        ? (userFilename.endsWith('.png') ? userFilename : `${userFilename}.png`)
+        : `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.png`;
         
-        await writeFile(fullPath, screenshotBuffer);
-        filepath = fullPath;
-        console.log(`💾 Screenshot saved to: ${filepath}`);
-      }
+      const screenshotDir = path.join(process.cwd(), 'public', 'browser-screenshots');
+      await fs.mkdir(screenshotDir, { recursive: true });
+      const filePath = path.join(screenshotDir, filename);
       
-      console.log(`✅ Screenshot captured successfully`);
+      // ファイルに保存
+      await fs.writeFile(filePath, screenshotBuffer);
+      const screenshotUrl = `/browser-screenshots/${filename}`;
+      
+      console.log(`✅ Screenshot captured and saved to: ${filePath}`);
       
       return {
         success: true,
-        screenshot: base64Screenshot,
-        filepath,
-        message: 'Screenshot captured successfully',
+        screenshotUrl,
+        message: `Screenshot captured successfully. Accessible at: ${screenshotUrl}`,
       };
     } catch (error) {
       console.error('Screenshot error:', error);
       return {
         success: false,
-        screenshot: '',
+        screenshotUrl: '',
         message: `Screenshot failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }

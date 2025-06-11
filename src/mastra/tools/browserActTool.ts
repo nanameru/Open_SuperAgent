@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
 import { stagehandInstances } from './browserSharedInstances';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const browserActToolInputSchema = z.object({
   sessionId: z.string().describe('Browserbase session ID'),
@@ -12,7 +14,7 @@ const browserActToolOutputSchema = z.object({
   success: z.boolean().describe('Whether the action was successful'),
   action: z.string().describe('The action that was performed'),
   message: z.string().describe('Result message'),
-  screenshot: z.string().optional().describe('Base64 encoded screenshot after action'),
+  screenshot: z.string().optional().describe('URL of the screenshot after action'),
   accessibilityTree: z.string().describe('Accessibility tree of the page after the action'),
 });
 
@@ -46,10 +48,15 @@ export const browserActTool = createTool({
       const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: true });
 
       // スクリーンショットを取得
-      let screenshot = '';
+      let screenshotUrl = '';
       try {
         const screenshotBuffer = await page.screenshot({ fullPage: false, timeout: 5000 });
-        screenshot = `data:image/png;base64,${screenshotBuffer.toString('base64')}`;
+        const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.png`;
+        const dirPath = path.join(process.cwd(), 'public', 'browser-screenshots');
+        await fs.promises.mkdir(dirPath, { recursive: true });
+        const filePath = path.join(dirPath, filename);
+        await fs.promises.writeFile(filePath, screenshotBuffer);
+        screenshotUrl = `/browser-screenshots/${filename}`;
       } catch (e) {
         console.warn('Screenshot capture failed:', e);
       }
@@ -60,7 +67,7 @@ export const browserActTool = createTool({
         success: true,
         action: instruction,
         message: `Successfully performed: ${instruction}`,
-        screenshot,
+        screenshot: screenshotUrl,
         accessibilityTree: JSON.stringify(accessibilityTree),
       };
 
