@@ -281,17 +281,6 @@ export function BrowserOperationSidebar({
               }}
             />
             
-            {/* 🔧 **デバッグ情報（右下に小さく表示）** */}
-            <div className="absolute bottom-2 right-2 z-10 bg-black/70 text-white text-xs p-2 rounded max-w-xs">
-              <div className="font-semibold">{useManualUrl ? 'Manual URL' : 'Auto URL'}:</div>
-              <div className="break-all text-xs">{currentUrl}</div>
-              <div className="mt-1">
-                <div>Mode: {useManualUrl ? 'manual' : viewMode}</div>
-                <div>Status: {connectionStatus}</div>
-                <div>Session: {sessionId?.substring(0, 8)}...</div>
-                <div className="text-green-400">✅ Live View Active</div>
-              </div>
-            </div>
           </div>
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">

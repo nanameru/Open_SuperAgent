@@ -631,23 +631,6 @@ export default function AppPage() {
           {/* ブラウザ操作サイドバー - 50% */}
           {showBrowserPanel && (
             <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative h-full overflow-hidden">
-              {/* 🔧 **デバッグ情報を表示** */}
-              <div className="absolute top-2 left-2 z-10 bg-blue-100 text-blue-800 text-xs p-2 rounded max-w-md">
-                <div>Panel: {showBrowserPanel ? 'ON' : 'OFF'}</div>
-                <div>Session: {browserbaseToolState.sessionId || 'none'}</div>
-                <div>Live: {browserbaseToolState.liveViewUrl ? 'yes' : 'no'}</div>
-                <div>Replay: {browserbaseToolState.replayUrl ? 'yes' : 'no'}</div>
-                <div>Active: {browserbaseToolState.isActive ? 'yes' : 'no'}</div>
-                <div>Time: {new Date().toLocaleTimeString()}</div>
-                {browserbaseToolState.liveViewUrl && (
-                  <div className="mt-1 text-xs break-all">
-                    <div className="font-semibold">Live URL:</div>
-                    <div className="bg-white/50 p-1 rounded">
-                      {browserbaseToolState.liveViewUrl.substring(0, 80)}...
-                    </div>
-                  </div>
-                )}
-              </div>
               
               {/* 非表示ボタン */}
               <button
