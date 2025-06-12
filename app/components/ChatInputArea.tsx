@@ -155,8 +155,8 @@ export const ChatInputArea = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-transparent pb-6 pt-4 z-10 ml-64">
-      <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto px-6">
+    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-gray-200 pb-6 pt-6 z-10">
+      <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto px-8">
         <div className="relative flex items-center bg-gray-100 rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
           {/* ツール選択ドロップダウン */}
           <Popover open={open} onOpenChange={setOpen}>

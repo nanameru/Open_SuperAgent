@@ -571,39 +571,48 @@ export default function AppPage() {
         <div className="flex-1 flex overflow-hidden">
           {/* チャットエリア - 動的幅 */}
           <main className={`${showBrowserPanel ? 'w-1/2 border-r' : 'w-full'} flex flex-col overflow-hidden bg-white border-gray-200 transition-all duration-300`}>
-            <div className="w-full flex-1 flex flex-col px-6 py-6 overflow-y-auto pb-32">
-              {/* スライドツールがアクティブな場合に表示 */}
-              {slideToolState.isActive && (
-                <PresentationTool 
-                  htmlContent={slideToolState.htmlContent}
-                  title={slideToolState.title}
-                  autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
-                  forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
-                  onPreviewOpen={() => setIsPreviewOpen(true)}
-                  onPreviewClose={() => setIsPreviewOpen(false)}
-                  onCreatePresentation={() => {
-                    // スライド編集機能を開く
-                    console.log("Edit in AI Slides clicked");
-                  }}
-                />
-              )}
-              
-              {/* 画像ツールがアクティブな場合に表示 */}
-              {imageToolState.isActive && imageToolState.images.length > 0 && (
-                <ImageTool 
-                  images={imageToolState.images}
-                  prompt={imageToolState.prompt}
-                  autoOpenPreview={true} // 画像があれば自動的に開く
-                  forcePanelOpen={imageToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
-                  onPreviewOpen={() => setIsPreviewOpen(true)}
-                  onPreviewClose={() => setIsPreviewOpen(false)}
-                  onPreviewWidthChange={handlePreviewPanelWidthChange}
-                />
+            <div className="w-full flex-1 flex flex-col px-8 py-8 overflow-y-auto pb-40">
+              {/* ツールコンテナ - 適切な間隔で配置 */}
+              {(slideToolState.isActive || (imageToolState.isActive && imageToolState.images.length > 0)) && (
+                <div className="mb-8 space-y-6">
+                  {/* スライドツールがアクティブな場合に表示 */}
+                  {slideToolState.isActive && (
+                    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <PresentationTool 
+                        htmlContent={slideToolState.htmlContent}
+                        title={slideToolState.title}
+                        autoOpenPreview={slideToolState.htmlContent !== ''} // HTMLコンテンツがある場合に自動的に開く
+                        forcePanelOpen={slideToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                        onPreviewOpen={() => setIsPreviewOpen(true)}
+                        onPreviewClose={() => setIsPreviewOpen(false)}
+                        onCreatePresentation={() => {
+                          // スライド編集機能を開く
+                          console.log("Edit in AI Slides clicked");
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* 画像ツールがアクティブな場合に表示 */}
+                  {imageToolState.isActive && imageToolState.images.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <ImageTool 
+                        images={imageToolState.images}
+                        prompt={imageToolState.prompt}
+                        autoOpenPreview={true} // 画像があれば自動的に開く
+                        forcePanelOpen={imageToolState.forcePanelOpen} // 強制的にパネルを開くフラグ
+                        onPreviewOpen={() => setIsPreviewOpen(true)}
+                        onPreviewClose={() => setIsPreviewOpen(false)}
+                        onPreviewWidthChange={handlePreviewPanelWidthChange}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
               
               {/* メッセージコンテナ - 常に同じ構造 */}
               <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-start'} min-h-0`}>
-                <div className="space-y-0 pb-24">
+                <div className="space-y-4 pb-32">
                   {combinedMessages.length === 0 && !isLoading && !error && (
                     <div className="flex flex-col items-center justify-center">
                       <div className="text-center space-y-4">
@@ -642,12 +651,12 @@ export default function AppPage() {
                     };
                     
                     return statusText && statusIcon && !hasAssistantStartedResponse && (
-                      <div className="w-full px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-gray-100 rounded-lg">
+                      <div className="w-full py-6">
+                        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="p-3 bg-white rounded-lg shadow-sm">
                             {React.createElement(statusIcon, { className: getIconAnimation(statusIcon) })}
                           </div>
-                          <div className="text-gray-600 font-medium">
+                          <div className="text-gray-700 font-medium">
                             {statusText}
                           </div>
                         </div>
@@ -666,7 +675,7 @@ export default function AppPage() {
               {/* 非表示ボタン */}
               <button
                 onClick={() => setShowBrowserPanel(false)}
-                className="absolute top-2 right-2 z-10 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors"
+                className="absolute top-4 right-4 z-10 p-3 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors"
                 title="ブラウザ自動化パネルを非表示"
               >
                 <svg className="h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -691,10 +700,12 @@ export default function AppPage() {
 
 
 
-                          {error && (
-              <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
-                <p>Error: {error.message}</p>
-                <p>Please check your API key and network connection.</p>
+          {error && (
+            <div className="px-8 py-6">
+              <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg border border-red-200 w-full max-w-3xl mx-auto">
+                <h3 className="font-semibold mb-2">エラーが発生しました</h3>
+                <p className="mb-2">Error: {error.message}</p>
+                <p className="mb-4">Please check your API key and network connection.</p>
                 <button 
                   onClick={() => {
                     // ツール状態をリセット
@@ -722,7 +733,7 @@ export default function AppPage() {
                     });
                     console.log("ツール状態をリセットしました");
                   }}
-                  className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+                  className="mt-2 bg-white text-red-600 border border-red-300 px-6 py-3 rounded-lg hover:bg-red-50 transition-colors font-medium"
                 >
                   状態をリセット
                 </button>

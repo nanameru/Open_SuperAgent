@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ClientStagewiseToolbar from "./components/ClientStagewiseToolbar";
 import { ModelProvider } from "./components/ModelContext";
 
 const geistSans = Geist({
@@ -31,7 +30,6 @@ export default function RootLayout({
       >
         <ModelProvider>
           {children}
-          <ClientStagewiseToolbar />
         </ModelProvider>
       </body>
     </html>
