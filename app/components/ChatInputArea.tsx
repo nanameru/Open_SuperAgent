@@ -165,6 +165,7 @@ export const ChatInputArea = ({
                 type="button"
                 className="flex items-center gap-1 px-3 py-2 ml-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-2xl transition-colors"
                 disabled={isLoading}
+                aria-label="ツールを選択"
               >
                 {selectedTool ? (
                   <>
@@ -245,6 +246,7 @@ export const ChatInputArea = ({
                     : 'text-gray-600 bg-gray-50 hover:bg-gray-200'
                 } disabled:bg-gray-300 disabled:cursor-not-allowed`}
                 title={isListening ? '音声入力を停止' : '音声入力を開始'}
+                aria-label={isListening ? '音声入力を停止' : '音声入力を開始'}
               >
                 {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
@@ -255,6 +257,7 @@ export const ChatInputArea = ({
               type="submit" 
               disabled={isLoading || !input.trim()} 
               className="p-2 text-white bg-black rounded-full hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              aria-label="メッセージを送信"
             >
               <ArrowUp className="h-5 w-5" />
             </button>

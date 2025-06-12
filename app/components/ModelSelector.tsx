@@ -81,7 +81,7 @@ export const ModelSelector = () => {
 
   return (
     <Select value={selectedModel.id} onValueChange={handleModelChange}>
-      <SelectTrigger className="w-[280px] h-9">
+      <SelectTrigger className="w-[280px] h-9" aria-label="AI モデルを選択">
         <SelectValue>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${providerConfig[selectedModel.provider].badgeColor}`}>

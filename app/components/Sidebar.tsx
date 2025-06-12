@@ -24,7 +24,11 @@ export function Sidebar({ className }: SidebarProps) {
         <div className={cn('h-full bg-background border-r flex flex-col', isCollapsed ? 'w-16' : 'w-64')}>
           <div className="flex items-center justify-between p-2">
             {!isCollapsed && <span className="text-lg font-semibold">Mastra</span>}
-            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-muted">
+            <button 
+              onClick={toggleSidebar} 
+              className="p-2 rounded-lg hover:bg-muted"
+              aria-label={isCollapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+            >
               {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
             </button>
           </div>
