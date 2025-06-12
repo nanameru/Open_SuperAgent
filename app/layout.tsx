@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ClientStagewiseToolbar from "./components/ClientStagewiseToolbar";
 import { ModelProvider } from "./components/ModelContext";
+import dynamic from "next/dynamic";
+
+// Conditionally import Stagewise toolbar only in development
+const ClientStagewiseToolbar = dynamic(
+  () => import("./components/ClientStagewiseToolbar")
+);
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,6 +29,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const showStagewise = process.env.NODE_ENV === 'development' && 
+                       process.env.NEXT_PUBLIC_STAGEWISE_ENABLED === 'true';
+
   return (
     <html lang="en">
       <body
@@ -31,7 +39,7 @@ export default function RootLayout({
       >
         <ModelProvider>
           {children}
-          <ClientStagewiseToolbar />
+          {showStagewise && <ClientStagewiseToolbar />}
         </ModelProvider>
       </body>
     </html>

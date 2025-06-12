@@ -4,6 +4,60 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 
 ![アプリケーションのスクリーンショット](public/screenshot.png)
 
+## 🚀 すぐに試してみる（無料）
+
+**最初は無料のAPIキーだけで、AIチャットと検索機能を体験できます！**
+
+### 必要な無料APIキー（2つだけ）
+
+1. **Google Gemini API（無料）**
+   - [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
+   - Googleアカウントでサインイン
+   - "Create API Key" をクリック
+   - **無料枠**: 1分間あたり最大15リクエスト、1日1,500リクエストまで無料
+
+2. **Brave Search API（無料）**
+   - [Brave Search API](https://api.search.brave.com/app/keys) にアクセス
+   - アカウント作成（GitHubアカウントでも可）
+   - "Create new key" をクリック
+   - **無料枠**: 月間2,000クエリまで無料
+
+### クイックスタート
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/nanameru/Open_SuperAgent.git
+cd Open_SuperAgent
+
+# 依存パッケージをインストール
+npm install
+
+# 環境変数ファイルをコピー
+cp .env.example .env
+
+# .envファイルを編集して、上記2つのAPIキーを設定
+# GOOGLE_GENERATIVE_AI_API_KEY=取得したGeminiのAPIキー
+# GEMINI_API_KEY=同じGeminiのAPIキー（両方に設定）
+# BRAVE_API_KEY=取得したBrave SearchのAPIキー
+
+# Mastraサーバーを起動（別ターミナルで）
+mastra dev
+
+# 開発サーバーを起動
+npm run dev
+```
+
+ブラウザで http://localhost:3000 を開いて、AIチャットと検索を試してみましょう！
+
+### 無料で使える機能
+
+- ✅ **AIチャット**: Google Gemini 2.5 Flashによる高速な応答
+- ✅ **Web検索**: Brave Searchを使った最新情報の検索
+- ✅ **タスクプランニング**: 複数のタスクを効率的に実行
+- ✅ **並列処理**: 独立したタスクを同時実行で高速化
+
+他の機能（画像生成、音声生成、ブラウザ自動化など）を使いたい場合は、該当するAPIキーを追加で設定してください。
+
 ## 主な機能
 
 - **AIチャット**: シンプルで使いやすいチャットインターフェース

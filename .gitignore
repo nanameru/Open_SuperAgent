@@ -56,8 +56,5 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 
-# Stagewise拡張機能を除外
-app/components/StagewiseDevToolbar.tsx
-app/components/StagewiseToolbar.tsx
 .mastra
 \n# Agent-generated files\n/public/slidecreatorAgent/
