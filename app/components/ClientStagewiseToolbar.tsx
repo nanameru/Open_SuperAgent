@@ -8,5 +8,10 @@ const StagewiseToolbar = dynamic(
 );
 
 export default function ClientStagewiseToolbar() {
+  // Only show stagewise toolbar in development mode
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
+  
   return <StagewiseToolbar />;
 } 
