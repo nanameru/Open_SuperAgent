@@ -48,7 +48,7 @@ const data = {
       icon: List,
     },
     {
-      title: "ツール一覧",
+      title: "ツール",
       url: "/tools",
       icon: ClipboardList,
     },
