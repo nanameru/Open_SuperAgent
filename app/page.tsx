@@ -8,7 +8,7 @@ import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
 import { BrowserOperationSidebar } from './components/BrowserOperationSidebar';
-import { useEffect, useState, useRef, useCallback, useOptimistic, startTransition } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useOptimistic, startTransition } from 'react';
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useDeepResearch } from './hooks/useDeepResearch';
@@ -623,6 +623,27 @@ export default function AppPage() {
                       isDeepResearchLoading={isDeepResearchLoading}
                     />
                   ))}
+                  
+                  {/* 思考中表示 */}
+                  {(() => {
+                    // 回答が始まったかどうかを判定
+                    const hasAssistantStartedResponse = combinedMessages.length > 0 && 
+                      combinedMessages[combinedMessages.length - 1].role === 'assistant' &&
+                      combinedMessages[combinedMessages.length - 1].content.length > 0;
+                    
+                    return statusText && statusIcon && !hasAssistantStartedResponse && (
+                      <div className="w-full px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gray-100 rounded-lg">
+                            {React.createElement(statusIcon, { className: "h-5 w-5 text-gray-600 animate-spin" })}
+                          </div>
+                          <div className="text-gray-600 font-medium">
+                            {statusText}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
