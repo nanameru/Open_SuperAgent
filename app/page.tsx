@@ -12,7 +12,8 @@ import React, { useEffect, useState, useRef, useCallback, useOptimistic, startTr
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useDeepResearch } from './hooks/useDeepResearch';
-import { ArrowPathIcon, MagnifyingGlassIcon, LightBulbIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { Sparkles, Brain, Bot } from 'lucide-react';
 import { ModelProvider, useModel } from './components/ModelContext';
 
 // ツール実行メッセージ用の型
@@ -61,6 +62,7 @@ interface BrowserbaseToolState {
 
 // メッセージの型（Message型とToolMessage型の両方を含む）
 type UIMessage = Message | ToolMessage;
+
 
 export default function AppPage() {
   const { currentModel } = useModel();
@@ -172,21 +174,21 @@ export default function AppPage() {
           setStatusIcon(() => MagnifyingGlassIcon);
         } else if (eventTitle.includes('生成') || eventTitle.includes('generate')) {
           setStatusText('回答生成中...');
-          setStatusIcon(() => LightBulbIcon);
+          setStatusIcon(() => Sparkles);
         } else if (eventTitle.includes('評価') || eventTitle.includes('evaluate') || eventTitle.includes('処理') || eventTitle.includes('processing')) {
           setStatusText('情報処理中...');
-          setStatusIcon(() => ArrowPathIcon);
+          setStatusIcon(() => Brain);
         } else if (eventTitle.includes('計画') || eventTitle.includes('plan') || eventTitle.includes('クエリ')) {
           setStatusText('計画中...');
-          setStatusIcon(() => LightBulbIcon);
+          setStatusIcon(() => Bot);
         } else {
           setStatusText('思考中...');
-          setStatusIcon(() => LightBulbIcon);
+          setStatusIcon(() => Sparkles);
         }
       } else {
         // 通常のチャットローディング
         setStatusText('思考中...');
-        setStatusIcon(() => LightBulbIcon);
+        setStatusIcon(() => Sparkles);
       }
     } else {
       // ローディングが終了したらクリア
@@ -631,11 +633,19 @@ export default function AppPage() {
                       combinedMessages[combinedMessages.length - 1].role === 'assistant' &&
                       combinedMessages[combinedMessages.length - 1].content.length > 0;
                     
+                    // アイコンタイプに応じたアニメーションクラスを決定
+                    const getIconAnimation = (iconComponent: any) => {
+                      if (iconComponent === Sparkles) {
+                        return "h-5 w-5 text-gray-600 animate-pulse"; // キラキラ効果
+                      }
+                      return "h-5 w-5 text-gray-600 animate-spin"; // 回転
+                    };
+                    
                     return statusText && statusIcon && !hasAssistantStartedResponse && (
                       <div className="w-full px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-gray-100 rounded-lg">
-                            {React.createElement(statusIcon, { className: "h-5 w-5 text-gray-600 animate-spin" })}
+                            {React.createElement(statusIcon, { className: getIconAnimation(statusIcon) })}
                           </div>
                           <div className="text-gray-600 font-medium">
                             {statusText}
