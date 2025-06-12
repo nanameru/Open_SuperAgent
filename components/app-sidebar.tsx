@@ -43,12 +43,12 @@ const data = {
   },
   navMain: [
     {
-      title: "エージェント",
+      title: "AIアシスタント",
       url: "/",
       icon: List,
     },
     {
-      title: "ツール一覧",
+      title: "できること",
       url: "/tools",
       icon: ClipboardList,
     },
@@ -82,7 +82,7 @@ const data = {
       icon: File,
     },
     {
-      name: "ユースケース一覧",
+      name: "活用事例",
       url: "/usecases",
       icon: Lightbulb,
     },
