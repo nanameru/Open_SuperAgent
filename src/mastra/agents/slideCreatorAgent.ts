@@ -14,6 +14,7 @@ import {
   graphicRecordingTool,
   minimaxTTSTool,
   claudeCodeTool,
+  claudeCodeSDKTool,
   githubListIssuesTool
 } from '../tools'; // Import all tools
 import { browserSessionTool } from '../tools/browserSessionTool';
@@ -66,6 +67,7 @@ You have access to the following specialized tools:
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
 - \`claude-code-tool\`: Create a new GitHub issue using ClaudeCodeTool. IMPORTANT: When creating an issue, you MUST include the string '@claude' (all lowercase) in the 'body' parameter.
+- \`claude-code-sdk\`: Comprehensive AI-powered code assistance tool. Provides code analysis, generation, review, refactoring, testing, and documentation capabilities. Supports multiple operations: analyze (code analysis), generate (code generation), review (code review), refactor (code improvement), generate-tests (test generation), and generate-docs (documentation generation).
 - \`github-list-issues\`: Lists issues from a GitHub repository.
 
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
@@ -275,6 +277,7 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       braveSearchTool, // Register the search tool
       grokXSearchTool, // Register the Grok X search tool
       claudeCodeTool, // Register the GitHub issue tool
+      claudeCodeSDKTool, // Register the Claude Code SDK tool
       githubListIssuesTool, // Register the GitHub list issues tool
       geminiImageGenerationTool, // Register the image generation tool
       geminiVideoGenerationTool, // Register the video generation tool
