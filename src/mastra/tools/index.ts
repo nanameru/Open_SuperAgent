@@ -121,6 +121,7 @@ import { browserWaitTool } from './browserWaitTool';
 import { browserScreenshotTool } from './browserScreenshotTool';
 import { browserCloseTool } from './browserCloseTool';
 import { claudeCodeTool } from './claudeCodeTool';
+import { claudeCodeSDKTool } from './claudeCodeSDKTool';
 import { githubListIssuesTool } from './githubListIssuesTool';
 import { fileAppendTool } from './fileAppendTool';
 
@@ -146,6 +147,7 @@ export const allTools = [
   browserScreenshotTool,
   browserCloseTool,
   claudeCodeTool,
+  claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
 ];
@@ -174,6 +176,7 @@ export {
   browserScreenshotTool,
   browserCloseTool,
   claudeCodeTool,
+  claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
 };
