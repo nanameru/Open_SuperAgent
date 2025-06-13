@@ -11,6 +11,16 @@ interface SlideData {
   index: number;
 }
 
+// ストリームをストリングに変換するヘルパー関数
+function streamToString(stream: any): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk: any) => chunks.push(Buffer.from(chunk)));
+    stream.on("error", (err: any) => reject(err));
+    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -31,7 +41,7 @@ export async function POST(request: NextRequest) {
     // FormDataを作成
     const formData = new FormData();
     
-    // Nutrient API用の指示を設定
+    // Nutrient API用の指示を設定（あなたのコード構造に合わせる）
     const instructions = {
       parts: [
         {
@@ -45,52 +55,66 @@ export async function POST(request: NextRequest) {
     
     formData.append('instructions', JSON.stringify(instructions));
     
-    // HTMLコンテンツをBufferとして追加
+    // HTMLコンテンツをBufferとして追加（あなたのコードスタイルに合わせる）
     const htmlBuffer = Buffer.from(combinedHtml, 'utf-8');
     formData.append('document', htmlBuffer, {
       filename: 'index.html',
       contentType: 'text/html'
     });
     
-    // Nutrient APIを呼び出し
+    // Nutrient APIを呼び出し（あなたのaxios構造を使用）
     const response = await axios.post(NUTRIENT_API_URL, formData, {
-      headers: {
-        ...formData.getHeaders(),
+      headers: formData.getHeaders({
         'Authorization': `Bearer ${NUTRIENT_API_KEY}`
-      },
-      responseType: 'arraybuffer',
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity
+      }),
+      responseType: 'stream'
     });
     
     console.log('PPTX conversion successful');
     
+    // ストリームからバッファに変換
+    const chunks: Buffer[] = [];
+    for await (const chunk of response.data) {
+      chunks.push(chunk);
+    }
+    const responseBuffer = Buffer.concat(chunks);
+    
     // レスポンスヘッダーを設定してファイルを返す
-    return new NextResponse(response.data, {
+    return new NextResponse(responseBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'Content-Disposition': `attachment; filename="${title.replace(/[^a-z0-9]/gi, '_')}.pptx"`,
-        'Content-Length': response.data.length.toString()
+        'Content-Length': responseBuffer.length.toString()
       },
     });
     
   } catch (error) {
     console.error('Nutrient PPTX export error:', error);
     
-    if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data ? 
-        Buffer.from(error.response.data).toString('utf-8') : 
-        error.message;
-      
-      return NextResponse.json(
-        { 
-          error: 'PPTXファイルの生成に失敗しました', 
-          details: errorMessage,
-          status: error.response?.status 
-        },
-        { status: error.response?.status || 500 }
-      );
+    if (axios.isAxiosError(error) && error.response) {
+      try {
+        const errorString = await streamToString(error.response.data);
+        console.log('Error details:', errorString);
+        
+        return NextResponse.json(
+          { 
+            error: 'PPTXファイルの生成に失敗しました', 
+            details: errorString,
+            status: error.response.status 
+          },
+          { status: error.response.status }
+        );
+      } catch (streamError) {
+        return NextResponse.json(
+          { 
+            error: 'PPTXファイルの生成に失敗しました', 
+            details: error.message,
+            status: error.response.status 
+          },
+          { status: error.response.status }
+        );
+      }
     }
     
     return NextResponse.json(

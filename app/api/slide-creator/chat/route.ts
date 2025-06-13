@@ -20,6 +20,15 @@ function devLog(message: string, data?: any) {
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic'; // 動的なレンダリングを強制
 
+// Geminiモデルのリトライ設定
+const GEMINI_RETRY_ATTEMPTS = 3;
+const GEMINI_RETRY_DELAY = 2000; // 2秒
+
+// リトライ用のsleep関数
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function POST(req: NextRequest) {
   // リクエスト情報は詳細なログを出力しない
   
@@ -122,7 +131,29 @@ export async function POST(req: NextRequest) {
     // 詳細なログは出力しない
     
     // 動的に作成されたslideCreatorAgentを使用してストリーミングレスポンスを取得
-    const mastraStreamResult = await slideCreatorAgent.stream(messages);
+    let mastraStreamResult;
+    let lastError;
+    
+    // Geminiモデルの場合はリトライ処理を追加
+    for (let attempt = 1; attempt <= GEMINI_RETRY_ATTEMPTS; attempt++) {
+      try {
+        devLog(`Attempting to stream with ${currentModel.provider} (attempt ${attempt}/${GEMINI_RETRY_ATTEMPTS})`);
+        mastraStreamResult = await slideCreatorAgent.stream(messages);
+        break; // 成功した場合はループを抜ける
+      } catch (error: any) {
+        lastError = error;
+        devLog(`Stream attempt ${attempt} failed:`, error.message);
+        
+        // 最後の試行でない場合は待機してリトライ
+        if (attempt < GEMINI_RETRY_ATTEMPTS) {
+          devLog(`Retrying in ${GEMINI_RETRY_DELAY}ms...`);
+          await sleep(GEMINI_RETRY_DELAY);
+        } else {
+          devLog('All retry attempts failed');
+          throw lastError;
+        }
+      }
+    }
     
     // Stream オブジェクトの詳細をログ出力
     devLog('Mastra Stream Result Type', typeof mastraStreamResult);
@@ -149,6 +180,19 @@ export async function POST(req: NextRequest) {
     // エラー詳細も簡素化
     const message = error instanceof Error ? error.message : 'Internal server error';
     devLog('Chat API error:', message);
+    
+    // Gemini API特有のエラーチェック
+    if (message.includes('Visibility check was unavailable') || message.includes('503')) {
+      return NextResponse.json(
+        { 
+          error: 'Gemini API一時的な問題', 
+          details: 'Gemini APIに一時的な問題が発生しています。少し待ってから再試行してください。',
+          retryable: true
+        },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Chat API error', details: message },
       { status: 500 }

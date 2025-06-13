@@ -47,6 +47,12 @@ const toolOptions: ToolOption[] = [
     label: 'Deep Research を実行する',
     icon: <Search className="h-4 w-4" />,
     description: '詳細な調査と分析を行います'
+  },
+  {
+    value: 'enhanced-research',
+    label: 'Enhanced Deep Research',
+    icon: <Search className="h-4 w-4" />,
+    description: 'LangGraph-style advanced research with source validation'
   }
 ];
 
@@ -124,6 +130,8 @@ export const ChatInputArea = ({
       
       if (selectedTool === 'deep-research') {
         modifiedInput = `[Deep Research] ${input}`;
+      } else if (selectedTool === 'enhanced-research') {
+        modifiedInput = `[Enhanced Research] ${input}`;
       }
       
       // 修正された入力で送信
@@ -142,7 +150,7 @@ export const ChatInputArea = ({
       handleSubmit(syntheticEvent);
       
           // Deep Researchモード以外の場合はツール選択をリセット
-      if (selectedTool !== 'deep-research') {
+      if (selectedTool !== 'deep-research' && selectedTool !== 'enhanced-research') {
         setSelectedTool('');
         if (onDeepResearchModeChange) {
           onDeepResearchModeChange(false);
@@ -170,8 +178,8 @@ export const ChatInputArea = ({
                   <>
                     {toolOptions.find(opt => opt.value === selectedTool)?.icon}
                     <span className="text-xs font-medium">
-                      {isDeepResearchMode && selectedTool === 'deep-research' 
-                        ? 'Deep Research (有効)' 
+                      {isDeepResearchMode && (selectedTool === 'deep-research' || selectedTool === 'enhanced-research')
+                        ? selectedTool === 'enhanced-research' ? 'Enhanced Research (有効)' : 'Deep Research (有効)'
                         : toolOptions.find(opt => opt.value === selectedTool)?.label}
                     </span>
                   </>
@@ -200,7 +208,7 @@ export const ChatInputArea = ({
                           
                           // Deep Researchモードの状態を更新
                           if (onDeepResearchModeChange) {
-                            onDeepResearchModeChange(newSelectedTool === 'deep-research');
+                            onDeepResearchModeChange(newSelectedTool === 'deep-research' || newSelectedTool === 'enhanced-research');
                           }
                         }}
                         className="flex items-start gap-3 p-3"
@@ -224,7 +232,9 @@ export const ChatInputArea = ({
             onChange={handleInputChange}
             placeholder={
               isDeepResearchMode 
-                ? "Deep Researchで詳細調査します..." 
+                ? selectedTool === 'enhanced-research' 
+                  ? "Enhanced Research で高度な調査を実行します..."
+                  : "Deep Researchで詳細調査します..." 
                 : selectedTool 
                   ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
                   : "質問してみましょう"

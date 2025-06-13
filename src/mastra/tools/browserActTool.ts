@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
 import { stagehandInstances } from './browserSharedInstances';
+import { detectAndSolveCaptcha } from './captchaUtils';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -16,6 +17,9 @@ const browserActToolOutputSchema = z.object({
   message: z.string().describe('Result message'),
   screenshot: z.string().optional().describe('URL of the screenshot after action'),
   accessibilityTree: z.string().describe('Accessibility tree of the page after the action'),
+  captchaDetected: z.boolean().optional().describe('Whether CAPTCHA was detected'),
+  captchaSolved: z.boolean().optional().describe('Whether CAPTCHA was solved'),
+  captchaDuration: z.number().optional().describe('Time taken for CAPTCHA solving (milliseconds)'),
 });
 
 export const browserActTool = createTool({
@@ -44,6 +48,17 @@ export const browserActTool = createTool({
       // アクション後の待機
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // CAPTCHA自動検出・解決
+      console.log('🔍 アクション後のCAPTCHA検出を実行中...');
+      const captchaResult = await detectAndSolveCaptcha(sessionId, 30000);
+      
+      if (captchaResult.detected) {
+        console.log(`🔓 ${captchaResult.message}`);
+        if (!captchaResult.solved) {
+          console.warn('⚠️ CAPTCHA解決が継続中です');
+        }
+      }
+      
       // Get a simplified accessibility tree focusing on interactive elements
       const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: true });
 
@@ -66,9 +81,12 @@ export const browserActTool = createTool({
       const output = {
         success: true,
         action: instruction,
-        message: `Successfully performed: ${instruction}`,
+        message: `Successfully performed: ${instruction}${captchaResult.detected ? `\n${captchaResult.message}` : ''}`,
         screenshot: screenshotUrl,
         accessibilityTree: JSON.stringify(accessibilityTree),
+        captchaDetected: captchaResult.detected,
+        captchaSolved: captchaResult.solved,
+        captchaDuration: captchaResult.duration,
       };
 
       console.log('--- BROWSER ACT TOOL OUTPUT ---', JSON.stringify(output, null, 2));

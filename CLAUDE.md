@@ -60,7 +60,7 @@ The application uses Mastra's agent framework with three main agents:
 Tools are modular and located in `src/mastra/tools/`:
 - **Presentation Tools**: `htmlSlideTool` (12 layouts, 11 diagram types), `presentationPreviewTool`
 - **Media Generation**: Gemini/Imagen4 for images, Gemini for video, MiniMax for TTS
-- **Browser Automation**: Complete Browserbase integration for web automation
+- **Browser Automation**: Complete Browserbase integration with stealth mode and CAPTCHA solving
 - **Search**: Brave Search API, Grok X search
 - **Code Generation**: V0 code generation tool
 
@@ -122,7 +122,73 @@ MINIMAX_GROUP_ID
 3. Preview slides with the presentation preview panel
 4. Export to PPTX using the Nutrient method for best results
 
-### Browser Automation Notes
+### Browser Automation Features
+
+#### Available Tools
+- `browserSessionTool`: Create sessions with stealth mode and CAPTCHA settings
+- `browserGotoTool`: Navigate to URLs
+- `browserActTool`: Perform AI-driven actions (click, type, etc.)
+- `browserExtractTool`: Extract structured data from pages
+- `browserObserveTool`: Observe page elements and suggest actions
+- `browserScreenshotTool`: Capture page screenshots
+- `browserWaitTool`: Wait for specified durations
+- `browserWaitForCaptchaTool`: Monitor and wait for CAPTCHA solving
+- `browserCloseTool`: Close browser sessions
+
+#### Stealth Mode & CAPTCHA Features
+The browser automation system includes stealth capabilities:
+
+**Basic Stealth Mode** (included by default):
+- Automatic browser fingerprint randomization
+- Random viewport generation
+- Visual CAPTCHA solving
+
+**Custom CAPTCHA Support**:
+```json
+{
+  "browserSettings": {
+    "captchaImageSelector": "#captcha-image",
+    "captchaInputSelector": "#captcha-input"
+  }
+}
+```
+
+#### Usage Examples
+
+**Creating a session with CAPTCHA solving**:
+```javascript
+// Basic stealth with CAPTCHA solving (enabled by default)
+const session = await browserSessionTool({
+  browserSettings: {
+    solveCaptchas: true
+  },
+  proxies: true
+});
+
+// Custom CAPTCHA selectors
+const customSession = await browserSessionTool({
+  browserSettings: {
+    solveCaptchas: true,
+    captchaImageSelector: "#custom-captcha-image",
+    captchaInputSelector: "#custom-captcha-input"
+  },
+  proxies: true
+});
+```
+
+**Monitoring CAPTCHA solving**:
+```javascript
+// Wait for CAPTCHA to be solved automatically
+const result = await browserWaitForCaptchaTool({
+  sessionId: "session-id",
+  timeout: 30000
+});
+```
+
+#### Best Practices
+- Always enable proxies (`proxies: true`) for better success rates
+- CAPTCHA solving can take up to 30 seconds
+- Basic stealth mode is automatically enabled for all sessions
 - Avoid automating Google services (blocked by policy)
 - Use `braveSearchTool` or `grokXSearchTool` instead of Google Search
 - Browser sessions provide live view URLs for debugging

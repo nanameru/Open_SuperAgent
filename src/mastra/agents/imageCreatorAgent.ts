@@ -6,7 +6,7 @@ import { Memory } from '@mastra/memory';
 
 export const imageCreatorAgent = new Agent({
   // agent_id: 'image-creator-agent-001', // Removed agent_id to address linter error
-  name: 'Image Creator Agent',
+  name: 'imageCreatorAgent',
   instructions: `
     You are an assistant that generates images based on user prompts and returns them.
     When a user asks for an image, understand their request and use the geminiImageGenerationTool to create it.

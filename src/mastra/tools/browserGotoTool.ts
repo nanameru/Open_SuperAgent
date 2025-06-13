@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
-import { stagehandInstances } from './browserSharedInstances';
+import { stagehandInstances, sessionSettings } from './browserSharedInstances';
+import { detectAndSolveCaptcha } from './captchaUtils';
 
 const browserGotoToolInputSchema = z.object({
   sessionId: z.string().describe('Browserbase session ID'),
@@ -15,6 +16,9 @@ const browserGotoToolOutputSchema = z.object({
   title: z.string().describe('Page title after navigation'),
   message: z.string().describe('Result message'),
   accessibilityTree: z.string().describe('Accessibility tree of the page for context'),
+  captchaDetected: z.boolean().optional().describe('Whether CAPTCHA was detected'),
+  captchaSolved: z.boolean().optional().describe('Whether CAPTCHA was solved'),
+  captchaDuration: z.number().optional().describe('Time taken for CAPTCHA solving (milliseconds)'),
 });
 
 export const browserGotoTool = createTool({
@@ -38,6 +42,10 @@ export const browserGotoTool = createTool({
           throw new Error('Missing Gemini API key');
         }
         
+        // 保存されたセッション設定を取得
+        const settings = sessionSettings.get(sessionId);
+        console.log(`🔧 セッション設定を適用中: ${sessionId}`, settings);
+        
         stagehand = new Stagehand({
           browserbaseSessionID: sessionId,
           env: "BROWSERBASE",
@@ -52,6 +60,13 @@ export const browserGotoTool = createTool({
         
         await stagehand.init();
         stagehandInstances.set(sessionId, stagehand);
+        
+        if (settings?.proxies) {
+          console.log('🌐 Stagehand初期化: プロキシ有効');
+        }
+        if (settings?.solveCaptchas !== false) {
+          console.log('🔓 Stagehand初期化: CAPTCHA自動解決有効');
+        }
       }
       
       const page = stagehand.page;
@@ -63,6 +78,17 @@ export const browserGotoTool = createTool({
       const currentUrl = page.url();
       const title = await page.title();
       
+      // CAPTCHA自動検出・解決
+      console.log('🔍 ページ読み込み後のCAPTCHA検出を実行中...');
+      const captchaResult = await detectAndSolveCaptcha(sessionId, 30000);
+      
+      if (captchaResult.detected) {
+        console.log(`🔓 ${captchaResult.message}`);
+        if (!captchaResult.solved) {
+          console.warn('⚠️ CAPTCHA解決が継続中です');
+        }
+      }
+      
       // Get a simplified accessibility tree focusing on interactive elements
       const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: true });
       
@@ -72,8 +98,11 @@ export const browserGotoTool = createTool({
         success: true,
         url: currentUrl,
         title,
-        message: `Successfully navigated to ${url}`,
+        message: `Successfully navigated to ${url}${captchaResult.detected ? `\n${captchaResult.message}` : ''}`,
         accessibilityTree: JSON.stringify(accessibilityTree),
+        captchaDetected: captchaResult.detected,
+        captchaSolved: captchaResult.solved,
+        captchaDuration: captchaResult.duration,
       };
       
       console.log('--- BROWSER GOTO TOOL OUTPUT ---', JSON.stringify(output, null, 2));

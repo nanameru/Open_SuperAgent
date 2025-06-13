@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
+import { sessionSettings } from './browserSharedInstances';
 
 // 🔧 **グローバルフラグ：shimsが既にインポートされたかどうか**
 let shimsImported = false;
@@ -8,6 +9,12 @@ const browserSessionToolInputSchema = z.object({
   projectId: z.string().optional().describe('Browserbase project ID (defaults to env variable)'),
   keepAlive: z.boolean().optional().default(true).describe('Keep session alive after operations'),
   timeout: z.number().optional().default(600).describe('Session timeout in seconds'),
+  browserSettings: z.object({
+    solveCaptchas: z.boolean().optional().default(true).describe('Enable automatic CAPTCHA solving'),
+    captchaImageSelector: z.string().optional().describe('CSS selector for custom CAPTCHA image'),
+    captchaInputSelector: z.string().optional().describe('CSS selector for custom CAPTCHA input field'),
+  }).optional().describe('Browser CAPTCHA settings'),
+  proxies: z.boolean().optional().describe('Enable proxy usage for better success rates'),
 });
 
 const browserSessionToolOutputSchema = z.object({
@@ -40,10 +47,29 @@ export const browserSessionTool = createTool({
         projectId: context.projectId || process.env.BROWSERBASE_PROJECT_ID!,
         keepAlive: context.keepAlive,
         timeout: context.timeout,
+        browserSettings: context.browserSettings ? {
+          solveCaptchas: context.browserSettings.solveCaptchas,
+          captchaImageSelector: context.browserSettings.captchaImageSelector,
+          captchaInputSelector: context.browserSettings.captchaInputSelector,
+        } : undefined,
+        proxies: context.proxies,
       });
       
       const sessionId = session.id;
       console.log(`✅ セッション作成完了: ${sessionId}`);
+      
+      // セッション設定を保存
+      if (context.browserSettings || context.proxies) {
+        sessionSettings.set(sessionId, {
+          solveCaptchas: context.browserSettings?.solveCaptchas,
+          captchaImageSelector: context.browserSettings?.captchaImageSelector,
+          captchaInputSelector: context.browserSettings?.captchaInputSelector,
+          proxies: context.proxies,
+        });
+      }
+      if (context.proxies) {
+        console.log('🌐 プロキシ: 有効');
+      }
       
       // デバッグURLを即座に取得
       const debugInfo = await bb.sessions.debug(sessionId);
@@ -83,7 +109,11 @@ export const browserSessionTool = createTool({
         liveViewUrl,
         replayUrl,
         createdAt: new Date().toISOString(),
-        message: `✅ ブラウザセッション作成完了\n\nセッションID: ${sessionId}\n\n🌐 ライブビューURL: ${liveViewUrl}\n\nこのURLから、リアルタイムでブラウザ操作の様子を確認できます。`,
+        message: `✅ ブラウザセッション作成完了\n\nセッションID: ${sessionId}\n\n🌐 ライブビューURL: ${liveViewUrl}\n\nこのURLから、リアルタイムでブラウザ操作の様子を確認できます。${
+          context.proxies ? '\n🌐 プロキシ: 有効' : ''
+        }${
+          context.browserSettings?.solveCaptchas !== false ? '\n🔓 CAPTCHA自動解決: 有効' : ''
+        }`,
       };
     } catch (error) {
       console.error('Browser session creation error:', error);

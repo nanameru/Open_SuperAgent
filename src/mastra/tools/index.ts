@@ -120,10 +120,16 @@ import { browserObserveTool } from './browserObserveTool';
 import { browserWaitTool } from './browserWaitTool';
 import { browserScreenshotTool } from './browserScreenshotTool';
 import { browserCloseTool } from './browserCloseTool';
+import { browserCaptchaDetectTool } from './browserCaptchaDetectTool';
 import { claudeCodeTool } from './claudeCodeTool';
 import { claudeCodeSDKTool } from './claudeCodeSDKTool';
 import { githubListIssuesTool } from './githubListIssuesTool';
 import { fileAppendTool } from './fileAppendTool';
+// Enhanced research tools
+import { websiteAnalysisTool } from './websiteAnalysisTool';
+import { sourceValidationTool } from './sourceValidationTool';
+import { citationExtractionTool } from './citationExtractionTool';
+import { contentSynthesisTool } from './contentSynthesisTool';
 
 // Define the list of all tools
 export const allTools = [
@@ -150,6 +156,11 @@ export const allTools = [
   claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
+  // Enhanced research tools
+  websiteAnalysisTool,
+  sourceValidationTool,
+  citationExtractionTool,
+  contentSynthesisTool,
 ];
 
 // Define the list of all tool names, handling both .name and .id properties
@@ -179,4 +190,9 @@ export {
   claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
+  // Enhanced research tools
+  websiteAnalysisTool,
+  sourceValidationTool,
+  citationExtractionTool,
+  contentSynthesisTool,
 };

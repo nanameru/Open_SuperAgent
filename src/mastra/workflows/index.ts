@@ -1,1 +1,2 @@
-export { deepResearchWorkflow } from './deepResearchWorkflow'; 
+export { deepResearchWorkflow } from './deepResearchWorkflow';
+export { enhancedDeepResearchWorkflow } from './enhancedDeepResearchWorkflow'; 
