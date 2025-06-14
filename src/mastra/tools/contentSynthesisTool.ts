@@ -1,106 +1,90 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+import { generateText, LanguageModel } from 'ai';
 
-/**
- * contentSynthesisTool
- * --------------------
- * Synthesizes information from multiple sources to create comprehensive,
- * well-structured research outputs. Identifies patterns, resolves contradictions,
- * and generates insights that go beyond simple aggregation.
- */
-export const contentSynthesisTool = createTool({
-  id: 'content-synthesis',
-  description: 'Synthesize information from multiple sources to create comprehensive research outputs with analysis and insights.',
-  inputSchema: z.object({
-    sources: z.array(z.object({
-      title: z.string(),
-      url: z.string().optional(),
-      author: z.string().optional(),
-      content: z.string(),
-      credibilityScore: z.number().optional(),
-      sourceType: z.string().optional(),
-      publishDate: z.string().optional(),
-    })).describe('Sources to synthesize'),
-    researchQuestion: z.string().describe('The main research question or topic'),
-    synthesisType: z.enum(['overview', 'comparative', 'analytical', 'narrative', 'argumentative']).default('analytical').describe('Type of synthesis to perform'),
-    outputFormat: z.enum(['structured', 'narrative', 'academic', 'executive-summary']).default('structured').describe('Format for the synthesized output'),
-    includeConflicts: z.boolean().default(true).describe('Identify and address conflicting information'),
-    confidenceThreshold: z.number().min(0).max(1).default(0.7).describe('Minimum confidence level for including information'),
+const synthesisOutputSchema = z.object({
+  executiveSummary: z.string(),
+  mainFindings: z.array(z.object({
+    finding: z.string(),
+    supportingSources: z.array(z.string()),
+    confidence: z.number(),
+    evidence: z.string(),
+  })),
+  thematicAnalysis: z.array(z.object({
+    theme: z.string(),
+    description: z.string(),
+    sources: z.array(z.string()),
+    keyPoints: z.array(z.string()),
+  })),
+  conflicts: z.array(z.object({
+    topic: z.string(),
+    conflictingViews: z.array(z.object({
+      position: z.string(),
+      sources: z.array(z.string()),
+      evidence: z.string(),
+    })),
+    resolution: z.string().optional(),
+  })).optional(),
+  knowledgeGaps: z.array(z.object({
+    gap: z.string(),
+    impact: z.string(),
+    suggestedResearch: z.string(),
+  })),
+  insights: z.array(z.object({
+    insight: z.string(),
+    reasoning: z.string(),
+    implications: z.string(),
+  })),
+  qualityAssessment: z.object({
+    sourceReliability: z.string(),
+    evidenceStrength: z.string(),
+    biasRisks: z.array(z.string()),
+    limitations: z.array(z.string()),
   }),
-  outputSchema: z.object({
-    success: z.boolean(),
-    synthesis: z.object({
-      executiveSummary: z.string(),
-      mainFindings: z.array(z.object({
-        finding: z.string(),
-        supportingSources: z.array(z.string()),
-        confidence: z.number(),
-        evidence: z.string(),
-      })),
-      thematicAnalysis: z.array(z.object({
-        theme: z.string(),
-        description: z.string(),
-        sources: z.array(z.string()),
-        keyPoints: z.array(z.string()),
-      })),
-      conflicts: z.array(z.object({
-        topic: z.string(),
-        conflictingViews: z.array(z.object({
-          position: z.string(),
-          sources: z.array(z.string()),
-          evidence: z.string(),
-        })),
-        resolution: z.string().optional(),
-      })).optional(),
-      knowledgeGaps: z.array(z.object({
-        gap: z.string(),
-        impact: z.string(),
-        suggestedResearch: z.string(),
-      })),
-      insights: z.array(z.object({
-        insight: z.string(),
-        reasoning: z.string(),
-        implications: z.string(),
-      })),
-      qualityAssessment: z.object({
-        sourceReliability: z.string(),
-        evidenceStrength: z.string(),
-        biasRisks: z.array(z.string()),
-        limitations: z.array(z.string()),
-      }),
-    }),
-    structuredOutput: z.string(),
-    citations: z.array(z.string()),
-    message: z.string(),
-  }),
-  execute: async ({ context }) => {
-    try {
-      const { 
-        sources, 
-        researchQuestion, 
-        synthesisType, 
-        outputFormat, 
-        includeConflicts, 
-        confidenceThreshold 
-      } = context;
-      
-      const model = anthropic('claude-opus-4-20250514');
-      
-      // Prepare source information for analysis
-      const sourceData = sources.map((source, index) => ({
-        id: index + 1,
-        title: source.title,
-        author: source.author || 'Unknown',
-        content: source.content.substring(0, 2000), // Limit content length
-        credibility: source.credibilityScore || 0.5,
-        type: source.sourceType || 'unknown',
-        date: source.publishDate || 'unknown',
-        url: source.url || 'N/A',
-      }));
+});
 
-      const synthesisPrompt = `
+type SynthesisOutput = z.infer<typeof synthesisOutputSchema>;
+
+const inputSchema = z.object({
+  sources: z.array(z.object({
+    title: z.string(),
+    url: z.string().optional(),
+    author: z.string().optional(),
+    content: z.string(),
+    credibilityScore: z.number().optional(),
+    sourceType: z.string().optional(),
+    publishDate: z.string().optional(),
+  })).describe('Sources to synthesize'),
+  researchQuestion: z.string().describe('The main research question or topic'),
+  synthesisType: z.enum(['overview', 'comparative', 'analytical', 'narrative', 'argumentative']).default('analytical').describe('Type of synthesis to perform'),
+  outputFormat: z.enum(['structured', 'narrative', 'academic', 'executive-summary']).default('structured').describe('Format for the synthesized output'),
+  includeConflicts: z.boolean().default(true).describe('Identify and address conflicting information'),
+  confidenceThreshold: z.number().min(0).max(1).default(0.7).describe('Minimum confidence level for including information'),
+});
+
+function buildSynthesisPrompt(context: z.infer<typeof inputSchema>) {
+  const { 
+    sources, 
+    researchQuestion, 
+    synthesisType, 
+    outputFormat, 
+    includeConflicts, 
+    confidenceThreshold 
+  } = context;
+
+  const sourceData = sources.map((source, index) => ({
+    id: index + 1,
+    title: source.title,
+    author: source.author || 'Unknown',
+    content: source.content.substring(0, 2000), // Limit content length
+    credibility: source.credibilityScore || 0.5,
+    type: source.sourceType || 'unknown',
+    date: source.publishDate || 'unknown',
+    url: source.url || 'N/A',
+  }));
+
+  return `
 You are conducting a comprehensive synthesis of research sources. Analyze the following sources and create a high-quality synthesis.
 
 Research Question: ${researchQuestion}
@@ -212,68 +196,76 @@ Provide your response in the following JSON format:
 
 Focus on quality over quantity. Ensure all findings meet the confidence threshold of ${confidenceThreshold}.
 `;
+}
 
-      const response = await generateText({
-        model,
-        prompt: synthesisPrompt,
-      });
+async function generateAndParseResponse(
+  model: LanguageModel,
+  prompt: string,
+  sources: z.infer<typeof inputSchema>['sources']
+): Promise<SynthesisOutput> {
+  const response = await generateText({
+    model,
+    prompt,
+  });
 
-      let synthesis;
-      try {
-        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          synthesis = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('No JSON found in response');
-        }
-      } catch (parseError) {
-        // Fallback synthesis structure
-        synthesis = {
-          executiveSummary: response.text.substring(0, 500) + '...',
-          mainFindings: [
-            {
-              finding: 'Synthesis completed with limitations',
-              supportingSources: sources.map(s => s.title),
-              confidence: 0.5,
-              evidence: 'Automated analysis performed',
-            },
-          ],
-          thematicAnalysis: [
-            {
-              theme: 'General Analysis',
-              description: 'Analysis of provided sources',
-              sources: sources.map(s => s.title),
-              keyPoints: ['Content reviewed', 'Basic synthesis attempted'],
-            },
-          ],
-          knowledgeGaps: [
-            {
-              gap: 'Detailed analysis incomplete',
-              impact: 'Limited synthesis quality',
-              suggestedResearch: 'Manual review recommended',
-            },
-          ],
-          insights: [
-            {
-              insight: 'Automated synthesis has limitations',
-              reasoning: 'Complex synthesis requires human oversight',
-              implications: 'Results should be verified manually',
-            },
-          ],
-          qualityAssessment: {
-            sourceReliability: 'Variable',
-            evidenceStrength: 'Moderate',
-            biasRisks: ['Automated analysis limitations'],
-            limitations: ['Parsing errors', 'Limited context understanding'],
-          },
-        };
-      }
+  try {
+    const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    } else {
+      throw new Error('No JSON found in response');
+    }
+  } catch (parseError) {
+    return {
+      executiveSummary: response.text.substring(0, 500) + '...',
+      mainFindings: [
+        {
+          finding: 'Synthesis completed with limitations',
+          supportingSources: sources.map(s => s.title),
+          confidence: 0.5,
+          evidence: 'Automated analysis performed',
+        },
+      ],
+      thematicAnalysis: [
+        {
+          theme: 'General Analysis',
+          description: 'Analysis of provided sources',
+          sources: sources.map(s => s.title),
+          keyPoints: ['Content reviewed', 'Basic synthesis attempted'],
+        },
+      ],
+      knowledgeGaps: [
+        {
+          gap: 'Detailed analysis incomplete',
+          impact: 'Limited synthesis quality',
+          suggestedResearch: 'Manual review recommended',
+        },
+      ],
+      insights: [
+        {
+          insight: 'Automated synthesis has limitations',
+          reasoning: 'Complex synthesis requires human oversight',
+          implications: 'Results should be verified manually',
+        },
+      ],
+      qualityAssessment: {
+        sourceReliability: 'Variable',
+        evidenceStrength: 'Moderate',
+        biasRisks: ['Automated analysis limitations'],
+        limitations: ['Parsing errors', 'Limited context understanding'],
+      },
+    };
+  }
+}
 
-      // Generate structured output based on format preference
-      let structuredOutput = '';
-      switch (outputFormat) {
-        case 'academic':
-          structuredOutput = `# Research Synthesis: ${researchQuestion}
+function formatStructuredOutput(
+  outputFormat: z.infer<typeof inputSchema>['outputFormat'],
+  synthesis: SynthesisOutput,
+  researchQuestion: string
+): string {
+  switch (outputFormat) {
+    case 'academic':
+      return `# Research Synthesis: ${researchQuestion}
 
 ## Abstract
 ${synthesis.executiveSummary}
@@ -286,10 +278,9 @@ ${synthesis.thematicAnalysis?.map(t => `### ${t.theme}\n${t.description}\nKey Po
 
 ## Limitations and Future Research
 ${synthesis.knowledgeGaps?.map(g => `- ${g.gap}: ${g.suggestedResearch}`).join('\n')}`;
-          break;
 
-        case 'executive-summary':
-          structuredOutput = `# Executive Summary: ${researchQuestion}
+    case 'executive-summary':
+      return `# Executive Summary: ${researchQuestion}
 
 ${synthesis.executiveSummary}
 
@@ -298,10 +289,9 @@ ${synthesis.mainFindings?.map(f => `• ${f.finding}`).join('\n')}
 
 ## Recommendations
 ${synthesis.insights?.map(i => `• ${i.insight}`).join('\n')}`;
-          break;
 
-        case 'narrative':
-          structuredOutput = `# ${researchQuestion}
+    case 'narrative':
+      return `# ${researchQuestion}
 
 ${synthesis.executiveSummary}
 
@@ -310,11 +300,40 @@ The research reveals several key themes: ${synthesis.thematicAnalysis?.map(t => 
 ${synthesis.mainFindings?.map(f => f.finding).join(' ')}
 
 Key insights from this synthesis include: ${synthesis.insights?.map(i => i.insight).join(' ')}`;
-          break;
 
-        default: // structured
-          structuredOutput = JSON.stringify(synthesis, null, 2);
-      }
+    default: // structured
+      return JSON.stringify(synthesis, null, 2);
+  }
+}
+
+/**
+ * contentSynthesisTool
+ * --------------------
+ * Synthesizes information from multiple sources to create comprehensive,
+ * well-structured research outputs. Identifies patterns, resolves contradictions,
+ * and generates insights that go beyond simple aggregation.
+ */
+export const contentSynthesisTool = createTool({
+  id: 'content-synthesis',
+  description: 'Synthesize information from multiple sources to create comprehensive research outputs with analysis and insights.',
+  inputSchema,
+  outputSchema: z.object({
+    success: z.boolean(),
+    synthesis: synthesisOutputSchema,
+    structuredOutput: z.string(),
+    citations: z.array(z.string()),
+    message: z.string(),
+  }),
+  execute: async ({ context }) => {
+    try {
+      const { sources, researchQuestion, synthesisType, outputFormat } = context;
+      const model = anthropic('claude-opus-4-20250514');
+      
+      const synthesisPrompt = buildSynthesisPrompt(context);
+      
+      const synthesis = await generateAndParseResponse(model, synthesisPrompt, sources);
+
+      const structuredOutput = formatStructuredOutput(outputFormat, synthesis, researchQuestion);
 
       // Generate citations list
       const citations = sources.map(source => 
