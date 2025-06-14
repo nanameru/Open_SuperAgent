@@ -11,6 +11,7 @@ import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outlin
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink } from 'lucide-react';
 import { ActivityTimeline, ProcessedEvent } from './ActivityTimeline';
+import ReactMarkdown from 'react-markdown';
 
 // 拡張メッセージパートの型
 type MessageContentPart = {
@@ -2131,12 +2132,63 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         {content.trim() && (
           <div className="flex justify-start mb-6">
             <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
-              <div className="text-base leading-relaxed">
-                {content.split('\n').map((line, i) => (
-                  <div key={i} className={i > 0 ? 'mt-2' : ''}>
-                    {renderMarkdownWithBadges(line)}
-                  </div>
-                ))}
+              <div className="prose prose-gray max-w-none text-base leading-relaxed">
+                <ReactMarkdown 
+                  components={{
+                    // 段落のスタイリング
+                    p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                  // 太文字
+                  strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                  // 斜体
+                  em: ({children}) => <em className="italic">{children}</em>,
+                  // インラインコード
+                  code: ({children}) => (
+                    <code className="px-1 py-0.5 bg-gray-200 rounded text-sm font-mono">{children}</code>
+                  ),
+                  // コードブロック
+                  pre: ({children}) => (
+                    <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg overflow-x-auto my-2">
+                      {children}
+                    </pre>
+                  ),
+                  // リスト
+                  ul: ({children}) => <ul className="list-disc list-inside mb-2">{children}</ul>,
+                  ol: ({children}) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
+                  li: ({children}) => <li className="mb-1">{children}</li>,
+                  // 見出し
+                  h1: ({children}) => <h1 className="text-2xl font-bold mb-2">{children}</h1>,
+                  h2: ({children}) => <h2 className="text-xl font-bold mb-2">{children}</h2>,
+                  h3: ({children}) => <h3 className="text-lg font-bold mb-2">{children}</h3>,
+                  // リンク（既存のBadge表示を維持）
+                  a: ({href, children}) => {
+                    if (href?.startsWith('http')) {
+                      return (
+                        <Badge
+                          variant="secondary"
+                          className="bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer no-underline inline-flex items-center gap-1 mx-1"
+                          asChild
+                        >
+                          <a href={href} target="_blank" rel="noopener noreferrer">
+                            {children}
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </a>
+                        </Badge>
+                      );
+                    }
+                    return <a href={href} className="text-blue-600 hover:underline">{children}</a>;
+                  },
+                  // 引用
+                  blockquote: ({children}) => (
+                    <blockquote className="border-l-4 border-gray-300 pl-4 italic my-2">
+                      {children}
+                    </blockquote>
+                  ),
+                  // 水平線
+                  hr: () => <hr className="my-4 border-gray-300" />,
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
               </div>
             </div>
           </div>

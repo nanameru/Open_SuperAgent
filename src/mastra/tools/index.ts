@@ -121,8 +121,11 @@ import { browserWaitTool } from './browserWaitTool';
 import { browserScreenshotTool } from './browserScreenshotTool';
 import { browserCloseTool } from './browserCloseTool';
 import { browserCaptchaDetectTool } from './browserCaptchaDetectTool';
-import { claudeCodeTool } from './claudeCodeTool';
-import { claudeCodeSDKTool } from './claudeCodeSDKTool';
+import { claudeIssueTool } from './claudeIssueTool';
+import { claudeAnalysisTool } from './claudeAnalysisTool';
+import { claudeFileTool } from './claudeFileTool';
+import { claudeAutoEditTool } from './claudeAutoEditTool';
+import { claudeProjectAnalyzerTool } from './claudeProjectAnalyzerTool';
 import { githubListIssuesTool } from './githubListIssuesTool';
 import { fileAppendTool } from './fileAppendTool';
 // Enhanced research tools
@@ -152,8 +155,11 @@ export const allTools = [
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
-  claudeCodeTool,
-  claudeCodeSDKTool,
+  claudeIssueTool,
+  claudeAnalysisTool,
+  claudeFileTool,
+  claudeAutoEditTool,
+  claudeProjectAnalyzerTool,
   githubListIssuesTool,
   fileAppendTool,
   // Enhanced research tools
@@ -186,8 +192,11 @@ export {
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
-  claudeCodeTool,
-  claudeCodeSDKTool,
+  claudeIssueTool,
+  claudeAnalysisTool,
+  claudeFileTool,
+  claudeAutoEditTool,
+  claudeProjectAnalyzerTool,
   githubListIssuesTool,
   fileAppendTool,
   // Enhanced research tools

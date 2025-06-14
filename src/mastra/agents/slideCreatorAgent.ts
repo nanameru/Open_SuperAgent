@@ -13,8 +13,11 @@ import {
   v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
-  claudeCodeTool,
-  claudeCodeSDKTool,
+  claudeIssueTool,
+  claudeAnalysisTool,
+  claudeFileTool,
+  claudeAutoEditTool,
+  claudeProjectAnalyzerTool,
   githubListIssuesTool
 } from '../tools'; // Import all tools
 import { browserSessionTool } from '../tools/browserSessionTool';
@@ -66,8 +69,23 @@ You have access to the following specialized tools:
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
-- \`claude-code-tool\`: Create a new GitHub issue using ClaudeCodeTool. IMPORTANT: When creating an issue, you MUST include the string '@claude' (all lowercase) in the 'body' parameter.
-- \`claude-code-sdk\`: Comprehensive AI-powered code assistance tool. Provides code analysis, generation, review, refactoring, testing, and documentation capabilities. Supports multiple operations: analyze (code analysis), generate (code generation), review (code review), refactor (code improvement), generate-tests (test generation), and generate-docs (documentation generation).
+- \`claude-issue\`: Create a new GitHub issue using Claude Issue Tool. IMPORTANT: When creating an issue, you MUST include the string '@claude' (all lowercase) in the 'body' parameter.
+- \`claude-analysis\`: Comprehensive AI-powered code assistance tool. IMPORTANT: You MUST specify the 'operation' field when using this tool. Available operations:
+  - **analyze**: Analyze code for issues, metrics, and suggestions. Example: {"operation": "analyze", "code": "your code", "language": "javascript"}
+  - **generate**: Generate new code based on specifications. Example: {"operation": "generate", "specification": "create a REST API", "language": "python"}
+  - **review**: Review code quality and provide feedback. Example: {"operation": "review", "code": "your code", "reviewType": "comprehensive"}
+  - **refactor**: Improve existing code structure. Example: {"operation": "refactor", "code": "your code", "refactorType": "optimize"}
+  - **generate-tests**: Create unit tests for code. Example: {"operation": "generate-tests", "code": "your code", "testFramework": "jest"}
+  - **generate-docs**: Generate documentation for code. Example: {"operation": "generate-docs", "code": "your code", "format": "markdown"}
+- \`claude-file\`: Read, write, append, or delete files in the project. Operations: "read", "write", "append", "delete". Example: {"operation": "read", "filePath": "src/index.ts"}
+- \`claude-auto-edit\`: Combines Claude analysis with file editing. Automatically analyzes and modifies files. Operations:
+  - **analyze-and-fix**: Analyze code and apply fixes. Example: {"operation": "analyze-and-fix", "filePath": "src/component.ts"}
+  - **refactor-and-apply**: Refactor code and save changes. Example: {"operation": "refactor-and-apply", "filePath": "src/utils.js", "refactorType": "optimize"}
+  - **generate-and-save**: Generate new code and save to file. Example: {"operation": "generate-and-save", "filePath": "src/newFeature.ts", "specification": "create a user authentication module"}
+- \`claude-project-analyzer\`: Analyze project directory structure with Claude insights. Operations:
+  - **structure**: Scan directory structure only. Example: {"operation": "structure", "maxDepth": 3}
+  - **summary**: Generate project statistics and overview. Example: {"operation": "summary", "includeHidden": false}
+  - **analyze**: Full analysis with Claude insights on architecture, patterns, and recommendations. Example: {"operation": "analyze", "analysisType": "comprehensive"}
 - \`github-list-issues\`: Lists issues from a GitHub repository.
 
 - \`geminiImageGenerationTool\`: Generates images based on text prompts
@@ -276,8 +294,11 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       presentationPreviewTool, // Register the preview tool with the agent
       braveSearchTool, // Register the search tool
       grokXSearchTool, // Register the Grok X search tool
-      claudeCodeTool, // Register the GitHub issue tool
-      claudeCodeSDKTool, // Register the Claude Code SDK tool
+      claudeIssueTool, // Register the GitHub issue tool
+      claudeAnalysisTool, // Register the Claude analysis tool
+      claudeFileTool, // Register the file editor tool
+      claudeAutoEditTool, // Register the Claude auto edit tool
+      claudeProjectAnalyzerTool, // Register the project analyzer tool
       githubListIssuesTool, // Register the GitHub list issues tool
       geminiImageGenerationTool, // Register the image generation tool
       geminiVideoGenerationTool, // Register the video generation tool

@@ -3,7 +3,13 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { LibSQLStore } from '@mastra/libsql';
 import { weatherAgent, slideCreatorAgent, imageCreatorAgent } from './agents';
-// import { deepResearchAgent } from './agents';
+import { 
+  queryPlanningAgent, 
+  researchAnalysisAgent, 
+  researchSynthesisAgent, 
+  knowledgeGapAgent, 
+  sourceValidationAgent 
+} from './agents/researchAgent';
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
@@ -21,7 +27,8 @@ import {
   citationExtractionTool,
   contentSynthesisTool
 } from './tools';
-// import { deepResearchWorkflow, enhancedDeepResearchWorkflow } from './workflows';
+import { deepResearchWorkflow } from './workflows/deepResearchWorkflow';
+import { enhancedDeepResearchWorkflow } from './workflows/enhancedDeepResearchWorkflow';
 
 // @ts-ignore - Type definition issue with tools property
 export const mastra = new Mastra({
@@ -29,7 +36,12 @@ export const mastra = new Mastra({
     weatherAgent,
     slideCreatorAgent, 
     imageCreatorAgent,
-    // deepResearchAgent,
+    // Research agents
+    queryPlanningAgent,
+    researchAnalysisAgent,
+    researchSynthesisAgent,
+    knowledgeGapAgent,
+    sourceValidationAgent,
   },
   tools: { 
     htmlSlideTool, 
@@ -49,10 +61,10 @@ export const mastra = new Mastra({
     citationExtractionTool,
     contentSynthesisTool,
   } as any,
-  // workflows: {
-  //   'deep-research': deepResearchWorkflow,
-  //   'enhanced-deep-research': enhancedDeepResearchWorkflow,
-  // },
+  workflows: {
+    'deep-research': deepResearchWorkflow,
+    'enhanced-deep-research': enhancedDeepResearchWorkflow,
+  },
   storage: new LibSQLStore({
     url: "file:../memory.db",
   }),

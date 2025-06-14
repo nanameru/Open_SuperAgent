@@ -1,8 +1,7 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
 import { braveSearchTool } from '../tools/braveSearchTool';
+import { grokXSearchTool } from '../tools/grokXSearchTool';
 
 // 検索クエリの型定義
 const SearchQuerySchema = z.object({
@@ -67,90 +66,78 @@ export const deepResearchWorkflow = createWorkflow({
       maxIterations: z.number(),
       queriesPerIteration: z.number(),
     }),
-    execute: async ({ inputData }) => {
-      const model = anthropic('claude-opus-4-20250514');
+    execute: async ({ inputData, mastra }) => {
+      const queryAgent = mastra?.getAgent('queryPlanningAgent');
       
-      const prompt = `あなたは研究アシスタントです。以下の質問に答えるために、${inputData.queriesPerIteration}個の効果的なWeb検索クエリを生成してください。
+      if (!queryAgent) {
+        // Fallback without agent
+        return {
+          queries: [
+            {
+              query: inputData.message,
+              reason: 'Direct query about the research topic',
+            },
+            {
+              query: `${inputData.message} recent research`,
+              reason: 'Find recent developments',
+            },
+            {
+              query: `${inputData.message} expert analysis`,
+              reason: 'Find expert opinions',
+            },
+          ].slice(0, inputData.queriesPerIteration),
+          iteration: 1,
+          message: inputData.message,
+          maxIterations: inputData.maxIterations,
+          queriesPerIteration: inputData.queriesPerIteration,
+        };
+      }
 
-質問: ${inputData.message}
+      const prompt = `Generate ${inputData.queriesPerIteration} strategic search queries for this research question:
 
-各クエリについて、なぜそのクエリが有効かの理由も含めてください。
-現在の日付: ${new Date().toLocaleDateString('ja-JP')}
-
-以下のJSON形式で出力してください：
-[
-  {
-    "query": "検索クエリ1",
-    "reason": "このクエリが有効な理由"
-  },
-  ...
-]`;
+Question: ${inputData.message}
+Date: ${new Date().toLocaleDateString('ja-JP')}`;
 
       try {
-        const response = await generateText({
-          model,
-          prompt,
-        });
+        const response = await queryAgent.stream([
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ]);
 
-        // JSONパースを試みる
-        let queries: Array<{ query: string; reason: string }>;
+        let responseText = '';
+        for await (const chunk of response.textStream) {
+          responseText += chunk;
+        }
+
+        let planData;
         try {
-          // マークダウンのコードブロック記法を除去
-          let jsonText = response.text.trim();
-          if (jsonText.includes('```json')) {
-            jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-          } else if (jsonText.includes('```')) {
-            jsonText = jsonText.replace(/```\s*/g, '');
-          }
-          
-          queries = JSON.parse(jsonText);
-          
-          // 配列でない場合の処理
-          if (!Array.isArray(queries)) {
-            throw new Error('Response is not an array');
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            planData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('No JSON found');
           }
         } catch (parseError) {
           console.error('JSONパースエラー:', parseError);
-          console.log('元のレスポンス:', response.text);
-          
-          // JSONパースに失敗した場合、テキストから抽出
-          const lines = response.text.split('\n').filter(line => line.trim() && !line.includes('```'));
-          queries = lines.slice(0, inputData.queriesPerIteration).map(line => ({
-            query: line.trim(),
-            reason: '効果的な検索クエリ',
-          }));
-        }
-
-        // 有効なクエリのみをフィルタリング
-        const validQueries = queries
-          .filter(q => {
-            // クエリが有効かチェック
-            if (!q || typeof q !== 'object' || !q.query || typeof q.query !== 'string') {
-              return false;
-            }
-            // 明らかに無効なクエリを除外
-            const invalidPatterns = ['{', '}', '[', ']', '```', 'json', '"query":', '"reason":'];
-            return !invalidPatterns.some(pattern => q.query.trim() === pattern);
-          })
-          .slice(0, inputData.queriesPerIteration);
-
-        // 有効なクエリがない場合はフォールバック
-        if (validQueries.length === 0) {
-          console.log('有効なクエリが生成されませんでした。フォールバックを使用します。');
-          return {
-            queries: [{
-              query: inputData.message,
-              reason: 'フォールバック: 元の質問を使用',
-            }],
-            iteration: 1,
-            message: inputData.message,
-            maxIterations: inputData.maxIterations,
-            queriesPerIteration: inputData.queriesPerIteration,
+          planData = {
+            queries: [
+              {
+                query: inputData.message,
+                reasoning: 'フォールバック: 元の質問を使用'
+              }
+            ]
           };
         }
 
+        const queries = (planData.queries || []).map((q: any) => ({
+          query: q.query,
+          reason: q.reasoning || q.reason || 'Generated query'
+        }));
+
         return {
-          queries: validQueries,
+          queries: queries.slice(0, inputData.queriesPerIteration),
           iteration: 1,
           message: inputData.message,
           maxIterations: inputData.maxIterations,
@@ -171,17 +158,149 @@ export const deepResearchWorkflow = createWorkflow({
       }
     },
   }))
+  
   // ステップ2: 並列Web検索実行
-  .then(createStep({
-    id: 'parallel-web-search',
-    description: '生成されたクエリで並列にWeb検索を実行',
-    inputSchema: z.object({
-      queries: z.array(SearchQuerySchema),
-      iteration: z.number(),
-      message: z.string(),
-      maxIterations: z.number(),
-      queriesPerIteration: z.number(),
+  .parallel([
+    // Brave検索ステップ
+    createStep({
+      id: 'brave-search',
+      description: 'Brave検索エンジンで情報収集',
+      inputSchema: z.object({
+        queries: z.array(SearchQuerySchema),
+        iteration: z.number(),
+        message: z.string(),
+        maxIterations: z.number(),
+        queriesPerIteration: z.number(),
+      }),
+      outputSchema: z.object({
+        searchResults: z.array(SearchResultSchema),
+        searchEngine: z.string(),
+      }),
+      execute: async ({ inputData, mastra }) => {
+        const analysisAgent = mastra?.getAgent('researchAnalysisAgent');
+        const searchResults: Array<typeof SearchResultSchema._type> = [];
+        
+        for (let i = 0; i < inputData.queries.length; i++) {
+          const { query, reason } = inputData.queries[i];
+          
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          }
+          
+          try {
+            console.log(`[Brave Search] "${query}"`);
+            
+            const braveResults = await braveSearchTool.execute({
+              context: { query, count: 5 }
+            } as any);
+            
+            if (braveResults?.results && Array.isArray(braveResults.results)) {
+              let summary = 'Search completed successfully';
+              
+              if (analysisAgent) {
+                try {
+                  const analysisResponse = await analysisAgent.stream([{
+                    role: 'user',
+                    content: `Analyze these search results for query: "${query}"\n\nResults: ${JSON.stringify(braveResults.results.slice(0, 3))}`
+                  }]);
+                  
+                  summary = '';
+                  for await (const chunk of analysisResponse.textStream) {
+                    summary += chunk;
+                  }
+                } catch (analysisError) {
+                  console.error('Analysis error:', analysisError);
+                }
+              }
+              
+              searchResults.push({
+                query,
+                results: braveResults.results,
+                summary,
+                citations: braveResults.results.slice(0, 3).map((r: any) => ({
+                  text: r.description || r.title,
+                  url: r.url,
+                })),
+              });
+            }
+          } catch (error) {
+            console.error(`Brave search error (${query}):`, error);
+            searchResults.push({
+              query,
+              results: [],
+              summary: `Search error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              citations: [],
+            });
+          }
+        }
+        
+        return {
+          searchResults,
+          searchEngine: 'brave',
+        };
+      },
     }),
+    
+    // Grok検索ステップ（バックアップ）
+    createStep({
+      id: 'grok-search',
+      description: 'GrokX検索エンジンで補完的な情報収集',
+      inputSchema: z.object({
+        queries: z.array(SearchQuerySchema),
+        iteration: z.number(),
+        message: z.string(),
+        maxIterations: z.number(),
+        queriesPerIteration: z.number(),
+      }),
+      outputSchema: z.object({
+        searchResults: z.array(SearchResultSchema),
+        searchEngine: z.string(),
+      }),
+      execute: async ({ inputData }) => {
+        const searchResults: Array<typeof SearchResultSchema._type> = [];
+        
+        const primaryQuery = inputData.queries[0];
+        if (primaryQuery) {
+          try {
+            console.log(`[Grok Search] "${primaryQuery.query}"`);
+            
+            const grokResults = await grokXSearchTool.execute({
+              context: { 
+                query: primaryQuery.query,
+                mode: 'on',
+                maxResults: 5,
+                returnCitations: true,
+              }
+            } as any);
+            
+            if (grokResults?.content) {
+              searchResults.push({
+                query: primaryQuery.query,
+                results: [],
+                summary: grokResults.content,
+                citations: (grokResults.citations || []).map((c: any) => 
+                  typeof c === 'string' ? { text: c, url: '' } : c
+                ),
+              });
+            }
+          } catch (error) {
+            console.error(`Grok search error:`, error);
+          }
+        }
+        
+        return {
+          searchResults,
+          searchEngine: 'grok',
+        };
+      },
+    })
+  ])
+  
+  // ステップ3: 検索結果統合
+  .then(createStep({
+    id: 'merge-search-results',
+    description: '複数の検索エンジンからの結果を統合',
+    inputSchema: z.object({}).passthrough(),
     outputSchema: z.object({
       searchResults: z.array(SearchResultSchema),
       iteration: z.number(),
@@ -189,100 +308,30 @@ export const deepResearchWorkflow = createWorkflow({
       maxIterations: z.number(),
       queriesPerIteration: z.number(),
     }),
-    execute: async ({ inputData }) => {
-      const model = anthropic('claude-opus-4-20250514');
+    execute: async ({ inputData, runId, mastra }) => {
+      const allResults: Array<typeof SearchResultSchema._type> = [];
       
-      // 並列検索の実行（レート制限を考慮）
-      const searchResults: Array<typeof SearchResultSchema._type> = [];
-      
-      for (let i = 0; i < inputData.queries.length; i++) {
-        const { query, reason } = inputData.queries[i];
-        
-        // レート制限対策
-        if (i > 0) {
-          console.log(`[Iteration ${inputData.iteration}] Waiting 1.1s before search ${i + 1}/${inputData.queries.length}...`);
-          await new Promise(resolve => setTimeout(resolve, 1100));
+      // Handle parallel step results - inputData contains results from both parallel steps
+      Object.values(inputData).forEach((engineResults: any) => {
+        if (engineResults?.searchResults) {
+          allResults.push(...engineResults.searchResults);
         }
-        
-        try {
-          console.log(`[Iteration ${inputData.iteration}] Searching: "${query}" (Reason: ${reason})`);
-          
-          // Brave検索実行
-          const braveResults = await braveSearchTool.execute({
-            context: { query, count: 5 }
-          } as any);
-          
-          // 検索結果の検証
-          if (!braveResults || !braveResults.results || !Array.isArray(braveResults.results)) {
-            console.error(`検索結果が無効です (${query}):`, braveResults);
-            searchResults.push({
-              query,
-              results: [],
-              summary: '検索結果を取得できませんでした',
-              citations: [],
-            });
-            continue;
-          }
-          
-          // 検索結果から引用を抽出
-          const citationPrompt = `以下の検索結果から、質問に関連する重要な情報を抽出し、引用として整理してください。
-
-検索クエリ: ${query}
-検索結果:
-${braveResults.results.map((r: any) => `
-タイトル: ${r.title}
-URL: ${r.url}
-説明: ${r.description || 'なし'}
-`).join('\n')}
-
-以下の形式で要約と引用を提供してください：
-1. 全体の要約（2-3文）
-2. 重要な引用（各引用にはURLを含める）`;
-
-          const citationResponse = await generateText({
-            model,
-            prompt: citationPrompt,
-          });
-
-          // 引用の抽出（簡易的な実装）
-          const citations = braveResults.results.slice(0, 3).map((r: any) => ({
-            text: r.description || r.title,
-            url: r.url,
-          }));
-
-          searchResults.push({
-            query,
-            results: braveResults.results,
-            summary: citationResponse.text,
-            citations,
-          });
-        } catch (error) {
-          console.error(`検索エラー (${query}):`, error);
-          searchResults.push({
-            query,
-            results: [],
-            summary: `検索エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            citations: [],
-          });
-        }
-      }
-
-      console.log('[Parallel Search] Returning results:', {
-        searchResultsCount: searchResults.length,
-        iteration: inputData.iteration,
-        hasResults: searchResults.length > 0
       });
-
+      
+      // Get context from workflow memory if available
+      const originalContext = { iteration: 1, message: '', maxIterations: 2, queriesPerIteration: 3 };
+      
       return {
-        searchResults,
-        iteration: inputData.iteration,
-        message: inputData.message,
-        maxIterations: inputData.maxIterations,
-        queriesPerIteration: inputData.queriesPerIteration,
+        searchResults: allResults,
+        iteration: originalContext?.iteration || 1,
+        message: originalContext?.message || '',
+        maxIterations: originalContext?.maxIterations || 2,
+        queriesPerIteration: originalContext?.queriesPerIteration || 3,
       };
     },
   }))
-  // ステップ3: 振り返りと評価
+  
+  // ステップ4: 振り返りと評価
   .then(createStep({
     id: 'reflection-and-evaluation',
     description: '収集した情報を評価し、知識ギャップを特定',
@@ -304,33 +353,9 @@ URL: ${r.url}
       maxIterations: z.number(),
       queriesPerIteration: z.number(),
     }),
-    execute: async ({ inputData }) => {
-      console.log('[Reflection] Input data received:', {
-        message: inputData.message,
-        searchResultsCount: inputData.searchResults?.length || 0,
-        iteration: inputData.iteration,
-        maxIterations: inputData.maxIterations
-      });
+    execute: async ({ inputData, mastra }) => {
+      const knowledgeGapAgent = mastra?.getAgent('knowledgeGapAgent');
       
-      // 入力データの検証
-      if (!inputData.searchResults || !Array.isArray(inputData.searchResults)) {
-        console.error('[Reflection] Invalid searchResults:', inputData.searchResults);
-        return {
-          isComplete: true,
-          knowledgeGaps: [],
-          summary: '検索結果が無効です',
-          shouldContinue: false,
-          iteration: inputData.iteration,
-          message: inputData.message,
-          searchResults: inputData.searchResults || [],
-          maxIterations: inputData.maxIterations,
-          queriesPerIteration: inputData.queriesPerIteration,
-        };
-      }
-      
-      const model = anthropic('claude-opus-4-20250514');
-      
-      // 現在の反復が最大値に達している場合は終了
       if (inputData.iteration >= inputData.maxIterations) {
         return {
           isComplete: true,
@@ -344,67 +369,60 @@ URL: ${r.url}
           queriesPerIteration: inputData.queriesPerIteration,
         };
       }
-      
-      const evaluationPrompt = `あなたは研究評価者です。以下の検索結果を分析し、元の質問に対する情報の十分性を評価してください。
-
-元の質問: ${inputData.message}
-
-収集した情報:
-${inputData.searchResults.map(sr => `
-クエリ: ${sr.query}
-要約: ${sr.summary}
-結果数: ${sr.results.length}
-`).join('\n---\n')}
-
-以下を評価してください：
-1. 質問に答えるのに十分な情報が集まったか？
-2. まだ不足している情報や知識ギャップは何か？
-3. 追加で検索すべきクエリは何か？
-
-以下のJSON形式で回答してください：
-{
-  "isComplete": true/false,
-  "summary": "現在の情報の要約",
-  "knowledgeGaps": [
-    {
-      "gap": "不足している情報",
-      "suggestedQuery": "追加検索クエリ"
-    }
-  ]
-}`;
 
       try {
-        const response = await generateText({
-          model,
-          prompt: evaluationPrompt,
-        });
-
         let evaluation;
-        try {
-          // マークダウンのコードブロック記法を除去
-          let jsonText = response.text.trim();
-          if (jsonText.includes('```json')) {
-            jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-          } else if (jsonText.includes('```')) {
-            jsonText = jsonText.replace(/```\s*/g, '');
+        
+        if (knowledgeGapAgent) {
+          const evaluationPrompt = `Research question: ${inputData.message}
+
+Collected information:
+${inputData.searchResults.map(sr => `
+Query: ${sr.query}
+Summary: ${sr.summary}
+Results count: ${sr.results.length}
+`).join('\n---\n')}
+
+Analyze the completeness of this research and identify any knowledge gaps.`;
+
+          const response = await knowledgeGapAgent.stream([
+            {
+              role: 'user',
+              content: evaluationPrompt,
+            },
+          ]);
+
+          let responseText = '';
+          for await (const chunk of response.textStream) {
+            responseText += chunk;
           }
-          
-          evaluation = JSON.parse(jsonText);
-        } catch (parseError) {
-          console.error('評価JSONパースエラー:', parseError);
-          console.log('元のレスポンス:', response.text);
-          
-          // JSONパースに失敗した場合のフォールバック
+
+          try {
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              evaluation = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error('No JSON found');
+            }
+          } catch (parseError) {
+            console.error('評価JSONパースエラー:', parseError);
+            evaluation = {
+              isComplete: true,
+              summary: responseText,
+              gaps: [],
+            };
+          }
+        } else {
           evaluation = {
-            isComplete: true,
-            summary: response.text,
-            knowledgeGaps: [],
+            isComplete: inputData.iteration >= inputData.maxIterations,
+            summary: '情報収集が完了しました',
+            gaps: [],
           };
         }
 
         return {
           isComplete: evaluation.isComplete || false,
-          knowledgeGaps: evaluation.knowledgeGaps || [],
+          knowledgeGaps: evaluation.gaps || [],
           summary: evaluation.summary || '情報を評価しました',
           shouldContinue: !evaluation.isComplete && inputData.iteration < inputData.maxIterations,
           iteration: inputData.iteration,
@@ -418,7 +436,7 @@ ${inputData.searchResults.map(sr => `
         return {
           isComplete: true,
           knowledgeGaps: [],
-          summary: ' 評価エラーが発生しました',
+          summary: '評価エラーが発生しました',
           shouldContinue: false,
           iteration: inputData.iteration,
           message: inputData.message,
@@ -429,234 +447,185 @@ ${inputData.searchResults.map(sr => `
       }
     },
   }))
-  // ステップ4: 追加クエリ生成（条件付き）
-  .then(createStep({
-    id: 'generate-additional-queries',
-    description: '知識ギャップに基づいて追加クエリを生成',
-    inputSchema: z.object({
-      isComplete: z.boolean(),
-      knowledgeGaps: z.array(KnowledgeGapSchema),
-      summary: z.string(),
-      shouldContinue: z.boolean(),
-      queriesPerIteration: z.number(),
-      iteration: z.number(),
-      message: z.string(),
-      searchResults: z.array(SearchResultSchema),
-      maxIterations: z.number(),
-    }),
-    outputSchema: z.object({
-      additionalQueries: z.array(SearchQuerySchema).optional(),
-      shouldSearch: z.boolean(),
-      nextIteration: z.number(),
-      previousResults: z.array(SearchResultSchema),
-      message: z.string(),
-    }),
-    execute: async ({ inputData }) => {
-      console.log('[Generate Additional Queries] Input data:', {
-        isComplete: inputData.isComplete,
-        shouldContinue: inputData.shouldContinue,
-        knowledgeGapsCount: inputData.knowledgeGaps?.length || 0,
-        searchResultsCount: inputData.searchResults?.length || 0
-      });
-      
-      if (!inputData.shouldContinue || inputData.knowledgeGaps.length === 0) {
-        return {
-          additionalQueries: undefined,
-          shouldSearch: false,
-          nextIteration: inputData.iteration,
-          previousResults: inputData.searchResults || [],
-          message: inputData.message,
-        };
-      }
-
-      // 知識ギャップから追加クエリを生成
-      const additionalQueries = inputData.knowledgeGaps
-        .slice(0, inputData.queriesPerIteration)
-        .map(gap => ({
-          query: gap.suggestedQuery,
-          reason: `知識ギャップ: ${gap.gap}`,
-        }));
-
-      console.log(`[Iteration ${inputData.iteration}] 追加クエリを生成: ${additionalQueries.length}個`);
-
-      return {
-        additionalQueries,
-        shouldSearch: true,
-        nextIteration: inputData.iteration + 1,
-        previousResults: inputData.searchResults || [],
-        message: inputData.message,
-      };
-    },
-  }))
-  // ステップ5: 追加検索実行（条件付き）
-  .then(createStep({
-    id: 'additional-search',
-    description: '追加クエリで検索を実行',
-    inputSchema: z.object({
-      shouldSearch: z.boolean(),
-      additionalQueries: z.array(SearchQuerySchema).optional(),
-      nextIteration: z.number(),
-      previousResults: z.array(SearchResultSchema),
-      message: z.string(),
-    }),
-    outputSchema: z.object({
-      allSearchResults: z.array(SearchResultSchema),
-      totalIterations: z.number(),
-      message: z.string(),
-    }),
-    execute: async ({ inputData }) => {
-      console.log('[Additional Search] Input data:', {
-        shouldSearch: inputData.shouldSearch,
-        additionalQueriesCount: inputData.additionalQueries?.length || 0,
-        previousResultsCount: inputData.previousResults?.length || 0
-      });
-      
-      // previousResultsのデフォルト値を設定
-      const previousResults = inputData.previousResults || [];
-      
-      if (!inputData.shouldSearch || !inputData.additionalQueries) {
-        return {
-          allSearchResults: previousResults,
-          totalIterations: inputData.nextIteration - 1,
-          message: inputData.message,
-        };
-      }
-
-      // 追加検索を実行（ステップ2と同じロジック）
-      const model = anthropic('claude-opus-4-20250514');
-      const additionalResults: Array<typeof SearchResultSchema._type> = [];
-      
-      for (let i = 0; i < inputData.additionalQueries.length; i++) {
-        const { query, reason } = inputData.additionalQueries[i];
-        
-        if (i > 0) {
-          console.log(`[Iteration ${inputData.nextIteration}] Waiting 1.1s before additional search ${i + 1}/${inputData.additionalQueries.length}...`);
-          await new Promise(resolve => setTimeout(resolve, 1100));
-        }
-        
-        try {
-          console.log(`[Iteration ${inputData.nextIteration}] Additional search: "${query}"`);
+  
+  // ステップ5: 条件分岐 - 追加研究が必要かどうか
+  .branch([
+    // 分岐1: 追加研究が必要な場合
+    [
+      async ({ inputData }) => {
+        return inputData.shouldContinue && !inputData.isComplete;
+      },
+      createStep({
+        id: 'continue-research-path',
+        description: '追加研究を実行して情報を補完',
+        inputSchema: z.object({
+          isComplete: z.boolean(),
+          knowledgeGaps: z.array(KnowledgeGapSchema),
+          summary: z.string(),
+          shouldContinue: z.boolean(),
+          iteration: z.number(),
+          message: z.string(),
+          searchResults: z.array(SearchResultSchema),
+          maxIterations: z.number(),
+          queriesPerIteration: z.number(),
+        }),
+        outputSchema: z.object({
+          answer: z.string(),
+          sources: z.array(z.object({
+            title: z.string(),
+            url: z.string(),
+          })),
+          searchQueries: z.array(z.string()),
+          iterations: z.number(),
+          knowledgeGaps: z.array(z.string()).optional(),
+        }),
+        execute: async ({ inputData, mastra }) => {
+          const synthesisAgent = mastra?.getAgent('researchSynthesisAgent');
           
-          const braveResults = await braveSearchTool.execute({
-            context: { query, count: 5 }
-          } as any);
+          const allSources = new Map<string, { title: string; url: string }>();
+          const allQueries: string[] = [];
           
-          // 検索結果の検証
-          if (!braveResults || !braveResults.results || !Array.isArray(braveResults.results)) {
-            console.error(`追加検索結果が無効です (${query}):`, braveResults);
-            continue;
-          }
-          
-          const citationPrompt = `検索結果を要約してください：\n\nクエリ: ${query}\n結果: ${JSON.stringify(braveResults.results.slice(0, 3))}`;
-          
-          const citationResponse = await generateText({
-            model,
-            prompt: citationPrompt,
+          inputData.searchResults.forEach(sr => {
+            allQueries.push(sr.query);
+            sr.results.forEach(r => {
+              if (!allSources.has(r.url)) {
+                allSources.set(r.url, { title: r.title, url: r.url });
+              }
+            });
           });
 
-          additionalResults.push({
-            query,
-            results: braveResults.results,
-            summary: citationResponse.text,
-            citations: braveResults.results.slice(0, 3).map((r: any) => ({
-              text: r.description || r.title,
-              url: r.url,
-            })),
-          });
-        } catch (error) {
-          console.error(`追加検索エラー (${query}):`, error);
-        }
-      }
+          let finalAnswer = 'Research completed with additional analysis needed.';
+          
+          if (synthesisAgent) {
+            try {
+              const synthesisPrompt = `Synthesize the following research findings into a comprehensive answer:
 
-      return {
-        allSearchResults: [...previousResults, ...additionalResults],
-        totalIterations: inputData.nextIteration,
-        message: inputData.message,
-      };
-    },
-  }))
-  // ステップ6: 最終回答生成
-  .then(createStep({
-    id: 'generate-final-answer',
-    description: '収集した全情報から包括的な回答を生成',
-    inputSchema: z.object({
-      message: z.string(),
-      allSearchResults: z.array(SearchResultSchema),
-      totalIterations: z.number(),
-    }),
-    outputSchema: z.object({
-      answer: z.string(),
-      sources: z.array(z.object({
-        title: z.string(),
-        url: z.string(),
-      })),
-      searchQueries: z.array(z.string()),
-      iterations: z.number(),
-      knowledgeGaps: z.array(z.string()).optional(),
-    }),
-    execute: async ({ inputData }) => {
-      const model = anthropic('claude-opus-4-20250514'); // 最高品質のモデルを使用
-      
-      // すべてのソースを収集
-      const allSources = new Map<string, { title: string; url: string }>();
-      const allQueries: string[] = [];
-      
-      inputData.allSearchResults.forEach(sr => {
-        allQueries.push(sr.query);
-        sr.results.forEach(r => {
-          if (!allSources.has(r.url)) {
-            allSources.set(r.url, { title: r.title, url: r.url });
-          }
-        });
-      });
-      
-      // 包括的な回答を生成
-      const finalPrompt = `あなたは専門的な研究者です。以下の情報を基に、ユーザーの質問に対する包括的で正確な回答を生成してください。
+Question: ${inputData.message}
 
-質問: ${inputData.message}
-
-収集した情報（${inputData.totalIterations}回の反復検索）:
-${inputData.allSearchResults.map(sr => `
-【検索: ${sr.query}】
-要約: ${sr.summary}
-引用:
-${sr.citations.map(c => `- ${c.text} (出典: ${c.url})`).join('\n')}
+Research Results:
+${inputData.searchResults.map(sr => `
+Query: ${sr.query}
+Summary: ${sr.summary}
 `).join('\n\n')}
 
-要件:
-1. 包括的で詳細な回答を提供
-2. 適切に情報源を引用
-3. 構造化された形式で提示
-4. 専門的かつ理解しやすい言葉を使用
-5. 重要なポイントを強調
+Provide a comprehensive, well-structured answer.`;
 
-回答を生成してください：`;
+              const response = await synthesisAgent.stream([
+                {
+                  role: 'user',
+                  content: synthesisPrompt,
+                },
+              ]);
 
-      try {
-        const response = await generateText({
-          model,
-          prompt: finalPrompt,
-        });
+              finalAnswer = '';
+              for await (const chunk of response.textStream) {
+                finalAnswer += chunk;
+              }
+            } catch (error) {
+              console.error('Synthesis error:', error);
+            }
+          }
+          
+          return {
+            answer: finalAnswer,
+            sources: Array.from(allSources.values()).slice(0, 20),
+            searchQueries: allQueries,
+            iterations: inputData.iteration + 1,
+            knowledgeGaps: inputData.knowledgeGaps.map(kg => kg.gap),
+          };
+        }
+      })
+    ],
+    // 分岐2: 研究完了の場合
+    [
+      async ({ inputData }) => {
+        return inputData.isComplete || !inputData.shouldContinue;
+      },
+      createStep({
+        id: 'finalize-research',
+        description: '収集した情報から最終回答を生成',
+        inputSchema: z.object({
+          isComplete: z.boolean(),
+          knowledgeGaps: z.array(KnowledgeGapSchema),
+          summary: z.string(),
+          shouldContinue: z.boolean(),
+          iteration: z.number(),
+          message: z.string(),
+          searchResults: z.array(SearchResultSchema),
+          maxIterations: z.number(),
+          queriesPerIteration: z.number(),
+        }),
+        outputSchema: z.object({
+          answer: z.string(),
+          sources: z.array(z.object({
+            title: z.string(),
+            url: z.string(),
+          })),
+          searchQueries: z.array(z.string()),
+          iterations: z.number(),
+          knowledgeGaps: z.array(z.string()).optional(),
+        }),
+        execute: async ({ inputData, mastra }) => {
+          const synthesisAgent = mastra?.getAgent('researchSynthesisAgent');
+          
+          const allSources = new Map<string, { title: string; url: string }>();
+          const allQueries: string[] = [];
+          
+          inputData.searchResults.forEach(sr => {
+            allQueries.push(sr.query);
+            sr.results.forEach(r => {
+              if (!allSources.has(r.url)) {
+                allSources.set(r.url, { title: r.title, url: r.url });
+              }
+            });
+          });
 
-        return {
-          answer: response.text,
-          sources: Array.from(allSources.values()).slice(0, 20), // 最大20個のソース
-          searchQueries: allQueries,
-          iterations: inputData.totalIterations,
-          knowledgeGaps: undefined,
-        };
-      } catch (error) {
-        console.error('最終回答生成エラー:', error);
-      return {
-          answer: '申し訳ございません。回答の生成中にエラーが発生しました。',
-          sources: Array.from(allSources.values()).slice(0, 10),
-          searchQueries: allQueries,
-          iterations: inputData.totalIterations,
-          knowledgeGaps: ['回答生成エラー'],
-        };
-      }
-    },
-  }));
+          let finalAnswer = inputData.summary;
+          
+          if (synthesisAgent) {
+            try {
+              const synthesisPrompt = `Create a comprehensive final answer based on the research conducted:
+
+Question: ${inputData.message}
+
+Research Summary: ${inputData.summary}
+
+Detailed Findings:
+${inputData.searchResults.map(sr => `
+Query: ${sr.query}
+Summary: ${sr.summary}
+Citations: ${sr.citations.map(c => `- ${c.text} (${c.url})`).join('\n')}
+`).join('\n\n')}
+
+Generate a well-structured, comprehensive answer that addresses the original question.`;
+
+              const response = await synthesisAgent.stream([
+                {
+                  role: 'user',
+                  content: synthesisPrompt,
+                },
+              ]);
+
+              finalAnswer = '';
+              for await (const chunk of response.textStream) {
+                finalAnswer += chunk;
+              }
+            } catch (error) {
+              console.error('Final synthesis error:', error);
+            }
+          }
+          
+          return {
+            answer: finalAnswer,
+            sources: Array.from(allSources.values()).slice(0, 20),
+            searchQueries: allQueries,
+            iterations: inputData.iteration,
+            knowledgeGaps: inputData.knowledgeGaps.map(kg => kg.gap),
+          };
+        },
+      })
+    ]
+  ]);
 
 // ワークフローをコミット
-deepResearchWorkflow.commit(); 
+deepResearchWorkflow.commit();

@@ -3,15 +3,15 @@ import { z } from 'zod';
 import { Octokit } from '@octokit/rest';
 
 /**
- * claudeCodeTool
- * ---------------------
+ * Claude Issue Tool
+ * -----------------
  * Creates a new issue on a GitHub repository.
  *
  * NOTE: The GitHub Personal Access Token must be provided via the environment variable `GITHUB_TOKEN`.
  */
-export const claudeCodeTool = createTool({
-  id: 'claude-code-tool',
-  description: 'Create a new GitHub issue using ClaudeCodeTool.',
+export const claudeIssueTool = createTool({
+  id: 'claude-issue',
+  description: 'Create a new GitHub issue using Claude Issue Tool.',
   inputSchema: z.object({
     owner: z
       .string()
