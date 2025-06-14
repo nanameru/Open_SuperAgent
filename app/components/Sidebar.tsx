@@ -21,21 +21,21 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <div className={cn('h-full', className)}>
       <TooltipProvider>
-        <div className={cn('h-full bg-background border-r flex flex-col', isCollapsed ? 'w-16' : 'w-64')}>
+        <div className={cn('h-full bg-black border-r flex flex-col text-white', isCollapsed ? 'w-16' : 'w-64')}>
           <div className="flex items-center justify-between p-2">
             {!isCollapsed && <span className="text-lg font-semibold">Mastra</span>}
-            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-muted">
+            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-gray-800">
               {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
             </button>
           </div>
-          <Separator />
+          <Separator className="bg-gray-700" />
           <nav className="flex-1 p-2 space-y-2">
             <SidebarItem icon={<BotMessageSquare size={20} />} href="/" text="Agent" isCollapsed={isCollapsed} isActive={pathname === '/'} />
             <SidebarItem icon={<BrainCircuit size={20} />} href="/multi-agent" text="Multi Agent" isCollapsed={isCollapsed} isActive={pathname === '/multi-agent'} />
             <SidebarItem icon={<Wrench size={20} />} href="/tools" text="Tools" isCollapsed={isCollapsed} isActive={pathname.startsWith('/tools')} />
             <SidebarItem icon={<Sparkles size={20} />} href="/usecases" text="Usecases" isCollapsed={isCollapsed} isActive={pathname.startsWith('/usecases')} />
           </nav>
-          <Separator />
+          <Separator className="bg-gray-700" />
           <div className="p-2">
             <SidebarItem icon={<User size={20} />} href="/settings" text="Account" isCollapsed={isCollapsed} isActive={pathname.startsWith('/settings')} />
           </div>
@@ -60,8 +60,8 @@ function SidebarItem({ icon, text, href, isCollapsed, isActive }: SidebarItemPro
         <Link
           href={href}
           className={cn(
-            'flex items-center p-2 rounded-lg hover:bg-muted',
-            isActive && 'bg-muted',
+            'flex items-center p-2 rounded-lg text-white hover:bg-gray-800',
+            isActive && 'bg-gray-700',
             isCollapsed ? 'justify-center' : ''
           )}
         >
@@ -76,4 +76,4 @@ function SidebarItem({ icon, text, href, isCollapsed, isActive }: SidebarItemPro
       )}
     </Tooltip>
   );
-} 
+}

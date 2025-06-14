@@ -70,7 +70,7 @@ export const citationExtractionTool = createTool({
       const model = anthropic('claude-opus-4-20250514');
       
       const citations = [];
-      const bibliography = { APA: [], MLA: [], Chicago: [] };
+      const bibliography: { APA: string[]; MLA: string[]; Chicago: string[] } = { APA: [], MLA: [], Chicago: [] };
       
       for (const source of sources) {
         const currentDate = new Date().toISOString().split('T')[0];
@@ -146,28 +146,31 @@ Notes should include any formatting concerns or missing information warnings.
             }
           } catch (parseError) {
             // Fallback citation generation
+            const fallbackCitations: { APA?: string; MLA?: string; Chicago?: string } = {};
+            const fallbackInText: { APA?: string; MLA?: string; Chicago?: string } | undefined = includeInText ? {} : undefined;
+            
             citationData = {
-              citations: {},
-              inTextCitation: includeInText ? {} : undefined,
+              citations: fallbackCitations,
+              inTextCitation: fallbackInText,
               notes: ['Automated citation generation - please verify formatting'],
             };
 
             // Basic fallback citations
             if (citationStyle === 'all' || citationStyle === 'APA') {
               citationData.citations.APA = `${metadata.author}. (${metadata.publishDate}). ${source.title}. ${metadata.publisher}. Retrieved ${metadata.accessDate}, from ${source.url}`;
-              if (includeInText) {
+              if (includeInText && citationData.inTextCitation) {
                 citationData.inTextCitation.APA = `(${metadata.author}, ${metadata.publishDate})`;
               }
             }
             if (citationStyle === 'all' || citationStyle === 'MLA') {
               citationData.citations.MLA = `${metadata.author}. "${source.title}." ${metadata.publisher}, ${metadata.publishDate}, ${source.url}. Accessed ${metadata.accessDate}.`;
-              if (includeInText) {
+              if (includeInText && citationData.inTextCitation) {
                 citationData.inTextCitation.MLA = `(${metadata.author})`;
               }
             }
             if (citationStyle === 'all' || citationStyle === 'Chicago') {
               citationData.citations.Chicago = `${metadata.author}. "${source.title}." ${metadata.publisher}. ${metadata.publishDate}. ${source.url} (accessed ${metadata.accessDate}).`;
-              if (includeInText) {
+              if (includeInText && citationData.inTextCitation) {
                 citationData.inTextCitation.Chicago = `(${metadata.author}, ${metadata.publishDate})`;
               }
             }

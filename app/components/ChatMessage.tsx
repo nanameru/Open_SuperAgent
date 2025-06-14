@@ -2136,14 +2136,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 <ReactMarkdown 
                   components={{
                     // 段落のスタイリング
-                    p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                    p: ({children}) => <p className="mb-2 last:mb-0 bg-transparent">{children}</p>,
                   // 太文字
                   strong: ({children}) => <strong className="font-bold">{children}</strong>,
                   // 斜体
                   em: ({children}) => <em className="italic">{children}</em>,
                   // インラインコード
                   code: ({children}) => (
-                    <code className="px-1 py-0.5 bg-gray-200 rounded text-sm font-mono">{children}</code>
+                    <code className="bg-transparent font-mono">{children}</code>
                   ),
                   // コードブロック
                   pre: ({children}) => (
@@ -2154,7 +2154,34 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   // リスト
                   ul: ({children}) => <ul className="list-disc list-inside mb-2">{children}</ul>,
                   ol: ({children}) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
-                  li: ({children}) => <li className="mb-1">{children}</li>,
+                  li: ({node, children}) => {
+                    // ASTノードからテキストコンテンツを再帰的に取得するヘルパー関数
+                    const getNodeText = (n: any): string => {
+                      if (n.type === 'text') {
+                        return n.value;
+                      }
+                      if (n.children && Array.isArray(n.children)) {
+                        return n.children.map(getNodeText).join('');
+                      }
+                      return '';
+                    };
+                    const textContent = node ? getNodeText(node) : '';
+                    
+                    // 罫線文字が含まれているかチェック
+                    const isTreeLine = /[├│└]/.test(textContent);
+
+                    if (isTreeLine) {
+                      // ツリー表示用の行：リストマーカーを消し、等幅フォントと空白維持スタイルを適用
+                      return (
+                        <li className="list-none bg-transparent" style={{ whiteSpace: 'pre', fontFamily: 'monospace' }}>
+                          {children}
+                        </li>
+                      );
+                    }
+                    
+                    // 通常のリスト項目
+                    return <li className="mb-1 bg-transparent">{children}</li>;
+                  },
                   // 見出し
                   h1: ({children}) => <h1 className="text-2xl font-bold mb-2">{children}</h1>,
                   h2: ({children}) => <h2 className="text-xl font-bold mb-2">{children}</h2>,

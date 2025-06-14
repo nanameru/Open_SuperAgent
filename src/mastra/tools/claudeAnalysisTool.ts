@@ -67,8 +67,8 @@ interface CodeReview {
 
 // Simplified input schema
 const claudeAnalysisInputSchema = z.object({
-  operation: z.enum(['analyze', 'generate', 'review', 'refactor', 'generate-tests', 'generate-docs'])
-    .describe('The operation to perform: analyze (code analysis), generate (code generation), review (code review), refactor (code improvement), generate-tests (test generation), or generate-docs (documentation generation)'),
+  operation: z.enum(['analyze', 'generate', 'review', 'refactor', 'generate-tests', 'generate-docs', 'analyze-project'])
+    .describe('The operation to perform: analyze (code analysis), generate (code generation), review (code review), refactor (code improvement), generate-tests (test generation), generate-docs (documentation generation), or analyze-project (project structure analysis)'),
   
   // Common fields
   code: z.string().optional().describe('The code to analyze/review/refactor/test/document (required for analyze, review, refactor, generate-tests, generate-docs)'),
@@ -102,12 +102,18 @@ const claudeAnalysisInputSchema = z.object({
   
   // Documentation specific
   format: z.enum(['jsdoc', 'sphinx', 'markdown', 'inline']).optional().default('inline'),
-  includeExamples: z.boolean().optional().default(true)
+  includeExamples: z.boolean().optional().default(true),
+  
+  // Project analysis specific
+  projectPath: z.string().optional().describe('Path to project directory (defaults to current directory)'),
+  maxDepth: z.number().optional().default(3).describe('Maximum directory depth to scan'),
+  excludePaths: z.array(z.string()).optional().default(['node_modules', '.git', '.next', 'dist', 'build'])
+    .describe('Paths to exclude from project analysis'),
 });
 
 // Unified output schema (following braveSearchTool pattern)
 const claudeAnalysisOutputSchema = z.object({
-  operation: z.enum(['analyze', 'generate', 'review', 'refactor', 'generate-tests', 'generate-docs']),
+  operation: z.enum(['analyze', 'generate', 'review', 'refactor', 'generate-tests', 'generate-docs', 'analyze-project']),
   success: z.boolean(),
   data: z.object({
     explanation: z.string(),
@@ -166,10 +172,12 @@ export const claudeAnalysisTool = createTool({
           return await generateTests(context, headers, baseURL, anthropicApiKey);
         case 'generate-docs':
           return await generateDocumentation(context, headers, baseURL, anthropicApiKey);
+        case 'analyze-project':
+          return await analyzeProject(context, headers, baseURL, anthropicApiKey);
         default:
           throw new Error(
             `Unsupported operation: "${operation}". ` +
-            'Please use one of: analyze, generate, review, refactor, generate-tests, generate-docs'
+            'Please use one of: analyze, generate, review, refactor, generate-tests, generate-docs, analyze-project'
           );
       }
     } catch (error) {
@@ -423,6 +431,85 @@ async function makeClaudeRequest(systemPrompt: string, userPrompt: string, heade
 
   const data = await response.json();
   return data.content[0]?.text || '';
+}
+
+async function analyzeProject(context: any, headers: any, baseURL: string, apiKey: string) {
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  const projectPath = context.projectPath || process.cwd();
+  const maxDepth = context.maxDepth || 3;
+  const excludePaths = context.excludePaths || ['node_modules', '.git', '.next', 'dist', 'build'];
+  
+  // Scan project structure
+  async function scanDirectory(dirPath: string, currentDepth: number = 0): Promise<string> {
+    if (currentDepth >= maxDepth) return '';
+    
+    try {
+      const items = await fs.readdir(dirPath);
+      let structure = '';
+      
+      for (const item of items) {
+        if (excludePaths.some((exclude: string) => item.includes(exclude))) continue;
+        
+        const fullPath = path.join(dirPath, item);
+        const stat = await fs.stat(fullPath);
+        const indent = '  '.repeat(currentDepth);
+        
+        if (stat.isDirectory()) {
+          structure += `${indent}📁 ${item}/\n`;
+          structure += await scanDirectory(fullPath, currentDepth + 1);
+        } else {
+          const ext = path.extname(item);
+          structure += `${indent}📄 ${item}\n`;
+        }
+      }
+      
+      return structure;
+    } catch (error) {
+      return '';
+    }
+  }
+  
+  const projectStructure = await scanDirectory(projectPath);
+  
+  const systemPrompt = `You are an expert project architect and code analyst. Analyze the provided project structure and provide comprehensive insights about the project's architecture, technology stack, organization, and recommendations for improvement.`;
+
+  const userPrompt = `Analyze this project structure:
+
+## Project Structure
+\`\`\`
+${projectStructure}
+\`\`\`
+
+Please provide analysis on:
+1. **Technology Stack**: What frameworks, libraries, and tools are being used?
+2. **Architecture Pattern**: What architectural patterns are evident?
+3. **Project Organization**: How well is the project structured?
+4. **Strengths**: What are the project's architectural strengths?
+5. **Recommendations**: What improvements could be made?
+6. **Potential Issues**: Any structural concerns or anti-patterns?
+
+Return the analysis in JSON format with structured insights.`;
+
+  const response = await makeClaudeRequest(systemPrompt, userPrompt, headers, baseURL, apiKey);
+  const analysis = parseJSONResponse(response);
+
+  return {
+    operation: 'analyze-project' as const,
+    success: true,
+    data: {
+      explanation: 'Project structure analysis completed successfully',
+      result: analysis,
+      metadata: {
+        operation: 'analyze-project',
+        timestamp: new Date().toISOString(),
+        projectPath,
+        scannedDepth: maxDepth,
+        excludedPaths: excludePaths
+      }
+    }
+  };
 }
 
 function parseJSONResponse(response: string): any {

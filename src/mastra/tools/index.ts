@@ -125,7 +125,7 @@ import { claudeIssueTool } from './claudeIssueTool';
 import { claudeAnalysisTool } from './claudeAnalysisTool';
 import { claudeFileTool } from './claudeFileTool';
 import { claudeAutoEditTool } from './claudeAutoEditTool';
-import { claudeProjectAnalyzerTool } from './claudeProjectAnalyzerTool';
+import { claudeCodeSDKTool } from './claudeCodeSDKTool';
 import { githubListIssuesTool } from './githubListIssuesTool';
 import { fileAppendTool } from './fileAppendTool';
 // Enhanced research tools
@@ -133,6 +133,8 @@ import { websiteAnalysisTool } from './websiteAnalysisTool';
 import { sourceValidationTool } from './sourceValidationTool';
 import { citationExtractionTool } from './citationExtractionTool';
 import { contentSynthesisTool } from './contentSynthesisTool';
+// Visual editing tools
+import { visualSlideEditorTool } from './visualSlideEditorTool';
 
 // Define the list of all tools
 export const allTools = [
@@ -159,7 +161,7 @@ export const allTools = [
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
-  claudeProjectAnalyzerTool,
+  claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
   // Enhanced research tools
@@ -167,6 +169,8 @@ export const allTools = [
   sourceValidationTool,
   citationExtractionTool,
   contentSynthesisTool,
+  // Visual editing tools
+  visualSlideEditorTool,
 ];
 
 // Define the list of all tool names, handling both .name and .id properties
@@ -196,7 +200,7 @@ export {
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
-  claudeProjectAnalyzerTool,
+  claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
   // Enhanced research tools
@@ -204,4 +208,6 @@ export {
   sourceValidationTool,
   citationExtractionTool,
   contentSynthesisTool,
+  // Visual editing tools
+  visualSlideEditorTool,
 };
