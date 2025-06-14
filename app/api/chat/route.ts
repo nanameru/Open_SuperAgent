@@ -2,8 +2,8 @@ import { mastra } from '@/src/mastra'; // Import mastra instance
 // import { streamText, experimental_streamText } from 'ai'; // experimental_streamText removed
 // import { streamText } from 'ai'; // Only import streamText
 
-// IMPORTANT! Set the runtime to edge
-export const runtime = 'edge';
+// Set the runtime to nodejs for browser tools compatibility
+export const runtime = 'nodejs';
 
 // Allow streaming responses up to 300 seconds
 export const maxDuration = 300;

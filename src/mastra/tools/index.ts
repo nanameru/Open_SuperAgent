@@ -135,8 +135,6 @@ import { citationExtractionTool } from './citationExtractionTool';
 import { contentSynthesisTool } from './contentSynthesisTool';
 // Visual editing tools
 import { visualSlideEditorTool } from './visualSlideEditorTool';
-import { enhancedPptxExportTool } from './enhancedPptxExportTool';
-import { elementModifierTool } from './elementModifierTool';
 
 // Define the list of all tools
 export const allTools = [
@@ -173,8 +171,6 @@ export const allTools = [
   contentSynthesisTool,
   // Visual editing tools
   visualSlideEditorTool,
-  enhancedPptxExportTool,
-  elementModifierTool,
 ];
 
 // Define the list of all tool names, handling both .name and .id properties
@@ -214,6 +210,4 @@ export {
   contentSynthesisTool,
   // Visual editing tools
   visualSlideEditorTool,
-  enhancedPptxExportTool,
-  elementModifierTool,
 };

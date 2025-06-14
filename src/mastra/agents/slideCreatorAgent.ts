@@ -19,9 +19,7 @@ import {
   claudeAutoEditTool,
   claudeCodeSDKTool,
   githubListIssuesTool,
-  visualSlideEditorTool,
-  enhancedPptxExportTool,
-  elementModifierTool
+  visualSlideEditorTool
 } from '../tools'; // Import all tools
 import { browserSessionTool } from '../tools/browserSessionTool';
 import { browserGotoTool } from '../tools/browserGotoTool';
@@ -320,8 +318,6 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       browserCloseTool, // Close browser session
       // Visual editing tools
       visualSlideEditorTool, // Visual slide editor with drag-and-drop
-      enhancedPptxExportTool, // Enhanced PowerPoint export
-      elementModifierTool // Precise element modification
     },
     memory: new Memory({ // Add memory configuration
       options: {
