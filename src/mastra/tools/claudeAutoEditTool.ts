@@ -50,7 +50,7 @@ export const claudeAutoEditTool = createTool({
   description: 'Analyze, refactor, or generate code with automatic file modification. Combines Claude AI assistance with direct file editing.',
   inputSchema: claudeAutoEditInputSchema,
   outputSchema: claudeAutoEditOutputSchema,
-  execute: async ({ context }) => {
+  execute: async ({ context, runtimeContext }) => {
     const { operation, filePath, specification, analysisType, refactorType, autoApply, backupOriginal } = context;
     
     try {
@@ -62,20 +62,21 @@ export const claudeAutoEditTool = createTool({
             operation: 'read',
             filePath,
             encoding: 'utf8'
-          }
+          },
+          runtimeContext
         });
         
-        if (!readResult.success || !readResult.content) {
+        if (!readResult.success) {
           return {
             success: false,
             operation,
             filePath,
-            message: `Failed to read file: ${readResult.error || 'Unknown error'}`,
+            message: `Failed to read file: ${readResult.message || 'Unknown error'}`,
             error: readResult.error
           };
         }
         
-        originalCode = readResult.content;
+        originalCode = readResult.content || '';
       }
       
       // Step 2: Process with Claude Code SDK
@@ -92,8 +93,25 @@ export const claudeAutoEditTool = createTool({
               language: getLanguageFromPath(filePath),
               analysisType,
               includeMetrics: true,
-              generateSuggestions: true
-            }
+              generateSuggestions: true,
+              specification: undefined,
+              style: undefined,
+              framework: undefined,
+              includeTests: false,
+              includeDocumentation: false,
+              reviewType: 'comprehensive',
+              severity: 'medium',
+              refactorType: undefined,
+              target: undefined,
+              testFramework: 'auto',
+              coverage: 'comprehensive',
+              format: 'inline',
+              includeExamples: true,
+              projectPath: undefined,
+              maxDepth: 3,
+              excludePaths: ['node_modules', '.git', '.next', 'dist', 'build']
+            },
+            runtimeContext
           });
           
           if (!analysisResult.success) {
@@ -107,8 +125,26 @@ export const claudeAutoEditTool = createTool({
               code: originalCode,
               language: getLanguageFromPath(filePath),
               refactorType: 'clean',
-              target: 'maintainability'
-            }
+              target: 'maintainability',
+              specification: undefined,
+              analysisType: 'comprehensive',
+              includeMetrics: true,
+              generateSuggestions: true,
+              style: undefined,
+              framework: undefined,
+              includeTests: false,
+              includeDocumentation: false,
+              reviewType: 'comprehensive',
+              severity: 'medium',
+              testFramework: 'auto',
+              coverage: 'comprehensive',
+              format: 'inline',
+              includeExamples: true,
+              projectPath: undefined,
+              maxDepth: 3,
+              excludePaths: ['node_modules', '.git', '.next', 'dist', 'build']
+            },
+            runtimeContext
           });
           
           if (!refactorResult.success || !refactorResult.data.code) {
@@ -127,8 +163,26 @@ export const claudeAutoEditTool = createTool({
               code: originalCode,
               language: getLanguageFromPath(filePath),
               refactorType: refactorType || 'clean',
-              target: 'maintainability'
-            }
+              target: 'maintainability',
+              specification: undefined,
+              analysisType: 'comprehensive',
+              includeMetrics: true,
+              generateSuggestions: true,
+              style: undefined,
+              framework: undefined,
+              includeTests: false,
+              includeDocumentation: false,
+              reviewType: 'comprehensive',
+              severity: 'medium',
+              testFramework: 'auto',
+              coverage: 'comprehensive',
+              format: 'inline',
+              includeExamples: true,
+              projectPath: undefined,
+              maxDepth: 3,
+              excludePaths: ['node_modules', '.git', '.next', 'dist', 'build']
+            },
+            runtimeContext
           });
           
           if (!refactorResult.success || !refactorResult.data.code) {
@@ -151,8 +205,26 @@ export const claudeAutoEditTool = createTool({
               specification,
               language: getLanguageFromPath(filePath),
               includeTests: false,
-              includeDocumentation: true
-            }
+              includeDocumentation: true,
+              code: undefined,
+              analysisType: 'comprehensive',
+              includeMetrics: true,
+              generateSuggestions: true,
+              style: undefined,
+              framework: undefined,
+              reviewType: 'comprehensive',
+              severity: 'medium',
+              refactorType: undefined,
+              target: undefined,
+              testFramework: 'auto',
+              coverage: 'comprehensive',
+              format: 'inline',
+              includeExamples: true,
+              projectPath: undefined,
+              maxDepth: 3,
+              excludePaths: ['node_modules', '.git', '.next', 'dist', 'build']
+            },
+            runtimeContext
           });
           
           if (!generateResult.success || !generateResult.data.code) {
@@ -177,8 +249,9 @@ export const claudeAutoEditTool = createTool({
               operation: 'write',
               filePath: backupPath,
               content: originalCode,
-              encoding: 'utf8'
-            }
+              encoding: 'utf8',
+            },
+            runtimeContext
           });
         }
         
@@ -188,12 +261,13 @@ export const claudeAutoEditTool = createTool({
             operation: 'write',
             filePath,
             content: modifiedCode,
-            encoding: 'utf8'
-          }
+            encoding: 'utf8',
+          },
+          runtimeContext
         });
         
         if (!writeResult.success) {
-          throw new Error(`Failed to write file: ${writeResult.error}`);
+          throw new Error(`Failed to write file: ${writeResult.message || 'Unknown error'}`);
         }
       }
       
