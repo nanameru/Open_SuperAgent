@@ -205,16 +205,16 @@ const CollapsibleToolSection = ({
   };
 
   return (
-    <div className={`rounded-lg border ${getBgColorClass()} overflow-hidden transition-colors duration-200 mb-3 shadow-sm`}>
-      <div className="flex items-center justify-between px-3 py-2">
+    <div className={`rounded-[15px] border ${getBgColorClass()} overflow-hidden transition-colors duration-200 mb-3 shadow-sm max-w-full cursor-pointer select-none hover:bg-gray-200/50`}
+         onClick={handleHeaderClick}>
+      <div className="inline-flex items-center gap-2 px-[10px] py-[3px] w-full max-w-full">
         <div 
-          className="flex items-center space-x-2 cursor-pointer select-none hover:bg-gray-200/50 transition-colors flex-grow rounded px-2 py-1"
-          onClick={handleHeaderClick}
+          className="inline-flex items-center gap-2 flex-grow rounded-[8px] px-2 py-1 max-w-full"
         >
-          <div className={`flex items-center justify-center h-5 w-5 ${getIconColorClass()}`}>
+          <div className={`flex items-center justify-center h-4 w-4 ${getIconColorClass()} flex-shrink-0`}>
             {getStateIcon()}
           </div>
-          <span className="font-medium text-sm flex items-center">
+          <span className="font-medium text-xs flex items-center truncate">
             {toolName === 'geminiImageGenerationTool' ? 'Gemini画像生成' : 
              toolName === 'gemini-image-generation' ? 'Gemini画像生成' : 
              toolName === 'imagen4-generation' ? 'Imagen 4画像生成' :
@@ -224,18 +224,18 @@ const CollapsibleToolSection = ({
              toolName === 'browser-automation-tool' ? 'ブラウザ自動化' :
              toolName}
             {(isLoading && (toolState === 'running' || toolState === 'call')) && (
-              <span className="ml-2 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
+              <span className="ml-1 inline-block text-gray-600 text-xs font-normal animate-pulse">処理中...</span>
             )}
             {toolState === 'error' && (
-              <span className="ml-2 text-red-500 text-xs font-normal">(エラー)</span>
+              <span className="ml-1 text-red-500 text-xs font-normal">(エラー)</span>
             )}
             {(toolState === 'success' || toolState === 'result') && (
-              <span className="ml-2 text-gray-600 text-xs font-normal">(完了)</span>
+              <span className="ml-1 text-gray-600 text-xs font-normal">(完了)</span>
             )}
           </span>
         </div>
 
-        <div className="flex items-center">
+        <div className="inline-flex items-center gap-1 flex-shrink-0">
           {/* プレビューツールの場合はプレビューボタンを表示 */}
           {isPreviewTool && (toolState === 'success' || toolState === 'result') && previewHtml && (
             <button
@@ -243,7 +243,7 @@ const CollapsibleToolSection = ({
                 e.stopPropagation();
                 onPreviewClick();
               }}
-              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+              className="px-2 py-1 bg-gray-800 text-white rounded-[8px] text-xs inline-flex items-center hover:bg-gray-700 transition-colors"
               title="スライドをプレビュー表示"
             >
               <EyeIcon className="h-3 w-3 mr-1" />
@@ -258,7 +258,7 @@ const CollapsibleToolSection = ({
                 e.stopPropagation();
                 onImageClick();
               }}
-              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+              className="px-2 py-1 bg-gray-800 text-white rounded-[8px] text-xs inline-flex items-center hover:bg-gray-700 transition-colors"
               title="生成された画像をプレビュー表示"
             >
               <PhotoIcon className="h-3 w-3 mr-1" />
@@ -273,7 +273,7 @@ const CollapsibleToolSection = ({
                 e.stopPropagation();
                 onBrowserbaseClick();
               }}
-              className="mr-2 px-3 py-1 bg-gray-800 text-white rounded-md text-xs flex items-center hover:bg-gray-700 transition-colors"
+              className="px-2 py-1 bg-gray-800 text-white rounded-[8px] text-xs inline-flex items-center hover:bg-gray-700 transition-colors"
               title="Browserbase操作画面を表示"
             >
               <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,22 +283,11 @@ const CollapsibleToolSection = ({
             </button>
           )}
           
-          <button 
-            className="text-gray-500 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-200/50"
-            aria-label={isExpanded ? "折りたたむ" : "展開する"}
-            onClick={handleHeaderClick}
-          >
-            {isExpanded ? (
-              <ChevronUpIcon className="h-5 w-5" />
-            ) : (
-              <ChevronDownIcon className="h-5 w-5" />
-            )}
-          </button>
         </div>
       </div>
       
       {isExpanded && (
-        <div className="px-3 pb-3 pt-0">
+        <div className="px-[10px] pb-2 pt-0">
           {children}
         </div>
       )}

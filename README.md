@@ -26,7 +26,7 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 
 上記の2つのAPIキーを取得したら、詳細なセットアップ手順は下記の「セットアップ手順」セクションをご確認ください。
 
-![デモ動画](https://github.com/nanameru/Open_SuperAgent/assets/demo-video.gif)
+https://github.com/user-attachments/assets/a3d8a8e1-8d34-4a8b-8a3c-9e2a9b3e6d0f
 
 ブラウザで http://localhost:3000 を開いて、AIチャットと検索を試してみましょう！
 
