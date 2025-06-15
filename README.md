@@ -230,115 +230,13 @@ mastra build
 
 バグレポートや機能リクエストは GitHub Issues で受け付けています。プルリクエストも大歓迎です！
 
+### 貢献者
+
+- [@jp_sayler](https://x.com/jp_sayler) - プロジェクトへの貢献
+
 ## 連絡先
 
 質問や問い合わせは GitHub Issues または以下のSNSでお願いします:
 
 - X (Twitter): [@taiyo_ai_gakuse](https://x.com/taiyo_ai_gakuse)
 
----
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## 🔑 APIキー取得手順
-
-### Google Generative AI APIキー
-1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
-2. Googleアカウントでサインイン
-3. "Create API Key" をクリック
-4. 生成されたAPIキーをコピー
-5. `.env`ファイルに `GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here` として追加
-
-### Browserbase APIキー
-1. [Browserbase Dashboard](https://browserbase.com/dashboard/settings) にアクセス
-2. アカウント作成またはサインイン
-3. API KeyとProject IDを取得
-4. `.env`ファイルに追加
-
-### Anthropic Claude APIキー
-1. [Anthropic Console](https://console.anthropic.com/settings/keys) にアクセス
-2. アカウント作成またはサインイン
-3. "Create Key" をクリック
-4. 生成されたAPIキーをコピー
-5. `.env`ファイルに `ANTHROPIC_API_KEY=your_api_key_here` として追加
-
-### OpenAI APIキー
-1. [OpenAI Platform](https://platform.openai.com/api-keys) にアクセス
-2. アカウント作成またはサインイン
-3. "Create new secret key" をクリック
-4. 生成されたAPIキーをコピー
-5. `.env`ファイルに `OPENAI_API_KEY=your_api_key_here` として追加
-
-### X.AI Grok APIキー
-1. [X.AI API](https://x.ai/api) にアクセス
-2. X (Twitter) アカウントでサインイン
-3. API Keyを申請・取得
-4. `.env`ファイルに `XAI_API_KEY=your_api_key_here` として追加
-
-### Brave Search APIキー
-1. [Brave Search API](https://api.search.brave.com/app/keys) にアクセス
-2. アカウント作成またはサインイン
-3. "Create new key" をクリック
-4. 生成されたAPIキーをコピー
-5. `.env`ファイルに `BRAVE_API_KEY=your_api_key_here` として追加
-
-### V0 Code Generation APIキー
-1. [V0 Settings](https://v0.dev/settings) にアクセス
-2. Vercelアカウントでサインイン
-3. API Keys セクションで新しいキーを生成
-4. `.env`ファイルに `V0_API_KEY=your_api_key_here` として追加
-
-### Fal.ai APIキー
-1. [Fal.ai Dashboard](https://fal.ai/dashboard/keys) にアクセス
-2. アカウント作成またはサインイン
-3. "Create API Key" をクリック
-4. 生成されたAPIキーをコピー
-5. `.env`ファイルに `FAL_KEY=your_api_key_here` として追加
-
-### Nutrient APIキー
-1. [Nutrient](https://nutrient.io/) にアクセス
-2. アカウント作成またはサインイン
-3. ダッシュボードでAPI Keyを取得
-4. `.env`ファイルに `NUTRIENT_API_KEY=your_api_key_here` として追加
-5. 開発用テストキー: `pdf_live_fy1NX9djc1G2GoPVFljLgpsYUfbWrQU47Uxgj0y5py2`
-
-### MiniMax APIキー
-1. [MiniMax Platform](https://platform.minimaxi.com/) にアクセス
-2. アカウント作成またはサインイン
-3. API管理ページでAPI KeyとGroup IDを取得
-4. `.env`ファイルに追加
