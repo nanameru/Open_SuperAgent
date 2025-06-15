@@ -1,0 +1,30 @@
+# compose.yaml
+
+services:
+  opensuperagent:
+    container_name: opensuperagent
+    # カレントディレクトリにあるDockerfileを使用してイメージをビルド
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Dockerfile内のARGに渡す引数を指定
+      # 値は.envファイルから読み込まれる
+      args:
+        GIT_REPO_URL: ${GIT_REPO_URL}
+        BRANCH_NAME: ${BRANCH_NAME}
+        APP_PORT: ${APP_PORT}
+    
+    # ポートフォワーディングの設定
+    # "ホスト側のポート:コンテナ側のポート"
+    ports:
+      - "${HOST_PORT}:${APP_PORT}"
+      
+    # 開発用に起動
+    entrypoint: [ "npm", "run", "dev" ]
+    
+    # .env ファイルを読み込んで環境変数として利用
+    env_file:
+      - .env
+      
+    # コンテナを常に再起動する設定（任意）
+    restart: always

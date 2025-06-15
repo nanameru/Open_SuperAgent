@@ -26,6 +26,8 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 
 上記の2つのAPIキーを取得したら、詳細なセットアップ手順は下記の「セットアップ手順」セクションをご確認ください。
 
+![デモ動画](https://github.com/nanameru/Open_SuperAgent/assets/demo-video.gif)
+
 ブラウザで http://localhost:3000 を開いて、AIチャットと検索を試してみましょう！
 
 ### 無料で使える機能
@@ -41,67 +43,45 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 
 Dockerを使用すると、環境構築を簡単に行い、一貫した環境でアプリケーションを実行できます。
 
-### Docker Compose を使用した起動
+### OpenSuperAgent コンテナ概要
 
-#### 1. 本番環境での実行
+以下の3つのファイルで構成されたシンプルなDocker環境です：
+
+1. `Dockerfile`: Dockerイメージの設計図です。ソースコードの取得、依存関係のインストールなどを行います。
+2. `compose.yaml`: Dockerコンテナの起動設定を記述します。ビルド時の引数やポートフォワード、起動コマンドなどを指定します。
+3. `.env`: `compose.yaml` で使用する環境変数を定義するファイルです。リポジトリのURLやブランチ名などを一元管理します。
+
+これらのファイルだけを同じディレクトリに配置して使用します。
+
+### 実行方法
+
+1. 上記3つのファイル（`Dockerfile`, `compose.yaml`, `.env`）を同じディレクトリに作成します。
+2. `.env` ファイル内の各種API-KEYなどを自身の情報に書き換えます。
+3. `.env` ファイル内の `GIT_REPO_URL` や `BRANCH_NAME` などを、必要に応じて編集します。※編集しない場合はOpenSuperAgentの最新版が起動します。
+4. ターミナルでそのディレクトリに移動し、以下のコマンドを実行します。
 
 ```bash
-# リポジトリをクローン
-git clone https://github.com/nanameru/Open_SuperAgent.git
-cd Open_SuperAgent
+# Dockerイメージをビルドし、コンテナをバックグラウンドで起動
+# (Docker Compose V2 の場合)
+docker compose up --build -d
 
-# 環境変数ファイルを設定
-cp .env.docker.example .env.local
-# .env.localファイルを編集してAPIキーを設定
-
-# Docker Composeでビルドと起動
-docker-compose up -d
-
-# ログを確認
-docker-compose logs -f app
+# (古いバージョンの場合)
+# docker-compose up --build -d
 ```
 
-#### 2. 開発環境での実行
+これで、OpenSuperAgentのソースが自動でクローン（取得）され、依存関係がインストールされたコンテナが起動します。
+ホストマシンの `3000` 番ポート（`.env` で指定）にアクセスすると、コンテナ内のOpenSuperAgentに接続できます。
+
+**アクセス**: http://localhost:3000/
+
+### その他のコマンド
 
 ```bash
-# 開発環境用設定でビルドと起動
-docker-compose -f docker-compose.dev.yml up -d
-
-# ログを確認
-docker-compose -f docker-compose.dev.yml logs -f app-dev
-```
-
-### アクセス
-
-- **アプリケーション**: http://localhost:3000
-- **Mastraサーバー**: http://localhost:4111
-
-### Docker Compose の機能
-
-- ✅ **マルチサービス**: Next.jsアプリとMastraサーバーを同時実行
-- ✅ **データ永続化**: データベースファイルと生成されたファイルを永続化
-- ✅ **ブラウザ自動化**: Chromium/Puppeteer対応
-- ✅ **開発環境**: ホットリロード対応の開発用設定
-- ✅ **Redis**: セッション管理とキャッシュ用Redis
-- ✅ **セキュリティ**: 非rootユーザーでの実行
-
-### Docker コマンド
-
-```bash
-# サービスの停止
+# コンテナの停止と削除
 docker-compose down
 
-# ボリュームも含めて完全削除
-docker-compose down -v
-
 # ログの確認
-docker-compose logs app
-
-# コンテナに接続
-docker-compose exec app sh
-
-# イメージの再ビルド
-docker-compose build --no-cache
+docker-compose logs -f
 ```
 
 ## 主な機能
