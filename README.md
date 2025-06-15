@@ -24,28 +24,7 @@ AIアシスタント機能を備えたオープンソースチャットアプリ
 
 ### クイックスタート
 
-```bash
-# リポジトリをクローン
-git clone https://github.com/nanameru/Open_SuperAgent.git
-cd Open_SuperAgent
-
-# 依存パッケージをインストール
-npm install
-
-# 環境変数ファイルをコピー
-cp .env.example .env
-
-# .envファイルを編集して、上記2つのAPIキーを設定
-# GOOGLE_GENERATIVE_AI_API_KEY=取得したGeminiのAPIキー
-# GEMINI_API_KEY=同じGeminiのAPIキー（両方に設定）
-# BRAVE_API_KEY=取得したBrave SearchのAPIキー
-
-# Mastraサーバーを起動（別ターミナルで）
-mastra dev
-
-# 開発サーバーを起動
-npm run dev
-```
+上記の2つのAPIキーを取得したら、詳細なセットアップ手順は下記の「セットアップ手順」セクションをご確認ください。
 
 ブラウザで http://localhost:3000 を開いて、AIチャットと検索を試してみましょう！
 
@@ -57,6 +36,73 @@ npm run dev
 - ✅ **並列処理**: 独立したタスクを同時実行で高速化
 
 他の機能（画像生成、音声生成、ブラウザ自動化など）を使いたい場合は、該当するAPIキーを追加で設定してください。
+
+## 🐳 Docker で実行する
+
+Dockerを使用すると、環境構築を簡単に行い、一貫した環境でアプリケーションを実行できます。
+
+### Docker Compose を使用した起動
+
+#### 1. 本番環境での実行
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/nanameru/Open_SuperAgent.git
+cd Open_SuperAgent
+
+# 環境変数ファイルを設定
+cp .env.docker.example .env.local
+# .env.localファイルを編集してAPIキーを設定
+
+# Docker Composeでビルドと起動
+docker-compose up -d
+
+# ログを確認
+docker-compose logs -f app
+```
+
+#### 2. 開発環境での実行
+
+```bash
+# 開発環境用設定でビルドと起動
+docker-compose -f docker-compose.dev.yml up -d
+
+# ログを確認
+docker-compose -f docker-compose.dev.yml logs -f app-dev
+```
+
+### アクセス
+
+- **アプリケーション**: http://localhost:3000
+- **Mastraサーバー**: http://localhost:4111
+
+### Docker Compose の機能
+
+- ✅ **マルチサービス**: Next.jsアプリとMastraサーバーを同時実行
+- ✅ **データ永続化**: データベースファイルと生成されたファイルを永続化
+- ✅ **ブラウザ自動化**: Chromium/Puppeteer対応
+- ✅ **開発環境**: ホットリロード対応の開発用設定
+- ✅ **Redis**: セッション管理とキャッシュ用Redis
+- ✅ **セキュリティ**: 非rootユーザーでの実行
+
+### Docker コマンド
+
+```bash
+# サービスの停止
+docker-compose down
+
+# ボリュームも含めて完全削除
+docker-compose down -v
+
+# ログの確認
+docker-compose logs app
+
+# コンテナに接続
+docker-compose exec app sh
+
+# イメージの再ビルド
+docker-compose build --no-cache
+```
 
 ## 主な機能
 

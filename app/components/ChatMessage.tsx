@@ -2107,11 +2107,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       );
     });
 
-    return (
-      <>
-        {/* Deep Researchタイムライン表示 */}
-        {isDeepResearchMessage() && (deepResearchEvents.length > 0 || isDeepResearchLoading) && (
-          <div className="flex justify-end mb-6">
+    // インラインツール表示のための新しいレンダリング関数
+    const renderInlineContent = () => {
+      const elements: React.ReactNode[] = [];
+      
+      // Deep Researchタイムライン表示
+      if (isDeepResearchMessage() && (deepResearchEvents.length > 0 || isDeepResearchLoading)) {
+        elements.push(
+          <div key="deep-research" className="flex justify-end mb-6">
             <div className="w-full max-w-3xl">
               <ActivityTimeline 
                 processedEvents={deepResearchEvents}
@@ -2119,238 +2122,358 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               />
             </div>
           </div>
-        )}
+        );
+      }
 
-        {/* ツールUIの表示 */}
-        {toolCallUiElements.length > 0 && (
-          <div className="w-full max-w-3xl mb-6">
-            {toolCallUiElements}
-          </div>
-        )}
-
-        {/* アシスタントテキストコンテンツ */}
-        {content.trim() && (
-          <div className="flex justify-start mb-6">
-            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
-              <div className="prose prose-gray max-w-none text-base leading-relaxed">
-                <ReactMarkdown 
-                  components={{
-                    // 段落のスタイリング
-                    p: ({children}) => <p className="mb-2 last:mb-0 bg-transparent">{children}</p>,
-                  // 太文字
-                  strong: ({children}) => <strong className="font-bold">{children}</strong>,
-                  // 斜体
-                  em: ({children}) => <em className="italic">{children}</em>,
-                  // インラインコード
-                  code: ({children}) => (
-                    <code className="bg-transparent font-mono">{children}</code>
-                  ),
-                  // コードブロック
-                  pre: ({children}) => (
-                    <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg overflow-x-auto my-2">
-                      {children}
-                    </pre>
-                  ),
-                  // リスト
-                  ul: ({children}) => <ul className="list-disc list-inside mb-2">{children}</ul>,
-                  ol: ({children}) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
-                  li: ({node, children}) => {
-                    // ASTノードからテキストコンテンツを再帰的に取得するヘルパー関数
-                    const getNodeText = (n: any): string => {
-                      if (n.type === 'text') {
-                        return n.value;
-                      }
-                      if (n.children && Array.isArray(n.children)) {
-                        return n.children.map(getNodeText).join('');
-                      }
-                      return '';
-                    };
-                    const textContent = node ? getNodeText(node) : '';
-                    
-                    // 罫線文字が含まれているかチェック
-                    const isTreeLine = /[├│└]/.test(textContent);
-
-                    if (isTreeLine) {
-                      // ツリー表示用の行：リストマーカーを消し、等幅フォントと空白維持スタイルを適用
-                      return (
-                        <li className="list-none bg-transparent" style={{ whiteSpace: 'pre', fontFamily: 'monospace' }}>
-                          {children}
-                        </li>
-                      );
-                    }
-                    
-                    // 通常のリスト項目
-                    return <li className="mb-1 bg-transparent">{children}</li>;
-                  },
-                  // 見出し
-                  h1: ({children}) => <h1 className="text-2xl font-bold mb-2">{children}</h1>,
-                  h2: ({children}) => <h2 className="text-xl font-bold mb-2">{children}</h2>,
-                  h3: ({children}) => <h3 className="text-lg font-bold mb-2">{children}</h3>,
-                  // リンク（既存のBadge表示を維持）
-                  a: ({href, children}) => {
-                    if (href?.startsWith('http')) {
-                      return (
-                        <Badge
-                          variant="secondary"
-                          className="bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer no-underline inline-flex items-center gap-1 mx-1"
-                          asChild
-                        >
-                          <a href={href} target="_blank" rel="noopener noreferrer">
+      // message.partsが存在する場合は、partsベースでレンダリング
+      if (message.parts && message.parts.length > 0) {
+        message.parts.forEach((part, partIndex) => {
+          if (part.type === 'text' && part.text && part.text.trim()) {
+            // テキスト部分の表示
+            elements.push(
+              <div key={`text-${partIndex}`} className="flex justify-start mb-6">
+                <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+                  <div className="prose prose-gray max-w-none text-base leading-relaxed">
+                    <ReactMarkdown 
+                      components={{
+                        p: ({children}) => <p className="mb-2 last:mb-0 bg-transparent">{children}</p>,
+                        strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                        em: ({children}) => <em className="italic">{children}</em>,
+                        code: ({children}) => (
+                          <code className="bg-transparent font-mono">{children}</code>
+                        ),
+                        pre: ({children}) => (
+                          <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg overflow-x-auto my-2">
                             {children}
-                            <ExternalLink className="h-3 w-3 ml-1" />
-                          </a>
-                        </Badge>
-                      );
-                    }
-                    return <a href={href} className="text-blue-600 hover:underline">{children}</a>;
-                  },
-                  // 引用
-                  blockquote: ({children}) => (
-                    <blockquote className="border-l-4 border-gray-300 pl-4 italic my-2">
-                      {children}
-                    </blockquote>
-                  ),
-                  // 水平線
-                  hr: () => <hr className="my-4 border-gray-300" />,
-                  }}
-                >
-                  {content}
-                </ReactMarkdown>
+                          </pre>
+                        ),
+                        ul: ({children}) => <ul className="list-disc list-inside mb-2">{children}</ul>,
+                        ol: ({children}) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
+                        li: ({node, children}) => {
+                          const getNodeText = (n: any): string => {
+                            if (n.type === 'text') {
+                              return n.value;
+                            }
+                            if (n.children && Array.isArray(n.children)) {
+                              return n.children.map(getNodeText).join('');
+                            }
+                            return '';
+                          };
+                          const textContent = node ? getNodeText(node) : '';
+                          const isTreeLine = /[├│└]/.test(textContent);
+
+                          if (isTreeLine) {
+                            return (
+                              <li className="list-none bg-transparent" style={{ whiteSpace: 'pre', fontFamily: 'monospace' }}>
+                                {children}
+                              </li>
+                            );
+                          }
+                          
+                          return <li className="mb-1 bg-transparent">{children}</li>;
+                        },
+                        h1: ({children}) => <h1 className="text-2xl font-bold mb-2">{children}</h1>,
+                        h2: ({children}) => <h2 className="text-xl font-bold mb-2">{children}</h2>,
+                        h3: ({children}) => <h3 className="text-lg font-bold mb-2">{children}</h3>,
+                        a: ({href, children}) => {
+                          if (href?.startsWith('http')) {
+                            return (
+                              <Badge
+                                variant="secondary"
+                                className="bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer no-underline inline-flex items-center gap-1 mx-1"
+                                asChild
+                              >
+                                <a href={href} target="_blank" rel="noopener noreferrer">
+                                  {children}
+                                  <ExternalLink className="h-3 w-3 ml-1" />
+                                </a>
+                              </Badge>
+                            );
+                          }
+                          return <a href={href} className="text-blue-600 hover:underline">{children}</a>;
+                        },
+                        blockquote: ({children}) => (
+                          <blockquote className="border-l-4 border-gray-300 pl-4 italic my-2">
+                            {children}
+                          </blockquote>
+                        ),
+                        hr: () => <hr className="my-4 border-gray-300" />,
+                      }}
+                    >
+                      {part.text}
+                    </ReactMarkdown>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
-        
-        {/* 画像生成ツールの結果を直接表示 */}
-        {Object.values(toolCallStates).some(
-          tool => (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
-                 tool.status === 'success' && 
-                 tool.result?.images?.length > 0
-        ) && (
-          <div className="flex justify-start mb-6">
-            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
-              <h3 className="font-medium text-base mb-2">生成された画像</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {Object.values(toolCallStates)
-                  .filter(tool => 
-                    (tool.toolName === 'gemini-image-generation' || tool.toolName === 'geminiImageGenerationTool' || tool.toolName === 'imagen4-generation') && 
-                    tool.status === 'success' && 
-                    tool.result?.images?.length > 0
-                  )
-                  .flatMap(tool => 
-                    tool.result.images.map((image: { url: string; b64Json: string }, index: number) => (
-                      <div 
-                        key={`direct-img-${tool.id}-${index}`} 
-                        className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all cursor-pointer"
-                        onClick={() => openImagePreviewPanel(
-                          tool.result.images, 
-                          tool.result.title || `生成された画像（${tool.result.images.length}枚）`
-                        )}
-                      >
-                        <img 
-                          src={image.url} 
-                          alt={`Generated image ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                    ))
-                  )
-                }
-              </div>
+            );
+          } else if (part.type === 'tool-invocation' && part.toolInvocation) {
+            // ツール呼び出しの表示
+            const toolCallId = part.toolInvocation.toolCallId;
+            const toolState = toolCallStates[toolCallId];
+            
+            if (toolState) {
+              // CollapsibleToolSectionを直接生成
+              const isPresentationTool = toolState.toolName === 'presentationPreviewTool' || toolState.toolName === 'htmlSlideTool' || toolState.toolName === 'graphicRecordingTool';
+              const isImageTool = toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation';
+              const isBrowserbaseTool = toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool';
               
-              {/* 画像プレビューボタン */}
-              <div className="mt-4">
-                <button
-                  onClick={() => {
-                    const tool = Object.values(toolCallStates).find(t => 
-                      (t.toolName === 'gemini-image-generation' || t.toolName === 'geminiImageGenerationTool' || t.toolName === 'imagen4-generation') && 
-                      t.status === 'success' && 
-                      t.result?.images?.length > 0
-                    );
-                    
-                    if (tool) {
-                      openImagePreviewPanel(
-                        tool.result.images,
-                        tool.result.title || `生成された画像（${tool.result.images.length}枚）`
-                      );
-                    }
-                  }}
-                  className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
-                >
-                  <PhotoIcon className="h-4 w-4 mr-2" />
-                  画像をプレビュー表示
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* 動画生成ツールの結果を直接表示 */}
-        {Object.values(toolCallStates).some(
-          tool => (tool.toolName === 'veo2-video-generation' || tool.toolName === 'gemini-video-generation') && 
-                 tool.status === 'success' && 
-                 tool.result?.videos?.length > 0
-        ) && (
-          <div className="flex justify-start mb-6">
-            <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
-              <h3 className="font-medium text-base mb-3">🎬 生成された動画</h3>
-              <div className="space-y-4">
-                {Object.values(toolCallStates)
-                  .filter(tool => 
-                    (tool.toolName === 'veo2-video-generation' || tool.toolName === 'gemini-video-generation') && 
-                    tool.status === 'success' && 
-                    tool.result?.videos?.length > 0
-                  )
-                  .flatMap(tool => 
-                    tool.result.videos.map((video: { url: string }, index: number) => (
-                      <div key={`direct-video-${tool.id}-${index}`} className="space-y-3">
-                        <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
-                          <video 
-                            controls 
-                            width="100%" 
-                            style={{ maxWidth: '800px' }}
-                            className="rounded-lg"
-                            preload="metadata"
-                            onError={(e) => {
-                              console.error('Video load error:', e);
-                              console.log('Video URL:', video.url);
-                            }}
-                            onLoadStart={() => {
-                              console.log('Video loading started:', video.url);
-                            }}
-                          >
-                            <source src={video.url} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                          <div className="mt-3 text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                                Veo2
-                              </span>
-                              <span className="text-gray-500">•</span>
-                              <span>Video {index + 1}</span>
-                            </div>
-                            {tool.result.title && (
-                              <div className="mt-2">
-                                <strong>Prompt:</strong> <em>{tool.result.title}</em>
-                              </div>
+              elements.push(
+                <div key={`tool-${partIndex}`} className="w-full max-w-3xl mb-6">
+                  <CollapsibleToolSection
+                    key={`tool-${toolCallId}`}
+                    toolName={toolState.toolName}
+                    toolState={toolState.status}
+                    isLoading={isLoading}
+                    isPreviewTool={isPresentationTool}
+                    isImageTool={isImageTool}
+                    isBrowserbaseTool={isBrowserbaseTool}
+                    onPreviewClick={() => {
+                      if (toolState.result?.htmlContent) {
+                        openPreviewPanel(
+                          toolState.result.htmlContent,
+                          toolState.result.title || 'プレゼンテーションプレビュー'
+                        );
+                      }
+                    }}
+                    onImageClick={() => {
+                      if (toolState.result?.images) {
+                        openImagePreviewPanel(
+                          toolState.result.images,
+                          toolState.result.title || `生成された画像（${toolState.result.images.length}枚）`
+                        );
+                      }
+                    }}
+                    onBrowserbaseClick={() => {
+                      if (toolState.result?.sessionId && onBrowserbasePreview) {
+                        onBrowserbasePreview({
+                          sessionId: toolState.result.sessionId,
+                          replayUrl: toolState.result.replayUrl,
+                          liveViewUrl: toolState.result.liveViewUrl,
+                          pageTitle: toolState.result.pageTitle
+                        });
+                      }
+                    }}
+                    previewHtml={toolState.result?.htmlContent || ''}
+                    imageUrls={toolState.result?.images?.map((img: any) => img.url) || []}
+                    browserbaseData={toolState.result?.sessionId ? {
+                      sessionId: toolState.result.sessionId,
+                      replayUrl: toolState.result.replayUrl,
+                      liveViewUrl: toolState.result.liveViewUrl,
+                      pageTitle: toolState.result.pageTitle
+                    } : null}
+                  >
+                    <div>
+                      <h4 className="text-xs font-medium text-gray-500 mb-1">ツール入力</h4>
+                      <pre className="text-xs bg-black/5 p-2 rounded-md overflow-auto max-h-32">
+                        {JSON.stringify(toolState.args, null, 2)}
+                      </pre>
+                      
+                      {toolState.result && (
+                        <div className="mt-3">
+                          <h4 className="text-xs font-medium text-gray-500 mb-1">ツール結果</h4>
+                          <pre className={`text-xs ${toolState.status === 'error' ? 'bg-red-50 text-red-700' : 'bg-black/5'} p-2 rounded-md overflow-auto max-h-96`}>
+                            {JSON.stringify(toolState.result, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleToolSection>
+                </div>
+              );
+              
+              // 画像生成ツールの場合、直後に画像を表示
+              if ((toolState.toolName === 'gemini-image-generation' || 
+                   toolState.toolName === 'geminiImageGenerationTool' || 
+                   toolState.toolName === 'imagen4-generation') && 
+                  toolState.status === 'success' && 
+                  toolState.result?.images?.length > 0) {
+                elements.push(
+                  <div key={`image-${partIndex}`} className="flex justify-start mb-6">
+                    <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+                      <h3 className="font-medium text-base mb-2">生成された画像</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {toolState.result.images.map((image: { url: string; b64Json: string }, index: number) => (
+                          <div 
+                            key={`img-${index}`} 
+                            className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all cursor-pointer"
+                            onClick={() => openImagePreviewPanel(
+                              toolState.result.images, 
+                              toolState.result.title || `生成された画像（${toolState.result.images.length}枚）`
                             )}
-                            <div className="mt-1 text-xs text-gray-500">
-                              URL: {video.url}
+                          >
+                            <img 
+                              src={image.url} 
+                              alt={`Generated image ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="mt-4">
+                        <button
+                          onClick={() => openImagePreviewPanel(
+                            toolState.result.images,
+                            toolState.result.title || `生成された画像（${toolState.result.images.length}枚）`
+                          )}
+                          className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md text-sm hover:bg-gray-600 transition-colors"
+                        >
+                          <PhotoIcon className="h-4 w-4 mr-2" />
+                          画像をプレビュー表示
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // 動画生成ツールの場合
+              if ((toolState.toolName === 'veo2-video-generation' || 
+                   toolState.toolName === 'gemini-video-generation') && 
+                  toolState.status === 'success' && 
+                  toolState.result?.videos?.length > 0) {
+                elements.push(
+                  <div key={`video-${partIndex}`} className="flex justify-start mb-6">
+                    <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+                      <h3 className="font-medium text-base mb-3">🎬 生成された動画</h3>
+                      <div className="space-y-4">
+                        {toolState.result.videos.map((video: { url: string }, index: number) => (
+                          <div key={`video-${index}`} className="space-y-3">
+                            <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                              <video 
+                                controls 
+                                width="100%" 
+                                style={{ maxWidth: '800px' }}
+                                className="rounded-lg"
+                                preload="metadata"
+                              >
+                                <source src={video.url} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                              <div className="mt-3 text-sm text-gray-600">
+                                <div className="flex items-center gap-2">
+                                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                    {toolState.toolName === 'veo2-video-generation' ? 'Veo2' : 'Gemini'}
+                                  </span>
+                                  <span className="text-gray-500">•</span>
+                                  <span>Video {index + 1}</span>
+                                </div>
+                                {toolState.result.title && (
+                                  <div className="mt-2">
+                                    <strong>Prompt:</strong> <em>{toolState.result.title}</em>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))
-                  )
-                }
+                    </div>
+                  </div>
+                );
+              }
+            }
+          }
+        });
+      } else {
+        // partsがない場合は従来の表示方法
+        if (toolCallUiElements.length > 0) {
+          elements.push(
+            <div key="tools" className="w-full max-w-3xl mb-6">
+              {toolCallUiElements}
+            </div>
+          );
+        }
+
+        if (content.trim()) {
+          elements.push(
+            <div key="content" className="flex justify-start mb-6">
+              <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+                <div className="prose prose-gray max-w-none text-base leading-relaxed">
+                  <ReactMarkdown 
+                    components={{
+                      p: ({children}) => <p className="mb-2 last:mb-0 bg-transparent">{children}</p>,
+                      strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                      em: ({children}) => <em className="italic">{children}</em>,
+                      code: ({children}) => (
+                        <code className="bg-transparent font-mono">{children}</code>
+                      ),
+                      pre: ({children}) => (
+                        <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg overflow-x-auto my-2">
+                          {children}
+                        </pre>
+                      ),
+                      ul: ({children}) => <ul className="list-disc list-inside mb-2">{children}</ul>,
+                      ol: ({children}) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
+                      li: ({node, children}) => {
+                        const getNodeText = (n: any): string => {
+                          if (n.type === 'text') {
+                            return n.value;
+                          }
+                          if (n.children && Array.isArray(n.children)) {
+                            return n.children.map(getNodeText).join('');
+                          }
+                          return '';
+                        };
+                        const textContent = node ? getNodeText(node) : '';
+                        const isTreeLine = /[├│└]/.test(textContent);
+
+                        if (isTreeLine) {
+                          return (
+                            <li className="list-none bg-transparent" style={{ whiteSpace: 'pre', fontFamily: 'monospace' }}>
+                              {children}
+                            </li>
+                          );
+                        }
+                        
+                        return <li className="mb-1 bg-transparent">{children}</li>;
+                      },
+                      h1: ({children}) => <h1 className="text-2xl font-bold mb-2">{children}</h1>,
+                      h2: ({children}) => <h2 className="text-xl font-bold mb-2">{children}</h2>,
+                      h3: ({children}) => <h3 className="text-lg font-bold mb-2">{children}</h3>,
+                      a: ({href, children}) => {
+                        if (href?.startsWith('http')) {
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer no-underline inline-flex items-center gap-1 mx-1"
+                              asChild
+                            >
+                              <a href={href} target="_blank" rel="noopener noreferrer">
+                                {children}
+                                <ExternalLink className="h-3 w-3 ml-1" />
+                              </a>
+                            </Badge>
+                          );
+                        }
+                        return <a href={href} className="text-blue-600 hover:underline">{children}</a>;
+                      },
+                      blockquote: ({children}) => (
+                        <blockquote className="border-l-4 border-gray-300 pl-4 italic my-2">
+                          {children}
+                        </blockquote>
+                      ),
+                      hr: () => <hr className="my-4 border-gray-300" />,
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        }
+      }
+
+      return elements;
+    };
+
+    return (
+      <>
+        {renderInlineContent()}
         
-        {/* 🔧 **browser-automation-toolの無条件表示** */}
+        {/* browser-automation-toolの無条件表示（従来通り） */}
         {Object.values(toolCallStates).some(tool => 
           tool.toolName === 'browser-automation-tool' || tool.toolName === 'browserbase-automation'
         ) && (
