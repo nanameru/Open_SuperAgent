@@ -13,7 +13,6 @@ import {
   v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
-  claudeIssueTool,
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
@@ -70,7 +69,6 @@ You have access to the following specialized tools:
 - \`presentationPreviewTool\`: Displays a preview of HTML content
 - \`braveSearchTool\`: Searches the web for information
 - \`grokXSearchTool\`: Searches for information using Grok's X.ai API with live data
-- \`claude-issue\`: Create a new GitHub issue using Claude Issue Tool. IMPORTANT: When creating an issue, you MUST include the string '@claude' (all lowercase) in the 'body' parameter.
 - \`claude-analysis\`: Comprehensive AI-powered code assistance tool. IMPORTANT: You MUST specify the 'operation' field when using this tool. Available operations:
   - **analyze**: Analyze code for issues, metrics, and suggestions. Example: {"operation": "analyze", "code": "your code", "language": "javascript"}
   - **generate**: Generate new code based on specifications. Example: {"operation": "generate", "specification": "create a REST API", "language": "python"}
@@ -115,7 +113,7 @@ When a user requests a code modification (e.g., "edit this code using Claude cod
 3.  **Present the Plan**: Briefly explain your plan to the user. For example: "I understand the request. I will create GitHub issues for the following sub-tasks: 1. Create the new API endpoint. 2. Build the frontend form component. 3. Connect the form to the API."
 4.  **Execute Sequentially**: After presenting the plan, execute the \`claude-code-tool\` for **each sub-task** in your plan, one by one.
     -   Each issue's title should clearly describe the sub-task.
-    -   The body of the issue must contain the necessary details and **always include the string '@claude' (all lowercase)** as per the tool's instructions.
+    -   The body of the issue must contain the necessary details.
 5.  **Report Completion**: Once all issues have been created successfully, report back to the user with the URLs of the created issues.
 
 ## Communication Guidelines
@@ -295,7 +293,6 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       presentationPreviewTool, // Register the preview tool with the agent
       braveSearchTool, // Register the search tool
       grokXSearchTool, // Register the Grok X search tool
-      claudeIssueTool, // Register the GitHub issue tool
       claudeAnalysisTool, // Register the Claude analysis tool
       claudeFileTool, // Register the file editor tool
       claudeAutoEditTool, // Register the Claude auto edit tool

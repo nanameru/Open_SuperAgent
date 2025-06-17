@@ -121,7 +121,6 @@ import { browserWaitTool } from './browserWaitTool';
 import { browserScreenshotTool } from './browserScreenshotTool';
 import { browserCloseTool } from './browserCloseTool';
 import { browserCaptchaDetectTool } from './browserCaptchaDetectTool';
-import { claudeIssueTool } from './claudeIssueTool';
 import { claudeAnalysisTool } from './claudeAnalysisTool';
 import { claudeFileTool } from './claudeFileTool';
 import { claudeAutoEditTool } from './claudeAutoEditTool';
@@ -157,7 +156,6 @@ export const allTools = [
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
-  claudeIssueTool,
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
@@ -196,7 +194,6 @@ export {
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
-  claudeIssueTool,
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,

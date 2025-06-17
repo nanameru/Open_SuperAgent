@@ -2204,7 +2204,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               // CollapsibleToolSectionを直接生成
               const isPresentationTool = toolState.toolName === 'presentationPreviewTool' || toolState.toolName === 'htmlSlideTool' || toolState.toolName === 'graphicRecordingTool';
               const isImageTool = toolState.toolName === 'gemini-image-generation' || toolState.toolName === 'geminiImageGenerationTool' || toolState.toolName === 'imagen4-generation';
-              const isBrowserbaseTool = toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool';
+              const isBrowserbaseTool = toolState.toolName === 'browserbase-automation' || toolState.toolName === 'browser-automation-tool' || toolState.toolName === 'browser-session' || toolState.toolName === 'browserSessionTool';
               
               elements.push(
                 <div key={`tool-${partIndex}`} className="w-full max-w-3xl mb-6">
@@ -2236,9 +2236,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                       if (toolState.result?.sessionId && onBrowserbasePreview) {
                         onBrowserbasePreview({
                           sessionId: toolState.result.sessionId,
-                          replayUrl: toolState.result.replayUrl,
-                          liveViewUrl: toolState.result.liveViewUrl,
-                          pageTitle: toolState.result.pageTitle
+                          replayUrl: toolState.result.replayUrl || toolState.result.replay_url,
+                          liveViewUrl: toolState.result.liveViewUrl || toolState.result.live_view_url,
+                          pageTitle: toolState.result.pageTitle || toolState.result.page_title || 'ブラウザセッション'
                         });
                       }
                     }}
@@ -2246,9 +2246,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     imageUrls={toolState.result?.images?.map((img: any) => img.url) || []}
                     browserbaseData={toolState.result?.sessionId ? {
                       sessionId: toolState.result.sessionId,
-                      replayUrl: toolState.result.replayUrl,
-                      liveViewUrl: toolState.result.liveViewUrl,
-                      pageTitle: toolState.result.pageTitle
+                      replayUrl: toolState.result.replayUrl || toolState.result.replay_url,
+                      liveViewUrl: toolState.result.liveViewUrl || toolState.result.live_view_url,
+                      pageTitle: toolState.result.pageTitle || toolState.result.page_title || 'ブラウザセッション'
                     } : null}
                   >
                     <div>
