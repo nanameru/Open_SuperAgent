@@ -184,7 +184,7 @@ export const EnhancedResearchPanel: React.FC<EnhancedResearchPanelProps> = ({ cl
           </CardHeader>
           <CardContent>
             <Progress value={(processedEvents.length / 6) * 100} className="mb-4" />
-            <ActivityTimeline events={processedEvents} />
+            <ActivityTimeline processedEvents={processedEvents} isLoading={isLoading} />
           </CardContent>
         </Card>
       )}
