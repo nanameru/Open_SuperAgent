@@ -130,7 +130,6 @@ export const convertHTMLToPPTX = async (htmlSlides: string | string[], presentat
             x: 0.5,
             y: yPosition,
             w: 9,
-            h: 'auto',
             fontSize: 18,
             color: slideContent.styles?.textColor?.replace('#', '') || '363636',
             align: 'left',
