@@ -40,7 +40,7 @@ export const browserObserveTool = createTool({
       
       return {
         success: true,
-        observations: suggestions.map(s => typeof s === 'string' ? s : JSON.stringify(s)),
+        observations: suggestions.map((s: any) => typeof s === 'string' ? s : JSON.stringify(s)),
         message: `Found ${suggestions.length} possible actions for: ${instruction}`,
       };
     } catch (error) {
