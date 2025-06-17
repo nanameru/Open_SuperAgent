@@ -28,7 +28,6 @@ import {
   contentSynthesisTool
 } from './tools';
 import { deepResearchWorkflow } from './workflows/deepResearchWorkflow';
-import { enhancedDeepResearchWorkflow } from './workflows/enhancedDeepResearchWorkflow';
 
 // @ts-ignore - Type definition issue with tools property
 export const mastra = new Mastra({
@@ -63,7 +62,6 @@ export const mastra = new Mastra({
   } as any,
   workflows: {
     'deep-research': deepResearchWorkflow,
-    'enhanced-deep-research': enhancedDeepResearchWorkflow,
   },
   storage: new LibSQLStore({
     url: "file:../memory.db",
