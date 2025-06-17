@@ -8,6 +8,7 @@ import { PresentationPreviewPanel } from './PresentationPreviewPanel';
 import { ImagePreviewPanel } from './ImagePreviewPanel';
 import { BrowserOperationSidebar } from './BrowserOperationSidebar';
 import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink } from 'lucide-react';
 import { ActivityTimeline, ProcessedEvent } from './ActivityTimeline';
@@ -874,7 +875,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         });
       }
     }
-  }, [message]);
+  }, [message, onBrowserAutomationDetected, onBrowserbasePreview, onPreviewOpen]);
 
   // Browser Automation Tool実行検知
   useEffect(() => {
@@ -1233,10 +1234,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             : mediaUrl;
             
         parts.push(
-          <div key={`img-${match.index}`} className="my-3">
-            <img
+          <div key={`img-${match.index}`} className="my-3 relative" style={{ width: '100%', height: 'auto', minHeight: '200px' }}>
+            <Image
               src={normalizedUrl}
               alt={altText}
+              width={800}
+              height={600}
               className="max-w-full h-auto rounded-lg shadow-md cursor-grab active:cursor-grabbing hover:scale-105 transition-transform duration-300"
               draggable={true}
               onDragStart={(e) => {
@@ -1505,10 +1508,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => openImagePreviewPanel(result.images, result.title || `生成された画像（${result.images.length}枚）`)}
                   >
-                    <img 
+                    <Image 
                       src={img.url} 
                       alt={`生成画像 ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      fill
+                      style={{ objectFit: 'cover' }}
+                      unoptimized
                     />
                   </div>
                 ))}
@@ -1875,12 +1880,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             const src = srcMatch[0].slice(1, -1);
                             return (
                               <div key={i} className="my-3">
-                                <img 
-                                  src={src} 
-                                  alt={alt}
-                                  className="rounded-lg border border-gray-200 max-w-full"
-                                  style={{ maxHeight: '300px', objectFit: 'contain' }}
-                                />
+                                <div className="relative" style={{ width: '100%', height: '300px' }}>
+                                  <Image 
+                                    src={src} 
+                                    alt={alt}
+                                    fill
+                                    className="rounded-lg border border-gray-200"
+                                    style={{ objectFit: 'contain' }}
+                                    unoptimized
+                                  />
+                                </div>
                                 <p className="text-xs text-gray-500 mt-1">{alt}</p>
                               </div>
                             );
@@ -1995,11 +2004,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             `生成された画像（${toolState.result.images.length}枚）`
                           )}
                         >
-                          <img 
+                          <Image 
                             src={image.url} 
                             alt={`生成画像 ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            unoptimized
                           />
                         </div>
                       ))}
@@ -2284,17 +2294,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         {toolState.result.images.map((image: { url: string; b64Json: string }, index: number) => (
                           <div 
                             key={`img-${index}`} 
-                            className="aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all cursor-pointer"
+                            className="relative aspect-square border border-gray-200 rounded-md overflow-hidden bg-white shadow-sm hover:shadow-md transition-all cursor-pointer"
                             onClick={() => openImagePreviewPanel(
                               toolState.result.images, 
                               toolState.result.title || `生成された画像（${toolState.result.images.length}枚）`
                             )}
                           >
-                            <img 
+                            <Image 
                               src={image.url} 
                               alt={`Generated image ${index + 1}`}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
+                              fill
+                              style={{ objectFit: 'cover' }}
+                              unoptimized
                             />
                           </div>
                         ))}

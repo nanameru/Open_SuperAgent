@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import PptxGenJS from 'pptxgenjs';
 import { JSDOM } from 'jsdom';
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer';
 
 interface SlideData {
   html: string;
@@ -36,7 +36,7 @@ interface ElementRule {
 
 // サーバーサイドでHTMLを解析してネイティブPPTX要素に変換（改善版）
 export async function POST(request: NextRequest) {
-  let browser: puppeteer.Browser | null = null;
+  let browser: Browser | null = null;
   
   try {
     const body = await request.json();
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Puppeteerを使用して要素情報を正確に取得
-async function captureElementsWithPuppeteer(browser: puppeteer.Browser, html: string): Promise<ElementInfo[]> {
+async function captureElementsWithPuppeteer(browser: Browser, html: string): Promise<ElementInfo[]> {
   const page = await browser.newPage();
   
   try {

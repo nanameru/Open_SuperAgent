@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import PptxGenJS from 'pptxgenjs';
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer';
 
 interface SlideData {
   html: string;
@@ -9,7 +9,7 @@ interface SlideData {
 
 // ハイブリッドアプローチでPPTXを生成
 export async function POST(request: NextRequest) {
-  let browser: puppeteer.Browser | null = null;
+  let browser: Browser | null = null;
   
   try {
     const body = await request.json();

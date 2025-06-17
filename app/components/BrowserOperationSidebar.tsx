@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ExternalLink, Monitor, Play, Square, Eye, EyeOff } from 'lucide-react';
+import Image from 'next/image';
 
 interface BrowserOperationSidebarProps {
   sessionId: string;
@@ -312,11 +313,13 @@ export function BrowserOperationSidebar({
 
       {/* スクリーンショット（プレビューが閉じている場合のみ） */}
       {screenshot && !isPreviewOpen && (
-        <div className="flex-1 min-h-0 bg-white p-2">
-          <img
+        <div className="flex-1 min-h-0 bg-white p-2 relative">
+          <Image
             src={screenshot.url}
             alt="ブラウザスクリーンショット"
-            className="w-full h-full object-contain"
+            fill
+            style={{ objectFit: 'contain' }}
+            unoptimized
           />
         </div>
       )}
