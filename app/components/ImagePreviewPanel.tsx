@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { XMarkIcon, ArrowsPointingOutIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 interface ImagePreviewPanelProps {
   images: Array<{
@@ -41,7 +42,7 @@ export const ImagePreviewPanel: React.FC<ImagePreviewPanelProps> = ({
     // カスタムドラッグイベントリスナーを追加
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
-  }, []);
+  }, [handleDragMove, handleDragEnd]);
 
   // ドラッグ中の処理
   const handleDragMove = useCallback((e: MouseEvent) => {
@@ -185,11 +186,13 @@ export const ImagePreviewPanel: React.FC<ImagePreviewPanelProps> = ({
         <div className="flex-1 overflow-auto bg-gray-100 flex flex-col">
           {/* 画像表示 */}
           <div className="flex-1 flex items-center justify-center p-4">
-            <div className="max-w-full max-h-full bg-white shadow-md rounded-lg overflow-hidden">
-              <img 
+            <div className="max-w-full max-h-full bg-white shadow-md rounded-lg overflow-hidden relative" style={{ width: '100%', height: '100%' }}>
+              <Image 
                 src={currentImage.url} 
                 alt={`Generated image ${currentImageIndex + 1}`}
-                className="max-w-full max-h-full object-contain"
+                fill
+                style={{ objectFit: 'contain' }}
+                unoptimized
               />
             </div>
           </div>

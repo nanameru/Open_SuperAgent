@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MainHeader } from '@/app/components/MainHeader';
+import Image from 'next/image';
 import {
   Table,
   TableBody,
@@ -143,11 +144,15 @@ export default function MediaPage() {
                         <TableRow key={file.id}>
                           <TableCell>
                             {file.type === 'image' ? (
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="w-16 h-16 object-cover rounded-md"
-                              />
+                              <div className="w-16 h-16 relative rounded-md overflow-hidden">
+                                <Image
+                                  src={file.url}
+                                  alt={file.name}
+                                  fill
+                                  style={{ objectFit: 'cover' }}
+                                  unoptimized
+                                />
+                              </div>
                             ) : file.type === 'video' ? (
                               <video
                                 src={file.url}

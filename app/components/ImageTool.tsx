@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ImagePreviewPanel } from './ImagePreviewPanel';
 import { PhotoIcon, EyeIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 interface ImageToolProps {
   images: Array<{
@@ -119,12 +120,14 @@ export const ImageTool: React.FC<ImageToolProps> = ({
           className="flex items-center border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 cursor-pointer"
           onClick={openPreviewPanel}
         >
-          <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center text-gray-400 bg-gray-100 rounded-lg overflow-hidden">
+          <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center text-gray-400 bg-gray-100 rounded-lg overflow-hidden relative">
             {currentImages[0] && (
-              <img 
+              <Image 
                 src={currentImages[0].url} 
                 alt="Preview" 
-                className="w-full h-full object-cover"
+                fill
+                style={{ objectFit: 'cover' }}
+                unoptimized
               />
             )}
           </div>

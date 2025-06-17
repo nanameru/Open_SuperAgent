@@ -44,6 +44,4 @@ export async function GET() {
 }
 
 // モデル設定を取得する関数（他のAPIで使用）
-export function getCurrentModel() {
-  return currentModelConfig;
-} 
+// Next.js Route ハンドラーではexportできないため、GET APIを使用してください 

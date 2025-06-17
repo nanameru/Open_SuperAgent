@@ -3,7 +3,6 @@ import { createSlideCreatorAgent, createModel } from '@/src/mastra/agents/slideC
 import { mastra } from '@/src/mastra';
 import { Message } from 'ai';
 import { streamText } from 'ai';
-import { getCurrentModel } from '../../set-model/route';
 
 // 開発環境のみログを出力する関数
 function devLog(message: string, data?: any) {
@@ -44,14 +43,24 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = messages.filter((m: Message) => m.role === 'user').pop();
     const userContent = lastUserMessage?.content || '';
     
-    // モデル設定を取得（リクエスト > getCurrentModel > デフォルト の優先順位）
+    // モデル設定を取得（リクエスト > APIから取得 > デフォルト の優先順位）
     let currentModel;
     if (requestModel && requestModel.provider && requestModel.modelName) {
       currentModel = requestModel;
       devLog(`Using model from request: ${currentModel.provider} - ${currentModel.modelName}`);
     } else {
-      currentModel = getCurrentModel();
-      devLog(`Using model from storage: ${currentModel.provider} - ${currentModel.modelName}`);
+      // GET APIを使用してモデル設定を取得
+      try {
+        const baseUrl = req.headers.get('host') ? `http${req.headers.get('x-forwarded-proto') === 'https' ? 's' : ''}://${req.headers.get('host')}` : '';
+        const response = await fetch(`${baseUrl}/api/set-model`);
+        const data = await response.json();
+        currentModel = data.model || { provider: 'gemini', modelName: 'gemini-2.5-pro-preview-06-05' };
+        devLog(`Using model from API: ${currentModel.provider} - ${currentModel.modelName}`);
+      } catch (error) {
+        // エラーの場合はデフォルトを使用
+        currentModel = { provider: 'gemini', modelName: 'gemini-2.5-pro-preview-06-05' };
+        devLog(`Error fetching model, using default: ${currentModel.provider} - ${currentModel.modelName}`);
+      }
     }
     
     // OpenAIモデルの場合は、Agentを介さずに直接streamTextを呼び出す
