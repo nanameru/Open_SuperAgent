@@ -458,7 +458,7 @@ Format as JSON:
         }
       });
       
-      const originalInput = {};
+      const originalInput = inputData.originalInput || { message: '' };
       const startTime = new Date().toISOString();
       
       if (!(originalInput as any)?.includeValidation || !sourceValidationAgent) {
