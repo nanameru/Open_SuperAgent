@@ -8,7 +8,7 @@ let shimsImported = false;
 const browserSessionToolInputSchema = z.object({
   projectId: z.string().optional().describe('Browserbase project ID (defaults to env variable)'),
   keepAlive: z.boolean().optional().default(true).describe('Keep session alive after operations'),
-  timeout: z.number().optional().default(600).describe('Session timeout in seconds'),
+  timeout: z.number().optional().default(21600).describe('Session timeout in seconds (6 hours)'),
   browserSettings: z.object({
     solveCaptchas: z.boolean().optional().default(true).describe('Enable automatic CAPTCHA solving'),
     captchaImageSelector: z.string().optional().describe('CSS selector for custom CAPTCHA image'),

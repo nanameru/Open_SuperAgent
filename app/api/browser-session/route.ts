@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const session = await bb.sessions.create({
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
       keepAlive: true,
-      timeout: 600, // 10分
+      timeout: 21600, // 6時間
     });
     
     const sessionId = session.id;
