@@ -33,17 +33,6 @@ export const ImagePreviewPanel: React.FC<ImagePreviewPanelProps> = ({
     onWidthChange?.(panelWidth);
   }, [panelWidth, onWidthChange]);
   
-  // ドラッグ操作の開始
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    document.body.style.cursor = 'ew-resize';
-    
-    // カスタムドラッグイベントリスナーを追加
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('mouseup', handleDragEnd);
-  }, [handleDragMove, handleDragEnd]);
-
   // ドラッグ中の処理
   const handleDragMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
@@ -65,6 +54,17 @@ export const ImagePreviewPanel: React.FC<ImagePreviewPanelProps> = ({
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
   }, [handleDragMove]);
+
+  // ドラッグ操作の開始
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    document.body.style.cursor = 'ew-resize';
+    
+    // カスタムドラッグイベントリスナーを追加
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+  }, [handleDragMove, handleDragEnd]);
 
   // コンポーネントのアンマウント時にイベントリスナーをクリーンアップ
   useEffect(() => {
