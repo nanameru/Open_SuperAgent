@@ -28,6 +28,13 @@ import { browserObserveTool } from '../tools/browserObserveTool';
 import { browserWaitTool } from '../tools/browserWaitTool';
 import { browserScreenshotTool } from '../tools/browserScreenshotTool';
 import { browserCloseTool } from '../tools/browserCloseTool';
+import { browserCaptchaDetectTool } from '../tools/browserCaptchaDetectTool';
+// Enhanced browser tools
+import { browserContextCreateTool } from '../tools/browserContextCreateTool';
+import { browserContextUseTool } from '../tools/browserContextUseTool';
+import { browserSessionQueryTool } from '../tools/browserSessionQueryTool';
+import { browserDownloadTool } from '../tools/browserDownloadTool';
+import { browserUploadTool } from '../tools/browserUploadTool';
 import { Memory } from '@mastra/memory'; // Import Memory
 
 // 動的にモデルを作成する関数
@@ -94,14 +101,21 @@ You have access to the following specialized tools:
 - \`graphicRecordingTool\`: Creates timeline-based graphic recordings (grafreco) with visual elements
 - \`minimaxTTSTool\`: Generates high-quality speech audio using MiniMax T2A Large v2 API with 100+ voice options, emotion control, and detailed parameter adjustment
 - Browser automation tools (atomic operations):
-  - \`browserSessionTool\`: Creates a new browser session with live view URL
+  - \`browserSessionTool\`: Creates a new browser session with live view URL (supports metadata, viewport presets)
   - \`browserGotoTool\`: Navigates to a specific URL
   - \`browserActTool\`: Performs actions using natural language instructions
   - \`browserExtractTool\`: Extracts data from the current page
   - \`browserObserveTool\`: Observes elements and suggests possible actions
   - \`browserWaitTool\`: Waits for a specified duration
-  - \`browserScreenshotTool\`: Takes screenshots of the current page
+  - \`browserScreenshotTool\`: Takes high-quality screenshots with format/quality options (PNG/JPEG/WebP, CDP support)
   - \`browserCloseTool\`: Closes the browser session
+  - \`browserCaptchaDetectTool\`: Detects and waits for CAPTCHA solving
+- Enhanced browser tools (advanced operations):
+  - \`browserContextCreateTool\`: Creates persistent contexts for Cookie/authentication data
+  - \`browserContextUseTool\`: Creates sessions using existing contexts for state persistence
+  - \`browserSessionQueryTool\`: Queries and searches sessions by metadata
+  - \`browserDownloadTool\`: Triggers downloads and retrieves files via Browserbase API
+  - \`browserUploadTool\`: Uploads files using direct or API methods
 
 ## Claude Code Action: Task Decomposition Workflow
 When a user requests a code modification (e.g., "edit this code using Claude code", "add this feature"), you MUST follow this specific workflow instead of performing the edit directly:
@@ -167,6 +181,24 @@ When performing browser automation, you **MUST** follow a strict context managem
     *   **Screenshot (\`browserScreenshotTool\`)**: Take a screenshot to visually verify the state of the page at any step.
     *   **Wait (\`browserWaitTool\`)**: If necessary, wait for a specific element to appear or for a certain amount of time to pass.
 5.  **End Session (\`browserCloseTool\`)**: Once the entire task is complete, you **MUST** close the session to release resources.
+
+### **Automatic Login Context Saving**
+When performing login operations, you **MUST** automatically save authentication data using the following workflow:
+
+1.  **Login Detection**: After performing password input and clicking login buttons, monitor for login success indicators.
+2.  **Success Verification**: Confirm successful login by checking for page redirects, dashboard elements, or "Welcome" messages.
+3.  **Automatic Context Creation**: Once login is confirmed successful, immediately use \`browserContextCreateTool\` to save the authentication state:
+    *   **Naming Convention**: Use format \`{site-name}-login-{date}\`
+    *   **Example**: \`amazon-login-2024-01-15\`, \`gmail-login-2024-01-15\`
+    *   **Always include date**: This helps track and manage multiple login contexts
+4.  **User Notification**: Inform the user that login information has been saved and provide the context ID for future reference.
+5.  **Future Session Optimization**: When visiting the same site again, proactively suggest using the saved context with \`browserContextUseTool\` to skip login steps.
+
+**Important Login Saving Rules**:
+- Save context **immediately** after confirming successful login, not after completing the entire task
+- One context per website/service to avoid confusion
+- Always inform the user when login information is saved
+- Suggest using saved contexts for efficiency in future sessions
 
 ### **IMPORTANT: Google Services Restrictions**
 When using the browser automation tools, you MUST avoid automating Google services due to their strict automation policies and anti-bot measures. This includes but is not limited to:
@@ -304,15 +336,22 @@ Remember that you are a general-purpose assistant, not limited to coding tasks. 
       v0CodeGenerationTool, // Register the v0 code generation tool
       graphicRecordingTool, // Register the graphic recording tool
       minimaxTTSTool, // Register the MiniMax TTS tool
-      // Browser automation tools
-      browserSessionTool, // Create browser session
+      // Browser automation tools (atomic operations)
+      browserSessionTool, // Create browser session with metadata/viewport support
       browserGotoTool, // Navigate to URL
       browserActTool, // Perform actions
       browserExtractTool, // Extract data
       browserObserveTool, // Observe elements
       browserWaitTool, // Wait for conditions
-      browserScreenshotTool, // Take screenshots
+      browserScreenshotTool, // Take high-quality screenshots (PNG/JPEG/WebP, CDP)
       browserCloseTool, // Close browser session
+      browserCaptchaDetectTool, // Detect and wait for CAPTCHA solving
+      // Enhanced browser tools (advanced operations)
+      browserContextCreateTool, // Create persistent contexts for authentication
+      browserContextUseTool, // Create sessions using existing contexts
+      browserSessionQueryTool, // Query sessions by metadata
+      browserDownloadTool, // Download files via Browserbase API
+      browserUploadTool, // Upload files (direct/API methods)
       // Visual editing tools
       visualSlideEditorTool, // Visual slide editor with drag-and-drop
     },

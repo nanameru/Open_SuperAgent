@@ -127,6 +127,12 @@ import { claudeAutoEditTool } from './claudeAutoEditTool';
 import { claudeCodeSDKTool } from './claudeCodeSDKTool';
 import { githubListIssuesTool } from './githubListIssuesTool';
 import { fileAppendTool } from './fileAppendTool';
+// Enhanced browser tools
+import { browserContextCreateTool } from './browserContextCreateTool';
+import { browserContextUseTool } from './browserContextUseTool';
+import { browserSessionQueryTool } from './browserSessionQueryTool';
+import { browserDownloadTool } from './browserDownloadTool';
+import { browserUploadTool } from './browserUploadTool';
 // Enhanced research tools
 import { websiteAnalysisTool } from './websiteAnalysisTool';
 import { sourceValidationTool } from './sourceValidationTool';
@@ -156,6 +162,13 @@ export const allTools = [
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
+  browserCaptchaDetectTool,
+  // Enhanced browser tools
+  browserContextCreateTool,
+  browserContextUseTool,
+  browserSessionQueryTool,
+  browserDownloadTool,
+  browserUploadTool,
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
@@ -194,6 +207,13 @@ export {
   browserWaitTool,
   browserScreenshotTool,
   browserCloseTool,
+  browserCaptchaDetectTool,
+  // Enhanced browser tools
+  browserContextCreateTool,
+  browserContextUseTool,
+  browserSessionQueryTool,
+  browserDownloadTool,
+  browserUploadTool,
   claudeAnalysisTool,
   claudeFileTool,
   claudeAutoEditTool,
