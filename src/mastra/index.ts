@@ -57,7 +57,9 @@ export const mastra = new Mastra({
     // Deep Research workflow removed
   },
   storage: new LibSQLStore({
-    url: "file:../memory.db", // Always use local file for now, Supabase integration pending
+    url: process.env.NODE_ENV === 'production' 
+      ? "file:./memory.db"     // Vercel: /var/task/memory.db
+      : "file:../memory.db",   // Local: プロジェクトルート/memory.db
   }),
   logger: createLogger({
     name: 'Mastra',
