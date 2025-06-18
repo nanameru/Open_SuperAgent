@@ -300,7 +300,10 @@ Date: ${new Date().toLocaleDateString('ja-JP')}`;
   .then(createStep({
     id: 'merge-search-results',
     description: '複数の検索エンジンからの結果を統合',
-    inputSchema: z.object({}).passthrough(),
+    inputSchema: z.record(z.object({
+      searchResults: z.array(SearchResultSchema),
+      searchEngine: z.string(),
+    })),
     outputSchema: z.object({
       searchResults: z.array(SearchResultSchema),
       iteration: z.number(),

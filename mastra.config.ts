@@ -1,9 +1,3 @@
-import { Mastra } from "@mastra/core";
+import { mastra } from "./src/mastra/index";
 
-export const mastra = new Mastra({
-  // テレメトリ設定
-  telemetry: {
-    serviceName: "ai-agent-presentation",
-    enabled: true,
-  },
-}); 
+export { mastra }; 
