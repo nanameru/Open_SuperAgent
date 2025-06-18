@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "mastra build && next build",
     "start": "next start",
     "lint": "next lint",
     "dev:mastra": "mastra dev",
