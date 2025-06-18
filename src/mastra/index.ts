@@ -64,9 +64,7 @@ export const mastra = new Mastra({
     'deep-research': deepResearchWorkflow,
   },
   storage: new LibSQLStore({
-    url: process.env.NODE_ENV === 'production' 
-      ? "file:./memory.db"  // 本番環境では相対パスを調整
-      : "file:../memory.db",
+    url: process.env.DATABASE_URL || "file:../memory.db",
   }),
   logger: createLogger({
     name: 'Mastra',
