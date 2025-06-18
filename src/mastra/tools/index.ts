@@ -133,11 +133,7 @@ import { browserContextUseTool } from './browserContextUseTool';
 import { browserSessionQueryTool } from './browserSessionQueryTool';
 import { browserDownloadTool } from './browserDownloadTool';
 import { browserUploadTool } from './browserUploadTool';
-// Enhanced research tools
-import { websiteAnalysisTool } from './websiteAnalysisTool';
-import { sourceValidationTool } from './sourceValidationTool';
-import { citationExtractionTool } from './citationExtractionTool';
-import { contentSynthesisTool } from './contentSynthesisTool';
+// Enhanced research tools (removed for build stability)
 // Visual editing tools
 import { visualSlideEditorTool } from './visualSlideEditorTool';
 
@@ -175,11 +171,7 @@ export const allTools = [
   claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
-  // Enhanced research tools
-  websiteAnalysisTool,
-  sourceValidationTool,
-  citationExtractionTool,
-  contentSynthesisTool,
+  // Enhanced research tools (removed for build stability)
   // Visual editing tools
   visualSlideEditorTool,
 ];
@@ -220,11 +212,7 @@ export {
   claudeCodeSDKTool,
   githubListIssuesTool,
   fileAppendTool,
-  // Enhanced research tools
-  websiteAnalysisTool,
-  sourceValidationTool,
-  citationExtractionTool,
-  contentSynthesisTool,
+  // Enhanced research tools (removed for build stability)
   // Visual editing tools
   visualSlideEditorTool,
 };

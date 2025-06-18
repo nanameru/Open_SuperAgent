@@ -22,12 +22,9 @@ import {
   graphicRecordingTool,
   minimaxTTSTool,
   weatherTool,
-  websiteAnalysisTool,
-  sourceValidationTool,
-  citationExtractionTool,
-  contentSynthesisTool
+  // Enhanced research tools removed for build stability
 } from './tools';
-import { deepResearchWorkflow } from './workflows/deepResearchWorkflow';
+// Deep Research workflow import removed
 
 // @ts-ignore - Type definition issue with tools property
 export const mastra = new Mastra({
@@ -54,17 +51,13 @@ export const mastra = new Mastra({
     graphicRecordingTool,
     minimaxTTSTool,
     weatherTool,
-    // Enhanced research tools
-    websiteAnalysisTool,
-    sourceValidationTool,
-    citationExtractionTool,
-    contentSynthesisTool,
+    // Enhanced research tools removed for build stability
   } as any,
   workflows: {
-    'deep-research': deepResearchWorkflow,
+    // Deep Research workflow removed
   },
   storage: new LibSQLStore({
-    url: process.env.DATABASE_URL || "file:../memory.db",
+    url: "file:../memory.db", // Always use local file for now, Supabase integration pending
   }),
   logger: createLogger({
     name: 'Mastra',

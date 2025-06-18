@@ -79,57 +79,7 @@ export async function POST(req: NextRequest) {
     // 選択されたモデルでslideCreatorAgentを動的に作成
     const slideCreatorAgent = createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
     
-    // Deep Research処理の検出
-    if (userContent.startsWith('[Deep Research]')) {
-      devLog('Deep Research detected');
-      
-      // [Deep Research]プレフィックスを削除
-      const query = userContent.replace('[Deep Research]', '').trim();
-      
-      try {
-        // Deep Researchワークフローを実行
-        const workflow = mastra.getWorkflow('deep-research');
-        const run = workflow.createRun();
-        
-        devLog('Starting Deep Research workflow for query:', query);
-        
-        const result = await run.start({
-          inputData: {
-            message: query,
-            maxIterations: 2,
-            queriesPerIteration: 5,
-          },
-        });
-        
-        devLog('Deep Research workflow completed');
-        
-        // ワークフロー結果の型チェック
-        if (result.status !== 'success') {
-          throw new Error('Deep Research workflow failed');
-        }
-        
-        // Deep Research用にモデルを動的に作成
-        const model = createModel(currentModel.provider, currentModel.modelName);
-        
-        // 結果をストリーミング形式で返す
-        const response = streamText({
-          model,
-          messages: [
-            ...messages.slice(0, -1), // 最後のメッセージ以外
-            { role: 'user', content: query }, // プレフィックスなしのクエリ
-            { 
-              role: 'assistant', 
-              content: `## Deep Research 結果\n\n${result.result?.answer || ''}\n\n### 参照元\n${result.result?.sources?.map((s: any) => `- [${s.label}](${s.url})`).join('\n') || '参照元なし'}`
-            }
-          ],
-        });
-        
-        return response.toDataStreamResponse();
-      } catch (error) {
-        devLog('Deep Research error:', error);
-        // エラーが発生した場合は通常のエージェントにフォールバック
-      }
-    }
+    // Deep Research feature removed for build stability
     
     // Web検索処理の検出
     if (userContent.startsWith('[Web検索]')) {
