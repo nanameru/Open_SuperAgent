@@ -14,7 +14,7 @@ interface ModelContextType {
 
 const defaultModel: ModelConfig = {
   provider: 'gemini',
-  modelName: 'gemini-2.5-pro-preview-06-05'
+  modelName: 'gemini-2.5-flash'
 };
 
 const ModelContext = createContext<ModelContextType>({
