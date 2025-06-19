@@ -26,7 +26,7 @@ const models: Model[] = [
   { id: 'o4-mini-2025-04-16', provider: 'openai', name: 'o4-mini-2025-04-16', displayName: 'o4-mini' },
   { id: 'claude-opus-4-20250514', provider: 'claude', name: 'claude-opus-4-20250514', displayName: 'Claude Opus 4' },
   { id: 'claude-sonnet-4-20250514', provider: 'claude', name: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4' },
-  { id: 'gemini-2.5-flash', provider: 'gemini', name: 'gemini-2.5-flash-preview-05-20', displayName: 'Gemini 2.5 Flash Preview' },
+  { id: 'gemini-2.5-flash', provider: 'gemini', name: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
   { id: 'gemini-2.5-flash-lite', provider: 'gemini', name: 'gemini-2.5-flash-lite-preview-06-17', displayName: 'Gemini 2.5 Flash Lite' },
   { id: 'gemini-2.5-pro', provider: 'gemini', name: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
 ];
