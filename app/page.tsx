@@ -654,7 +654,7 @@ export default function AppPage() {
                     };
                     
                     return statusText && statusIcon && !hasAssistantStartedResponse && (
-                      <div className="w-full px-6 py-4">
+                      <div className="w-full py-4">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-gray-100 rounded-lg">
                             {React.createElement(statusIcon, { className: getIconAnimation(statusIcon) })}
