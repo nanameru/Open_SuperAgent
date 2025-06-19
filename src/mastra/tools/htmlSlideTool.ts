@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { openai } from '@ai-sdk/openai'; // Import OpenAI instead of Anthropic
+import { google } from '@ai-sdk/google';
 import { generateText } from 'ai'; // Import generateText
 
 export const htmlSlideTool = tool({
@@ -242,7 +242,7 @@ ${baseDesignPrompt}`;
     try {
       // console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}"`);
       const { text: generatedHtml } = await generateText({
-        model: openai.responses('o3-pro-2025-06-10'), // Use the Responses API for the reasoning model
+        model: google('models/gemini-2.5-pro'), // Use the Responses API for the reasoning model
         prompt: systemPrompt, // The detailed instructions form the system prompt
       });
 

@@ -15,6 +15,8 @@ import { useDeepResearch } from './hooks/useDeepResearch';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Sparkles, Brain, Bot } from 'lucide-react';
 import { ModelProvider, useModel } from './components/ModelContext';
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 
 // ツール実行メッセージ用の型
 interface ToolMessage {
@@ -74,6 +76,8 @@ export default function AppPage() {
   const [showBrowserPanel, setShowBrowserPanel] = useState<boolean>(false);
   // Deep Researchモードの状態
   const [isDeepResearchMode, setIsDeepResearchMode] = useState<boolean>(false);
+  const isMobile = useIsMobile()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   
   // Deep Researchフック
   const {
@@ -565,13 +569,21 @@ export default function AppPage() {
 
   return (
     <SidebarProvider className="h-screen">
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-full">
-        <MainHeader />
-        <div className="flex-1 flex overflow-hidden">
+      {isMobile ? (
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetContent side="left" className="p-0">
+            <AppSidebar />
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <AppSidebar className="hidden md:block" />
+      )}
+      <SidebarInset className={`flex flex-col h-full ${!isMobile ? 'md:ml-14' : ''}`}>
+        <MainHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* チャットエリア - 動的幅 */}
-          <main className={`${showBrowserPanel ? 'w-1/2 border-r' : 'w-full'} flex flex-col overflow-hidden bg-white border-gray-200 transition-all duration-300`}>
-            <div className="w-full flex-1 flex flex-col px-6 py-6 overflow-y-auto pb-32">
+          <main className={`${showBrowserPanel ? 'w-full md:w-1/2 border-b md:border-b-0 md:border-r' : 'w-full'} flex flex-col overflow-hidden bg-white border-gray-200 transition-all duration-300`}>
+            <div className="w-full flex-1 flex flex-col px-6 py-6 overflow-y-auto">
               {/* スライドツールがアクティブな場合に表示 */}
               {slideToolState.isActive && (
                 <PresentationTool 
@@ -603,7 +615,7 @@ export default function AppPage() {
               
               {/* メッセージコンテナ - 常に同じ構造 */}
               <div className={`flex-1 flex flex-col ${combinedMessages.length === 0 ? 'justify-center items-center' : 'justify-start'} min-h-0`}>
-                <div className="space-y-0 pb-24">
+                <div className="space-y-0 pb-4">
                   {combinedMessages.length === 0 && !isLoading && !error && (
                     <div className="flex flex-col items-center justify-center">
                       <div className="text-center space-y-4">
@@ -661,7 +673,7 @@ export default function AppPage() {
 
           {/* ブラウザ操作サイドバー - 50% */}
           {showBrowserPanel && (
-            <div className="w-1/2 bg-gray-50 border-l border-gray-200 relative h-full overflow-hidden">
+            <div className="w-full md:w-1/2 bg-gray-50 border-l border-gray-200 relative h-full overflow-hidden">
               
               {/* 非表示ボタン */}
               <button
@@ -689,56 +701,52 @@ export default function AppPage() {
             </div>
           )}
 
-
-
-                          {error && (
-              <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
-                <p>Error: {error.message}</p>
-                <p>Please check your API key and network connection.</p>
-                <button 
-                  onClick={() => {
-                    // ツール状態をリセット
-                    setSlideToolState({
-                      isActive: false,
-                      htmlContent: '',
-                      title: '生成AIプレゼンテーション',
-                      forcePanelOpen: false
-                    });
-                    setImageToolState({
-                      isActive: false,
-                      images: [],
-                      prompt: '生成された画像',
-                      forcePanelOpen: false
-                    });
-                    setBrowserbaseToolState({
-                      isActive: false,
-                      sessionId: '',
-                      replayUrl: '',
-                      liveViewUrl: undefined,
-                      screenshot: undefined,
-                      pageTitle: undefined,
-                      elementText: undefined,
-                      forcePanelOpen: false
-                    });
-                    console.log("ツール状態をリセットしました");
-                  }}
-                  className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
-                >
-                  状態をリセット
-                </button>
+          {error && (
+            <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
+              <p>Error: {error.message}</p>
+              <p>Please check your API key and network connection.</p>
+              <button 
+                onClick={() => {
+                  // ツール状態をリセット
+                  setSlideToolState({
+                    isActive: false,
+                    htmlContent: '',
+                    title: '生成AIプレゼンテーション',
+                    forcePanelOpen: false
+                  });
+                  setImageToolState({
+                    isActive: false,
+                    images: [],
+                    prompt: '生成された画像',
+                    forcePanelOpen: false
+                  });
+                  setBrowserbaseToolState({
+                    isActive: false,
+                    sessionId: '',
+                    replayUrl: '',
+                    liveViewUrl: undefined,
+                    screenshot: undefined,
+                    pageTitle: undefined,
+                    elementText: undefined,
+                    forcePanelOpen: false
+                  });
+                  console.log("ツール状態をリセットしました");
+                }}
+                className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+              >
+                状態をリセット
+              </button>
             </div>
           )}
         </div>
-        <div className="flex-shrink-0">
-          <ChatInputArea
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleCustomSubmit}
-            isLoading={isLoading || isDeepResearchLoading}
-            isDeepResearchMode={isDeepResearchMode}
-            onDeepResearchModeChange={setIsDeepResearchMode}
-          />
-        </div>
+        <ChatInputArea
+          input={input}
+          handleInputChange={handleInputChange}
+          handleSubmit={handleCustomSubmit}
+          isLoading={isLoading || isDeepResearchLoading}
+          isDeepResearchMode={isDeepResearchMode}
+          onDeepResearchModeChange={setIsDeepResearchMode}
+        />
       </SidebarInset>
     </SidebarProvider>
   );

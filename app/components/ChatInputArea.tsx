@@ -163,124 +163,126 @@ export const ChatInputArea = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-transparent pb-6 pt-4 z-10 ml-64">
-      <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto px-6">
-        <div className="relative flex items-center bg-gray-100 rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
-          {/* ツール選択ドロップダウン */}
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1 px-3 py-2 ml-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-2xl transition-colors"
-                disabled={isLoading}
-              >
-                {selectedTool ? (
-                  <>
-                    {toolOptions.find(opt => opt.value === selectedTool)?.icon}
-                    <span className="text-xs font-medium">
-                      {isDeepResearchMode && (selectedTool === 'deep-research' || selectedTool === 'enhanced-research')
-                        ? selectedTool === 'enhanced-research' ? 'Enhanced Research (有効)' : 'Deep Research (有効)'
-                        : toolOptions.find(opt => opt.value === selectedTool)?.label}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs">ツール</span>
-                  </>
-                )}
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
-              <Command>
-                <CommandInput placeholder="ツールを検索..." />
-                <CommandList>
-                  <CommandEmpty>ツールが見つかりません</CommandEmpty>
-                  <CommandGroup>
-                    {toolOptions.map((option) => (
-                      <CommandItem
-                        key={option.value}
-                        value={option.value}
-                        onSelect={(currentValue) => {
-                          const newSelectedTool = currentValue === selectedTool ? '' : currentValue;
-                          setSelectedTool(newSelectedTool);
-                          setOpen(false);
-                          
-                          // Deep Researchモードの状態を更新
-                          if (onDeepResearchModeChange) {
-                            onDeepResearchModeChange(newSelectedTool === 'deep-research' || newSelectedTool === 'enhanced-research');
-                          }
-                        }}
-                        className="flex items-start gap-3 p-3"
-                      >
-                        <div className="mt-0.5">{option.icon}</div>
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{option.label}</div>
-                          <div className="text-xs text-gray-500">{option.description}</div>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+    <div className="bg-white/80 backdrop-blur-md">
+      <div className="safe-areas">
+        <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto p-2 md:p-4">
+          <div className="relative flex items-center bg-gray-100 rounded-2xl md:rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
+            {/* ツール選択ドロップダウン */}
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="hidden md:flex items-center gap-1 px-3 py-2 ml-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-2xl transition-colors"
+                  disabled={isLoading}
+                >
+                  {selectedTool ? (
+                    <>
+                      {toolOptions.find(opt => opt.value === selectedTool)?.icon}
+                      <span className="text-xs font-medium">
+                        {isDeepResearchMode && (selectedTool === 'deep-research' || selectedTool === 'enhanced-research')
+                          ? selectedTool === 'enhanced-research' ? 'Enhanced Research (有効)' : 'Deep Research (有効)'
+                          : toolOptions.find(opt => opt.value === selectedTool)?.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs">ツール</span>
+                    </>
+                  )}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="ツールを検索..." />
+                  <CommandList>
+                    <CommandEmpty>ツールが見つかりません</CommandEmpty>
+                    <CommandGroup>
+                      {toolOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={(currentValue) => {
+                            const newSelectedTool = currentValue === selectedTool ? '' : currentValue;
+                            setSelectedTool(newSelectedTool);
+                            setOpen(false);
+                            
+                            // Deep Researchモードの状態を更新
+                            if (onDeepResearchModeChange) {
+                              onDeepResearchModeChange(newSelectedTool === 'deep-research' || newSelectedTool === 'enhanced-research');
+                            }
+                          }}
+                          className="flex items-start gap-3 p-3"
+                        >
+                          <div className="mt-0.5">{option.icon}</div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{option.label}</div>
+                            <div className="text-xs text-gray-500">{option.description}</div>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
-          <input
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            placeholder={
-              isDeepResearchMode 
-                ? selectedTool === 'enhanced-research' 
-                  ? "Enhanced Research で高度な調査を実行します..."
-                  : "Deep Researchで詳細調査します..." 
-                : selectedTool 
-                  ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
-                  : "質問してみましょう"
-            }
-            className="flex-1 p-3 pl-2 pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base"
-            disabled={isLoading}
-          />
-          <div className="absolute right-2 flex items-center gap-1">
-            {/* 音声入力ボタン */}
-            {isSupported && (
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                disabled={isLoading}
-                className={`p-2 rounded-full transition-colors ${
-                  isListening 
-                    ? 'text-red-600 bg-red-50 hover:bg-red-100' 
-                    : 'text-gray-600 bg-gray-50 hover:bg-gray-200'
-                } disabled:bg-gray-300 disabled:cursor-not-allowed`}
-                title={isListening ? '音声入力を停止' : '音声入力を開始'}
+            <input
+              type="text"
+              value={input}
+              onChange={handleInputChange}
+              placeholder={
+                isDeepResearchMode 
+                  ? selectedTool === 'enhanced-research' 
+                    ? "Enhanced Research で高度な調査を実行します..."
+                    : "Deep Researchで詳細調査します..." 
+                  : selectedTool 
+                    ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
+                    : "質問してみましょう"
+              }
+              className="flex-1 p-3 pl-4 pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base"
+              disabled={isLoading}
+            />
+            <div className="absolute right-2 flex items-center gap-1">
+              {/* 音声入力ボタン */}
+              {isSupported && (
+                <button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  disabled={isLoading}
+                  className={`hidden md:flex p-2 rounded-full transition-colors ${
+                    isListening 
+                      ? 'text-red-600 bg-red-50 hover:bg-red-100' 
+                      : 'text-gray-600 bg-gray-50 hover:bg-gray-200'
+                  } disabled:bg-gray-300 disabled:cursor-not-allowed`}
+                  title={isListening ? '音声入力を停止' : '音声入力を開始'}
+                >
+                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
+              
+              {/* 送信ボタン */}
+              <button 
+                type="submit" 
+                disabled={isLoading || !input.trim()} 
+                className="p-2.5 md:p-2 text-white bg-black rounded-full hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                <ArrowUp className="h-5 w-5" />
               </button>
-            )}
-            
-            {/* 送信ボタン */}
-            <button 
-              type="submit" 
-              disabled={isLoading || !input.trim()} 
-              className="p-2 text-white bg-black rounded-full hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              <ArrowUp className="h-5 w-5" />
-            </button>
+            </div>
           </div>
-        </div>
-        
-        {/* 音声認識状態表示 */}
-        {isListening && (
-          <div className="mt-2 text-center">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-50 text-red-700">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
-              音声を聞いています...
-            </span>
-          </div>
-        )}
-      </form>
+          
+          {/* 音声認識状態表示 */}
+          {isListening && (
+            <div className="mt-2 text-center">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-50 text-red-700">
+                <div className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                音声を聞いています...
+              </span>
+            </div>
+          )}
+        </form>
+      </div>
     </div>
   );
 }; 
