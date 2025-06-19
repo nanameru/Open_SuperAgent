@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // グローバル変数でモデル設定を保存（実際の実装では、より永続的なストレージを使用することを推奨）
 let currentModelConfig = {
   provider: 'gemini',
-  modelName: 'gemini-2.5-pro-preview-06-05'
+  modelName: 'gemini-2.5-flash'
 };
 
 export async function POST(request: NextRequest) {
