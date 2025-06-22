@@ -35,7 +35,6 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isExportingPPTX, setIsExportingPPTX] = useState<boolean>(false);
   const [isExportingAdvancedPPTX, setIsExportingAdvancedPPTX] = useState<boolean>(false);
-  const [isExportingHybridPPTX, setIsExportingHybridPPTX] = useState<boolean>(false);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   const presentationContainerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef<boolean>(false);
@@ -393,126 +392,6 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
     }
   };
 
-  // ハイブリッドPPTXエクスポート（背景画像＋編集可能テキスト）
-  const exportToHybridPPTX = async () => {
-    setIsExportingHybridPPTX(true);
-    
-    try {
-      // HTMLを個別のスライドに分割
-      const { slides: slideHtmlArray, styles } = splitIntoSlides(previewHtml);
-      
-      if (slideHtmlArray.length === 0) {
-        throw new Error('スライドが見つかりません');
-      }
-      
-      console.log(`${slideHtmlArray.length}枚のスライドをハイブリッド方式でエクスポート中...`);
-      
-      // 各スライドのHTMLを準備
-      const slidesData = slideHtmlArray.map((slideHtml, index) => ({
-        html: `<style>${styles}</style>${slideHtml}`,
-        index
-      }));
-      
-      // APIにリクエスト
-      const response = await fetch('/api/export-pptx-advanced-hybrid', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          slides: slidesData,
-          title: title
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'ハイブリッドPPTXエクスポートに失敗しました');
-      }
-      
-      // レスポンスをBlobとして取得
-      const blob = await response.blob();
-      
-      // ダウンロードリンクを作成
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${title.replace(/\s+/g, '_')}_hybrid.pptx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      console.log('ハイブリッドPPTXエクスポートが完了しました');
-      
-    } catch (error) {
-      console.error('Hybrid PPTX export error:', error);
-      alert('ハイブリッドPPTXファイルのエクスポートに失敗しました。' + (error instanceof Error ? '\n' + error.message : ''));
-    } finally {
-      setIsExportingHybridPPTX(false);
-    }
-  };
-
-  // Nutrient APIを使用したPPTXエクスポート
-  const exportToNutrientPPTX = async () => {
-    setIsExportingHybridPPTX(true);
-    
-    try {
-      // HTMLを個別のスライドに分割
-      const { slides: slideHtmlArray, styles } = splitIntoSlides(previewHtml);
-      
-      if (slideHtmlArray.length === 0) {
-        throw new Error('スライドが見つかりません');
-      }
-      
-      console.log(`${slideHtmlArray.length}枚のスライドをNutrient APIでエクスポート中...`);
-      
-      // 各スライドのHTMLを準備
-      const slidesData = slideHtmlArray.map((slideHtml, index) => ({
-        html: `<style>${styles}</style>${slideHtml}`,
-        index
-      }));
-      
-      // APIにリクエスト
-      const response = await fetch('/api/export-pptx-nutrient', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          slides: slidesData,
-          title: title
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Nutrient PPTXエクスポートに失敗しました');
-      }
-      
-      // レスポンスをBlobとして取得
-      const blob = await response.blob();
-      
-      // ダウンロードリンクを作成
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${title.replace(/\s+/g, '_')}_nutrient.pptx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      console.log('Nutrient PPTXエクスポートが完了しました');
-      
-    } catch (error) {
-      console.error('Nutrient PPTX export error:', error);
-      alert('Nutrient PPTXファイルのエクスポートに失敗しました。' + (error instanceof Error ? '\n' + error.message : ''));
-    } finally {
-      setIsExportingHybridPPTX(false);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -602,26 +481,6 @@ export const PresentationPreviewPanel: React.FC<PresentationPreviewPanelProps> =
 
             <TabsContent value="preview" className="flex-1 p-0 m-0 flex flex-col">
               <div className="mb-0.5 flex justify-end space-x-0.5 flex-shrink-0 px-0.5">
-                <Button
-                  onClick={exportToNutrientPPTX}
-                  variant="default"
-                  size="sm"
-                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
-                  disabled={isExportingHybridPPTX}
-                >
-                  <Presentation className="h-3 w-3" />
-                  {isExportingHybridPPTX ? 'エクスポート中...' : 'Nutrient PPTX'}
-                </Button>
-                <Button
-                  onClick={exportToHybridPPTX}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1 text-xs px-2 py-1 h-6"
-                  disabled={isExportingHybridPPTX}
-                >
-                  <Presentation className="h-3 w-3" />
-                  {isExportingHybridPPTX ? 'エクスポート中...' : 'ハイブリッド'}
-                </Button>
                 <Button
                   onClick={exportToAdvancedPPTX}
                   variant="outline"
