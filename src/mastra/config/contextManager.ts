@@ -279,6 +279,7 @@ export class ContextManager {
     // Add summary as the first message
     if (regular.length > 0) {
       compressedMessages.push({
+        id: `summary-${Date.now()}`,
         role: 'assistant',
         content: summary
       });
