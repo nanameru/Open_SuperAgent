@@ -356,9 +356,9 @@ export default function AppPage() {
       // ツール呼び出しを含むメッセージを処理
       if (msg.content && typeof msg.content === 'string') {
         try {
-                // Brave検索ツールの結果を検出した場合
-          if (msg.content.includes('brave-search') || msg.content.includes('braveSearchTool')) {
-            console.log("[Page] Brave search tool result detected");
+                // Web検索ツールの結果を検出した場合
+          if (msg.content.includes('web-search') || msg.content.includes('webSearchTool')) {
+            console.log("[Page] Web search tool result detected");
           }
           
           // その他のツール処理...

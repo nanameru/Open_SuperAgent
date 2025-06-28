@@ -103,7 +103,7 @@ function getWeatherCondition(code: number): string {
 
 // Import all tools to make them available in this module's scope
 import { htmlSlideTool } from './htmlSlideTool';
-import { braveSearchTool } from './braveSearchTool';
+import { webSearchTool } from './webSearchTool';
 import { geminiImageGenerationTool } from './geminiImageGenerationTool';
 import { presentationPreviewTool } from './presentationPreviewTool';
 import { geminiVideoGenerationTool } from './geminiVideoGenerationTool';
@@ -141,7 +141,7 @@ import { visualSlideEditorTool } from './visualSlideEditorTool';
 export const allTools = [
   weatherTool,
   htmlSlideTool,
-  braveSearchTool,
+  webSearchTool,
   geminiImageGenerationTool,
   presentationPreviewTool,
   geminiVideoGenerationTool,
@@ -182,7 +182,7 @@ export const allToolNames = allTools.map((t: any) => t.name || t.id);
 // Export all the tools to make them available to other modules
 export {
   htmlSlideTool,
-  braveSearchTool,
+  webSearchTool,
   geminiImageGenerationTool,
   presentationPreviewTool,
   geminiVideoGenerationTool,

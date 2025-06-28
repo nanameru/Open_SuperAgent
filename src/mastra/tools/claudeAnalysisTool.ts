@@ -111,7 +111,7 @@ const claudeAnalysisInputSchema = z.object({
     .describe('Paths to exclude from project analysis'),
 });
 
-// Unified output schema (following braveSearchTool pattern)
+// Unified output schema (following webSearchTool pattern)
 const claudeAnalysisOutputSchema = z.object({
   operation: z.enum(['analyze', 'generate', 'review', 'refactor', 'generate-tests', 'generate-docs', 'analyze-project']),
   success: z.boolean(),

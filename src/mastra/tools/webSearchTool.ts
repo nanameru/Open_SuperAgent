@@ -18,14 +18,14 @@ interface BraveApiWebResponse {
 }
 
 /**
- * braveSearchTool
+ * webSearchTool
  * ---------------
  * Queries Brave Web Search API and returns the top N organic web results.
  *
  * NOTE: The API key must be provided via the environment variable `BRAVE_API_KEY`.
  */
-export const braveSearchTool = createTool({
-  id: 'brave-web-search',
+export const webSearchTool = createTool({
+  id: 'web-search',
   description: 'Search the web using Brave Search API and return the top organic results.',
   inputSchema: z.object({
     query: z
@@ -127,4 +127,4 @@ export const braveSearchTool = createTool({
     // すべてのリトライが失敗した場合
     throw new Error('Brave Search API rate limit exceeded after all retries');
   },
-}); 
+});

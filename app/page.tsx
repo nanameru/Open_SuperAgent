@@ -8,6 +8,10 @@ import { ChatMessage } from './components/ChatMessage';
 import { PresentationTool } from './components/PresentationTool';
 import { ImageTool } from './components/ImageTool';
 import { BrowserOperationSidebar } from './components/BrowserOperationSidebar';
+import { DeepResearchReport } from './components/DeepResearchReport';
+import { ResearchPlan } from './components/ResearchPlan';
+import { ResearchProgress } from './components/ResearchProgress';
+import { useEnhancedDeepResearch } from '@/app/hooks/useEnhancedDeepResearch';
 import React, { useEffect, useState, useRef, useCallback, useOptimistic, startTransition } from 'react';
 import { Message } from 'ai';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
@@ -79,15 +83,8 @@ export default function AppPage() {
   const isMobile = useIsMobile()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   
-  // Deep Researchフック
-  const {
-    isLoading: isDeepResearchLoading,
-    processedEvents: deepResearchEvents,
-    result: deepResearchResult,
-    error: deepResearchError,
-    executeDeepResearch,
-    reset: resetDeepResearch
-  } = useDeepResearch();
+  // Enhanced Deep Researchフック
+  const deepResearch = useEnhancedDeepResearch();
   
 
   // スライドツール関連の状態
@@ -163,33 +160,18 @@ export default function AppPage() {
   });
 
   // 全体のローディング状態
-  const isOverallLoading = isLoading || isDeepResearchLoading;
+  const isOverallLoading = isLoading || deepResearch.status === 'planning' || deepResearch.status === 'researching';
 
   // ローディング状態とイベントに基づいてステータスを更新
   useEffect(() => {
     if (isOverallLoading) {
-      if (isDeepResearchLoading && deepResearchEvents.length > 0) {
-        const lastEvent = deepResearchEvents[deepResearchEvents.length - 1];
-        const eventTitle = lastEvent.title.toLowerCase();
-
-        // イベントタイトルに基づいてテキストとアイコンを決定
-        if (eventTitle.includes('検索') || eventTitle.includes('search')) {
-          setStatusText('Web検索中...');
-          setStatusIcon(() => MagnifyingGlassIcon);
-        } else if (eventTitle.includes('生成') || eventTitle.includes('generate')) {
-          setStatusText('回答生成中...');
-          setStatusIcon(() => Sparkles);
-        } else if (eventTitle.includes('評価') || eventTitle.includes('evaluate') || eventTitle.includes('処理') || eventTitle.includes('processing')) {
-          setStatusText('情報処理中...');
-          setStatusIcon(() => Brain);
-        } else if (eventTitle.includes('計画') || eventTitle.includes('plan') || eventTitle.includes('クエリ')) {
-          setStatusText('計画中...');
-          setStatusIcon(() => Bot);
-        } else {
-          setStatusText('思考中...');
-          setStatusIcon(() => Sparkles);
-        }
-      } else {
+      if (deepResearch.status === 'planning') {
+        setStatusText('リサーチ計画を生成中...');
+        setStatusIcon(() => Brain);
+      } else if (deepResearch.status === 'researching') {
+        setStatusText('Deep Research 実行中...');
+        setStatusIcon(() => MagnifyingGlassIcon);
+      } else if (isLoading) {
         // 通常のチャットローディング
         setStatusText('思考中...');
         setStatusIcon(() => Sparkles);
@@ -199,7 +181,7 @@ export default function AppPage() {
       setStatusText('');
       setStatusIcon(null);
     }
-  }, [isOverallLoading, isDeepResearchLoading, deepResearchEvents]);
+  }, [isOverallLoading, isLoading, deepResearch.status]);
 
   // チャットの状態が変わったときに参照を更新する関数
   const updateChatStateRef = useCallback((messages: Message[], input: string) => {
@@ -221,7 +203,7 @@ export default function AppPage() {
       setConversationId(`conv-${Date.now()}`);
       // Deep Researchモードもリセット
       setIsDeepResearchMode(false);
-      resetDeepResearch();
+      deepResearch.resetResearch();
       // スライドツール状態もリセット
       setSlideToolState({
         isActive: false,
@@ -248,7 +230,7 @@ export default function AppPage() {
         forcePanelOpen: false
       });
     }
-  }, [messages.length, resetDeepResearch]);
+  }, [messages.length, deepResearch.resetResearch]);
 
   // ★ useOptimistic フックで一時的なメッセージリストを作成
   const [optimisticMessages, addOptimisticMessage] = useOptimistic<UIMessage[], UIMessage>(
@@ -268,76 +250,32 @@ export default function AppPage() {
     }
   );
 
-  // Deep Researchの結果をメッセージに反映
-  useEffect(() => {
-    if (deepResearchResult && !isDeepResearchLoading) {
-      const assistantMessage: Message = {
-        id: `deep-research-${Date.now()}`,
-        role: 'assistant',
-        content: deepResearchResult.answer,
-        createdAt: new Date()
-      };
-      
-      startTransition(() => {
-        addOptimisticMessage(assistantMessage);
-      });
-    }
-  }, [deepResearchResult, isDeepResearchLoading, addOptimisticMessage]);
-
   // ユーザーメッセージの送信を処理するカスタムsubmitハンドラ
   const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    // ツールメッセージをリセット（新しい会話の開始）
     if (messages.length === 0) {
       setToolMessages([]);
       setConversationId(`conv-${Date.now()}`);
     }
     
-    // Deep Researchモードの場合はワークフローを実行
     if (isDeepResearchMode && input.trim()) {
-      // Deep Researchプレフィックスを除去
-      const cleanInput = input.replace(/^\[Deep Research\]\s*/, '');
-      
-      // ユーザーメッセージを楽観的に追加
       const userMessage: Message = {
         id: Date.now().toString(),
         role: 'user',
         content: input,
         createdAt: new Date()
       };
+      addOptimisticMessage(userMessage);
       
-      startTransition(() => {
-        addOptimisticMessage(userMessage);
-      });
-      
-      // 入力フィールドをクリア
-      const syntheticEvent = {
-        target: { value: '' }
-      } as React.ChangeEvent<HTMLInputElement>;
+      const syntheticEvent = { target: { value: '' } } as React.ChangeEvent<HTMLInputElement>;
       handleInputChange(syntheticEvent);
       
-      // Deep Researchワークフローを実行
-      executeDeepResearch(cleanInput).catch(error => {
-        console.error('[Page] Deep Research error:', error);
-        
-        // エラーメッセージを表示
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `Deep Researchでエラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          createdAt: new Date()
-        };
-        
-        startTransition(() => {
-          addOptimisticMessage(errorMessage);
-        });
-      });
-      
+      // 新しいフックの関数を呼び出し
+      await deepResearch.startResearch(input);
       return;
     }
     
-    // 標準のhandleSubmitを実行
     originalHandleSubmit(e);
   };
 
@@ -370,9 +308,9 @@ export default function AppPage() {
       // ツール呼び出しを含むメッセージを処理
       if (msg.content && typeof msg.content === 'string') {
         try {
-                // Brave検索ツールの結果を検出した場合
-          if (msg.content.includes('brave-search') || msg.content.includes('braveSearchTool')) {
-            console.log("[Page] Brave search tool result detected");
+                // Web検索ツールの結果を検出した場合
+          if (msg.content.includes('web-search') || msg.content.includes('webSearchTool')) {
+            console.log("[Page] Web search tool result detected");
           }
           
           // その他のツール処理...
@@ -633,10 +571,47 @@ export default function AppPage() {
                       onPreviewWidthChange={handlePreviewPanelWidthChange}
                       onBrowserbasePreview={handleBrowserbasePreview}
                       onBrowserAutomationDetected={handleBrowserAutomationDetected}
-                      deepResearchEvents={deepResearchEvents}
-                      isDeepResearchLoading={isDeepResearchLoading}
+                      deepResearchEvents={[]}
+                      isDeepResearchLoading={deepResearch.status === 'researching'}
                     />
                   ))}
+                  
+                  {isDeepResearchMode && (
+                    <>
+                      {deepResearch.status === 'planning' && (
+                        <div className="flex items-center justify-center p-8">
+                          <div className="flex items-center space-x-2 text-gray-500">
+                            <Brain className="h-6 w-6 animate-pulse" />
+                            <span>リサーチ計画を生成しています...</span>
+                          </div>
+                        </div>
+                      )}
+                      {deepResearch.plan && deepResearch.status === 'idle' && (
+                        <ResearchPlan
+                          plan={deepResearch.plan}
+                          onStart={deepResearch.executeResearch}
+                          onEdit={() => {
+                            // TODO: 計画編集機能の実装
+                            console.log('Edit plan clicked');
+                          }}
+                        />
+                      )}
+                      {deepResearch.status === 'researching' && (
+                        <ResearchProgress
+                          title={deepResearch.plan?.title || 'リサーチ中...'}
+                          progress={deepResearch.progress}
+                        />
+                      )}
+                      {deepResearch.status === 'complete' && deepResearch.finalReport && (
+                        <DeepResearchReport result={deepResearch.finalReport} />
+                      )}
+                      {deepResearch.error && (
+                        <div className="p-4 text-center text-red-500 bg-red-100 rounded-md">
+                          <p>Error: {deepResearch.error}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
                   
                   {/* 思考中表示 */}
                   {(() => {
@@ -743,7 +718,7 @@ export default function AppPage() {
           input={input}
           handleInputChange={handleInputChange}
           handleSubmit={handleCustomSubmit}
-          isLoading={isLoading || isDeepResearchLoading}
+          isLoading={isLoading || deepResearch.status === 'researching'}
           isDeepResearchMode={isDeepResearchMode}
           onDeepResearchModeChange={setIsDeepResearchMode}
         />

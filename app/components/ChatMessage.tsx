@@ -1542,7 +1542,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         }
         return null;
         
-      case 'braveSearchTool':
+      case 'webSearchTool':
         // ... existing code ...
       
       case 'browserbase-automation':

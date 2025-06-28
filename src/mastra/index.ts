@@ -13,7 +13,7 @@ import {
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
-  braveSearchTool,
+  webSearchTool,
   geminiImageGenerationTool,
   geminiVideoGenerationTool,
   grokXSearchTool,
@@ -42,7 +42,7 @@ export const mastra = new Mastra({
   tools: { 
     htmlSlideTool, 
     presentationPreviewTool,
-    braveSearchTool,
+    webSearchTool,
     geminiImageGenerationTool,
     geminiVideoGenerationTool,
     grokXSearchTool,

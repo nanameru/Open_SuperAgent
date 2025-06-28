@@ -47,7 +47,7 @@ export function getAgentToolNames(): string[] {
   return [
     'htmlSlideTool',
     'presentationPreviewTool',
-    'braveSearchTool',
+    'webSearchTool',
     'grokXSearchTool',
     'geminiImageGenerationTool',
     'geminiVideoGenerationTool',

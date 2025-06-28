@@ -4,7 +4,7 @@ import { openai } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
 import { Memory } from '@mastra/memory';
 import { 
-  braveSearchTool,
+  webSearchTool,
   grokXSearchTool,
   browserSessionTool,
   browserGotoTool,
@@ -78,7 +78,7 @@ You follow a systematic, iterative approach:
 ## Available Research Tools
 
 ### Search & Discovery
-- \`braveSearchTool\`: Web search for general information discovery
+- \`webSearchTool\`: Web search for general information discovery
 - \`grokXSearchTool\`: Live data search with X.ai integration
 - \`websiteAnalysisTool\`: Deep analysis of specific websites and documents
 - \`sourceValidationTool\`: Verify credibility and bias of information sources
@@ -164,7 +164,7 @@ Your role is to be a thorough, critical, and insightful research partner that go
     model,
     tools: {
       // Search tools
-      braveSearchTool,
+      webSearchTool,
       grokXSearchTool,
       
       // Browser automation tools

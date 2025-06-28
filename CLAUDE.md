@@ -190,5 +190,5 @@ const result = await browserWaitForCaptchaTool({
 - CAPTCHA solving can take up to 30 seconds
 - Basic stealth mode is automatically enabled for all sessions
 - Avoid automating Google services (blocked by policy)
-- Use `braveSearchTool` or `grokXSearchTool` instead of Google Search
+- Use `webSearchTool` or `grokXSearchTool` instead of Google Search
 - Browser sessions provide live view URLs for debugging
