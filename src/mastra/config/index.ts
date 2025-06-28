@@ -37,6 +37,9 @@ export {
   type CompressionMiddlewareOptions
 } from './compressionMiddleware';
 
+import { createCompressionMiddleware } from './compressionMiddleware';
+import { ContextManager } from './contextManager';
+
 /**
  * Quick setup function for enabling context compression on any agent
  */
