@@ -68,7 +68,40 @@ export const ChatInputArea = ({
   const [isSupported, setIsSupported] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<string>('');
+  const [lastEnterTime, setLastEnterTime] = useState<number>(0);
+  const [enterCount, setEnterCount] = useState<number>(0);
   const recognitionRef = useRef<any>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // textareaの高さを自動調整
+  const adjustTextareaHeight = () => {
+    if (textareaRef.current && typeof window !== 'undefined') {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const minHeight = 52; // 最小高さ（約2行分）
+      // モバイルでは少し低めに設定
+      const isMobile = window.innerWidth < 768;
+      const maxHeight = isMobile ? 150 : 200; // モバイル: 約6行分、デスクトップ: 約8行分
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, minHeight), maxHeight)}px`;
+    }
+  };
+
+  // 入力値が変更されたときに高さを調整
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input]);
+
+  // ウィンドウサイズ変更時に高さを再調整
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleResize = () => {
+        adjustTextareaHeight();
+      };
+      
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
 
   // Web Speech API サポート確認
   useEffect(() => {
@@ -91,7 +124,7 @@ export const ChatInputArea = ({
           // 音声認識結果を入力フィールドに設定
           const syntheticEvent = {
             target: { value: transcript }
-          } as React.ChangeEvent<HTMLInputElement>;
+          } as React.ChangeEvent<HTMLTextAreaElement>;
           handleInputChange(syntheticEvent);
         };
         
@@ -117,6 +150,44 @@ export const ChatInputArea = ({
       recognitionRef.current.stop();
     } else {
       recognitionRef.current.start();
+    }
+  };
+
+  // キーボードイベントハンドラ
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Shift+Enterの場合は改行を許可
+    if (e.key === 'Enter' && e.shiftKey) {
+      // デフォルトの動作（改行）を許可
+      return;
+    }
+    
+    // Enterキーのみの場合
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault(); // デフォルトの改行を防ぐ
+      
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastEnterTime;
+      
+      // 300ms以内に2回目のEnterが押された場合
+      if (timeDiff < 300 && enterCount === 1) {
+        // フォーム送信
+        const form = e.currentTarget.closest('form');
+        if (form && input.trim()) {
+          form.requestSubmit();
+        }
+        setEnterCount(0);
+        setLastEnterTime(0);
+      } else {
+        // 1回目のEnter
+        setEnterCount(1);
+        setLastEnterTime(currentTime);
+        
+        // 300ms後にカウントをリセット
+        setTimeout(() => {
+          setEnterCount(0);
+          setLastEnterTime(0);
+        }, 300);
+      }
     }
   };
 
@@ -227,10 +298,11 @@ export const ChatInputArea = ({
               </PopoverContent>
             </Popover>
 
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               placeholder={
                 isDeepResearchMode 
                   ? selectedTool === 'enhanced-research' 
@@ -240,8 +312,14 @@ export const ChatInputArea = ({
                     ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
                     : "質問してみましょう"
               }
-              className="flex-1 p-3 pl-4 pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base"
+              className="flex-1 p-3 pl-4 pr-20 md:pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base resize-none overflow-y-auto"
+              style={{ 
+                minHeight: '52px', 
+                maxHeight: '200px', 
+                lineHeight: '1.5' 
+              }}
               disabled={isLoading}
+              rows={1}
             />
             <div className="absolute right-2 flex items-center gap-1">
               {/* 音声入力ボタン */}
