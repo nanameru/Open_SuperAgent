@@ -10,7 +10,7 @@ import { BrowserOperationSidebar } from './BrowserOperationSidebar';
 import { EyeIcon, DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Copy, Check } from 'lucide-react';
 import { ActivityTimeline, ProcessedEvent } from './ActivityTimeline';
 import ReactMarkdown from 'react-markdown';
 
@@ -309,6 +309,34 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   // デバッグモード（ノンプロダクション環境のみ）
   const DEBUG_MODE = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
+  
+  // コピー機能の状態
+  const [isCopied, setIsCopied] = useState(false);
+
+  // テキストをクリップボードにコピーする関数
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // 2秒後にリセット
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // フォールバック: 古いブラウザ対応
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (fallbackErr) {
+        console.error('Fallback copy failed: ', fallbackErr);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
   
   // プレゼンテーションプレビュー状態
   const [presentationPreview, setPresentationPreview] = useState<PresentationPreviewState>({
@@ -2131,7 +2159,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             // テキスト部分の表示
             elements.push(
               <div key={`text-${partIndex}`} className="flex justify-start mb-6">
-                <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+                <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800 relative group">
+                  {/* コピーボタン */}
+                  <button
+                    onClick={() => copyToClipboard(part.text || '')}
+                    className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 hover:bg-white border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-105"
+                    title="テキストをコピー"
+                  >
+                    {isCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4 text-gray-600" />
+                    )}
+                  </button>
                   <div className="prose prose-gray max-w-none text-base leading-relaxed">
                     <ReactMarkdown 
                       components={{
@@ -2389,7 +2429,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         if (content.trim()) {
           elements.push(
             <div key="content" className="flex justify-start mb-6">
-              <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800">
+              <div className="w-full max-w-3xl px-4 py-3 rounded-2xl bg-gray-100 text-gray-800 relative group">
+                {/* コピーボタン */}
+                <button
+                  onClick={() => copyToClipboard(content)}
+                  className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 hover:bg-white border border-gray-200 shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-105"
+                  title="テキストをコピー"
+                >
+                  {isCopied ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-gray-600" />
+                  )}
+                </button>
                 <div className="prose prose-gray max-w-none text-base leading-relaxed">
                   <ReactMarkdown 
                     components={{
