@@ -68,12 +68,14 @@ export class ContextManager {
     let totalTokens = 0;
     
     for (const message of messages) {
-      if (typeof message.content === 'string') {
+      const content = message.content;
+      
+      if (typeof content === 'string') {
         // Rough estimation: ~4 characters per token for most models
-        totalTokens += Math.ceil(message.content.length / 4);
-      } else if (Array.isArray(message.content)) {
-        for (const part of message.content) {
-          if (part.type === 'text' && part.text) {
+        totalTokens += Math.ceil(content.length / 4);
+      } else if (Array.isArray(content)) {
+        for (const part of content) {
+          if (part.type === 'text' && 'text' in part && part.text) {
             totalTokens += Math.ceil(part.text.length / 4);
           } else if (part.type === 'tool-call' || part.type === 'tool-result') {
             // Tool calls/results are typically more token-dense
@@ -145,9 +147,11 @@ export class ContextManager {
       }
       
       // Check for important tool calls
-      if (Array.isArray(message.content)) {
-        for (const part of message.content) {
+      const content = message.content;
+      if (Array.isArray(content)) {
+        for (const part of content) {
           if (part.type === 'tool-call' && 
+              'toolName' in part && 
               ContextManager.IMPORTANT_TOOLS.includes(part.toolName)) {
             isImportant = true;
             break;
