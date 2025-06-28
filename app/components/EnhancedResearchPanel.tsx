@@ -29,6 +29,7 @@ export const EnhancedResearchPanel: React.FC<EnhancedResearchPanelProps> = ({ cl
   const isLoading = status === 'planning' || status === 'researching';
   const processedEvents = progress.map((step, index) => ({
     id: `step-${index}`,
+    title: step.query || step.summary || `${step.type} step`,
     type: step.type,
     timestamp: new Date().toISOString(),
     data: {
