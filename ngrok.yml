@@ -1,0 +1,13 @@
+version: "2"
+authtoken: 2yOiigY2pPFE779bp4ti4kEQbrB_GS4DASvuRXmGa96fVw43
+
+tunnels:
+  app1:
+    addr: 3000
+    proto: http
+    name: "other-app"
+    
+  app2:
+    addr: 3001
+    proto: http
+    name: "ai-agent-presentation"

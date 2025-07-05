@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
     
     // 選択されたモデルでslideCreatorAgentを動的に作成
-    const slideCreatorAgent = createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
+    const slideCreatorAgent = await createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
     
     // Deep Research feature removed for build stability
     

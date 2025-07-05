@@ -23,6 +23,7 @@
     "@libsql/client": "^0.15.8",
     "@mastra/core": "^0.10.3",
     "@mastra/libsql": "^0.10.1",
+    "@mastra/mcp": "^0.10.5",
     "@mastra/memory": "^0.10.2",
     "@octokit/rest": "^22.0.0",
     "@opentelemetry/exporter-jaeger": "^2.0.1",

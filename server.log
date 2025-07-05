@@ -1,0 +1,80 @@
+
+> ai-agent-presentation@0.1.0 dev
+> next dev --turbopack
+
+ ⚠ Port 3000 is in use, using available port 3001 instead.
+   ▲ Next.js 15.3.1 (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.11.41:3001
+   - Environments: .env.local, .env.development, .env
+
+ ✓ Starting...
+ ○ Compiling instrumentation Node.js ...
+ ✓ Compiled instrumentation Node.js in 954ms
+ ○ Compiling instrumentation Edge ...
+ ✓ Compiled instrumentation Edge in 702ms
+Successfully cleaned up /Users/kimurataiyou/ai-agent-presentation/public/slidecreatorAgent
+ ✓ Ready in 2.8s
+ ○ Compiling / ...
+ ✓ Compiled / in 3.2s
+ HEAD / 200 in 3671ms
+ GET / 200 in 142ms
+ ⚠ Cross origin request detected from 2a40-240b-11-41c1-1010-2479-fef9-e195-197f.ngrok-free.app to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ○ Compiling /api/set-model ...
+ ✓ Compiled /api/set-model in 781ms
+ GET /api/set-model 200 in 820ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 946ms
+ GET / 200 in 235ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 240ms
+ GET /api/set-model 200 in 41ms
+ ○ Compiling /api/slide-creator/chat ...
+ ✓ Compiled /api/slide-creator/chat in 8s
+Using model from request: gemini - gemini-2.5-flash
+Attempting to stream with gemini (attempt 1/3)
+Mastra Stream Result Type object
+Mastra Stream Result Keys [
+  'warningsPromise',
+  'usagePromise',
+  'finishReasonPromise',
+  'providerMetadataPromise',
+  'textPromise',
+  'reasoningPromise',
+  'reasoningDetailsPromise',
+  'sourcesPromise',
+  'filesPromise',
+  'toolCallsPromise',
+  'toolResultsPromise',
+  'requestPromise',
+  'responsePromise',
+  'stepsPromise',
+  'output',
+  'addStream',
+  'closeStream',
+  'baseStream'
+]
+Mastra Stream Result has toDataStreamResponse method
+ POST /api/slide-creator/chat 200 in 12087ms
+ ○ Compiling /media ...
+ GET /media 200 in 2178ms
+ ✓ Compiled /media in 2.2s
+ GET /usecases 200 in 2264ms
+ GET /api/set-model 200 in 25ms
+ GET / 200 in 1011ms
+ GET / 200 in 282ms
+ GET / 200 in 52ms
+[Set Model] Updated model to: gemini - gemini-2.5-pro
+ POST /api/set-model 200 in 61ms
+ ○ Compiling /tools ...
+ ✓ Compiled /tools in 1702ms
+ GET /tools 200 in 1754ms
+ GET /tools 200 in 33ms
+ GET /tools 200 in 27ms
+ GET /tools 200 in 23ms
+ GET /tools 200 in 19ms
+ GET / 200 in 42ms
+ GET /tools 200 in 29ms
+ GET / 200 in 31ms
+ GET / 200 in 134ms
+ GET /api/set-model 200 in 20ms
+[?25h

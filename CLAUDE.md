@@ -5,13 +5,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Essential Commands
 
 ### Development
+**重要**: 以下の2つのサーバーを別々のターミナルで起動する必要があります：
+
+#### Terminal 1: Mastraサーバー（MCP統合に必須）
+```bash
+# Mastra development server (ポート4111で起動)
+npm run dev:mastra
+# または
+mastra dev
+```
+
+#### Terminal 2: Next.jsアプリケーションサーバー
 ```bash
 # Start the development server (uses Turbopack)
 npm run dev
+```
 
-# Start Mastra development server (REQUIRED - run in separate terminal)
-mastra dev
-
+#### その他のコマンド
+```bash
 # Build Mastra agents
 mastra build
 ```
@@ -63,6 +74,7 @@ Tools are modular and located in `src/mastra/tools/`:
 - **Browser Automation**: Complete Browserbase integration with stealth mode and CAPTCHA solving
 - **Search**: Brave Search API, Grok X search
 - **Code Generation**: V0 code generation tool
+- **MCP Tools**: Dynamic integration with Model Context Protocol servers
 
 ### API Routes Structure
 All API endpoints are in `app/api/`:
@@ -95,6 +107,10 @@ FAL_KEY
 NUTRIENT_API_KEY
 MINIMAX_API_KEY
 MINIMAX_GROUP_ID
+
+# MCP Services (Optional)
+GITHUB_TOKEN        # For GitHub MCP server
+TAVILY_API_KEY      # For web search MCP server
 ```
 
 ### PPTX Export Methods
@@ -110,11 +126,159 @@ MINIMAX_GROUP_ID
 
 ## Development Workflow
 
+### Quick Start
+1. **Terminal 1**: `npm run dev:mastra` (Mastraサーバー起動)
+2. **Terminal 2**: `npm run dev` (Next.jsアプリ起動)
+3. **Chrome MCP** (オプション): Chrome拡張機能をインストールして「Connect」をクリック
+
 ### Adding New Tools
 1. Create tool file in `src/mastra/tools/`
 2. Export from `src/mastra/tools/index.ts`
 3. Register in `src/mastra/index.ts`
 4. Add to relevant agents in `src/mastra/agents/`
+
+### MCP (Model Context Protocol) Integration
+
+The application now supports MCP servers for extended capabilities:
+
+#### Available MCP Servers
+1. **Filesystem Server**: File operations in the current directory
+2. **GitHub Server**: Repository operations (requires GITHUB_TOKEN)
+3. **Sequential Thinking**: Complex reasoning tasks
+4. **Memory Server**: Persistent storage capabilities
+5. **Web Search**: Tavily search integration (requires TAVILY_API_KEY)
+6. **Chrome MCP Server**: Control your Chrome browser with AI - 20+ tools for automation, screenshots, network monitoring, and more
+
+#### Configuration
+MCP servers are configured in `src/mastra/config/mcp.config.ts`. The system automatically:
+- Detects available API keys from environment variables
+- Initializes only the servers with valid credentials
+- Dynamically adds MCP tools to the slideCreatorAgent
+
+#### Adding New MCP Servers
+To add a new MCP server:
+1. Add the server configuration to `mcpServerConfigs` in `mcp.config.ts`
+2. Include any required environment variables
+3. The tools will be automatically available to agents
+
+Example:
+```typescript
+newServer: process.env.NEW_API_KEY ? {
+  command: 'npx',
+  args: ['-y', '@modelcontextprotocol/server-new'],
+  env: {
+    ...process.env,
+    NEW_API_KEY: process.env.NEW_API_KEY,
+  },
+} : undefined,
+```
+
+#### Chrome MCP Server Setup
+
+Chrome MCP Server allows AI agents to control your actual Chrome browser, maintaining login states and user settings.
+
+##### Prerequisites
+1. Chrome/Chromium browser
+2. Node.js 18+
+
+##### Installation Steps
+
+1. **Install Chrome Extension**
+   - Download from [GitHub Releases](https://github.com/hangwin/mcp-chrome/releases)
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked" and select the downloaded extension folder
+   - **重要**: Click the extension icon and then "Connect" - これによりポート12306でサーバーが起動します
+
+2. **Install mcp-chrome-bridge**
+   ```bash
+   npm install -g mcp-chrome-bridge
+   # or with pnpm
+   pnpm install -g mcp-chrome-bridge
+   ```
+
+3. **Configure Connection Type**
+   Set in your `.env` file:
+   ```bash
+   # Use streamableHttp (recommended)
+   CHROME_MCP_CONNECTION_TYPE=streamableHttp
+   
+   # Or use stdio (requires path configuration)
+   CHROME_MCP_CONNECTION_TYPE=stdio
+   MCP_CHROME_BRIDGE_PATH=/path/to/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js
+   ```
+
+4. **Verify Chrome MCP Server is Running**
+   ```bash
+   # Check if Chrome MCP Server is listening on port 12306
+   lsof -i :12306
+   ```
+
+##### Troubleshooting Chrome MCP Server
+
+**よくある問題と解決方法：**
+
+1. **Connection Refused エラー**
+   ```bash
+   # 症状: MCP error -32000: Connection closed
+   # 解決: Chrome拡張機能で「Connect」ボタンをクリック
+   ```
+
+2. **Extension Not Found**
+   ```bash
+   # 症状: Chrome拡張機能が見つからない
+   # 解決手順:
+   1. Chrome拡張機能を再インストール
+   2. Developer modeが有効になっているか確認
+   3. 拡張機能の権限を確認
+   ```
+
+3. **Port Already in Use**
+   ```bash
+   # 症状: ポート12306が使用中
+   # 確認: lsof -i :12306
+   # 解決: 使用中のプロセスを終了してから再接続
+   ```
+
+4. **mcp-chrome-bridge Not Found**
+   ```bash
+   # 症状: mcp-chrome-bridge command not found
+   # 解決:
+   npm install -g mcp-chrome-bridge
+   # または権限の修正:
+   mcp-chrome-bridge fix-permissions
+   ```
+
+5. **Agent が既存ツールを使用してしまう**
+   ```bash
+   # 症状: 「Chrome MCPを使って」と指示してもBrowserbaseツールが実行される
+   # 原因: Chrome MCP Serverが接続されていない
+   # 解決: 上記1-4の手順で接続を確認
+   ```
+
+**接続状況の確認方法：**
+```bash
+# Chrome MCP Serverの動作確認
+lsof -i :12306
+
+# Mastraログでの確認
+# ログに「✅ Chrome MCP Server is available」が表示されるか確認
+```
+
+##### Available Chrome Tools
+- **Browser Management**: Tab control, navigation, session management
+- **Screenshots**: Full page or element-specific captures
+- **Network Monitoring**: Intercept and analyze network requests
+- **Content Analysis**: AI-powered text extraction and semantic search
+- **Interaction**: Click, type, and automate browser actions
+- **Data Management**: Bookmarks, history, and local storage access
+
+##### Usage Examples
+- Take screenshots of specific elements
+- Automate form filling with existing login states
+- Monitor API calls and responses
+- Extract and analyze webpage content
+- Control browser tabs programmatically
 
 ### Testing Presentations
 1. Use the `/tools` page for interactive testing

@@ -30,7 +30,7 @@ export const weatherAgent = new Agent({
   }),
 });
 
-export { slideCreatorAgent } from './slideCreatorAgent';
+export { slideCreatorAgent, getSlideCreatorAgent } from './slideCreatorAgent';
 export { imageCreatorAgent } from './imageCreatorAgent';
 export { deepResearchAgent } from './deepResearchAgent';
 export * from './open-superagent';

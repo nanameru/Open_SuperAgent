@@ -30,7 +30,7 @@ import {
 export const mastra = new Mastra({
   agents: { 
     weatherAgent,
-    slideCreatorAgent, 
+    slideCreatorAgent,
     imageCreatorAgent,
     // Research agents
     queryPlanningAgent,
@@ -70,3 +70,4 @@ export const mastra = new Mastra({
     port: 4111,
   },
 });
+

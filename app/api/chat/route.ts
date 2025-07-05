@@ -12,12 +12,12 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
-    // Get the slideCreatorAgent
-    // const agent = mastra.getAgent('Slide Creator Agent');
-    const agent = mastra.getAgent('slideCreatorAgent'); // Changed to use the registration key
+    // Get the slideCreatorAgent using the async function
+    const { getSlideCreatorAgent } = await import('@/src/mastra/agents/slideCreatorAgent');
+    const agent = await getSlideCreatorAgent();
+    
     if (!agent) {
-      // console.error('[API CHAT ROUTE] Agent "Slide Creator Agent" not found.');
-      console.error('[API CHAT ROUTE] Agent "slideCreatorAgent" not found.'); // Updated error message
+      console.error('[API CHAT ROUTE] Agent "slideCreatorAgent" not found.');
       return new Response(JSON.stringify({ error: 'Agent not found.' }), {
         status: 404,
         headers: {

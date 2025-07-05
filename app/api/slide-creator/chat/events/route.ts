@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { slideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
+import { getSlideCreatorAgent } from '@/src/mastra/agents/slideCreatorAgent';
 import { Message } from 'ai';
 import { randomUUID } from 'crypto';
 
@@ -32,6 +32,15 @@ export async function GET(req: NextRequest) {
     // 詳細なメッセージ内容も省略
     
     // Mastra エージェントの stream API を呼び出し
+    const slideCreatorAgent = await getSlideCreatorAgent();
+    
+    if (!slideCreatorAgent) {
+      return NextResponse.json(
+        { error: 'Agent not available' },
+        { status: 503 }
+      );
+    }
+    
     const mastraStreamResult = await slideCreatorAgent.stream(messages);
     
     // Stream オブジェクトの詳細をログ出力
