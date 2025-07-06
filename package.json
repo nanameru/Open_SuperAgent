@@ -28,7 +28,7 @@
     "@octokit/rest": "^22.0.0",
     "@opentelemetry/exporter-jaeger": "^2.0.1",
     "@opentelemetry/winston-transport": "^0.13.0",
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.53.2",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.1.14",
     "@radix-ui/react-collapsible": "^1.1.11",
@@ -53,6 +53,7 @@
     "cmdk": "^1.1.1",
     "form-data": "^4.0.2",
     "google-auth-library": "^9.15.1",
+    "googleapis": "^150.0.1",
     "html2canvas": "^1.4.1",
     "jsdom": "^26.1.0",
     "libsql": "^0.5.12",
@@ -70,7 +71,8 @@
     "react-markdown": "^10.1.0",
     "react-tweet": "^3.2.2",
     "tailwind-merge": "^3.3.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.25.74"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

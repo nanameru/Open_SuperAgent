@@ -22,6 +22,12 @@ const nextConfig = {
         // Turbopack用のフォントローダー設定を修正
         '**/*.ttf': {
           loaders: ['file-loader'],
+          as: '*.js',
+        },
+        // Playwright関連のフォントファイルを処理
+        '**/playwright-core/**/*.ttf': {
+          loaders: ['file-loader'],
+          as: '*.js',
         },
       },
     },
@@ -73,6 +79,10 @@ const nextConfig = {
     // libsqlパッケージを外部化から除外
     '!@libsql/client',
     '!libsql',
+    // playwrightパッケージを外部化から除外
+    '!playwright',
+    '!playwright-core',
+    '!@playwright/test',
   ],
   // 静的ファイルの配信設定
   async headers() {

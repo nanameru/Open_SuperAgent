@@ -22,6 +22,10 @@ import {
   graphicRecordingTool,
   minimaxTTSTool,
   weatherTool,
+  // Google Workspace tools
+  googleSlidesCreationTool,
+  googleSheetsCreationTool,
+  googleDocsCreationTool,
   // Enhanced research tools removed for build stability
 } from './tools';
 // Deep Research workflow import removed
@@ -51,6 +55,10 @@ export const mastra = new Mastra({
     graphicRecordingTool,
     minimaxTTSTool,
     weatherTool,
+    // Google Workspace tools
+    googleSlidesCreationTool,
+    googleSheetsCreationTool,
+    googleDocsCreationTool,
     // Enhanced research tools removed for build stability
   } as any,
   workflows: {

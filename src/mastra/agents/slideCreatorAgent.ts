@@ -18,7 +18,9 @@ import {
   claudeAutoEditTool,
   claudeCodeSDKTool,
   githubListIssuesTool,
-  visualSlideEditorTool
+  visualSlideEditorTool,
+  googleDocsCreationTool,
+  googleSheetsCreationTool
 } from '../tools'; // Import all tools
 import { browserSessionTool } from '../tools/browserSessionTool';
 import { browserGotoTool } from '../tools/browserGotoTool';
@@ -438,6 +440,9 @@ ${chromeMcpAvailable ?
       browserUploadTool, // Upload files (direct/API methods)
       // Visual editing tools
       visualSlideEditorTool, // Visual slide editor with drag-and-drop
+      // Google Workspace tools
+      googleDocsCreationTool, // Create Google Docs documents
+      googleSheetsCreationTool, // Create Google Sheets spreadsheets
       // Add MCP tools dynamically
       ...mcpTools,
     },

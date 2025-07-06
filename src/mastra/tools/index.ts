@@ -136,6 +136,10 @@ import { browserUploadTool } from './browserUploadTool';
 // Enhanced research tools (removed for build stability)
 // Visual editing tools
 import { visualSlideEditorTool } from './visualSlideEditorTool';
+// Google Workspace tools
+import { googleSlidesCreationTool } from './googleSlidesCreationTool';
+import { googleSheetsCreationTool } from './googleSheetsCreationTool';
+import { googleDocsCreationTool } from './googleDocsCreationTool';
 
 // Define the list of all tools
 export const allTools = [
@@ -174,6 +178,10 @@ export const allTools = [
   // Enhanced research tools (removed for build stability)
   // Visual editing tools
   visualSlideEditorTool,
+  // Google Workspace tools
+  googleSlidesCreationTool,
+  googleSheetsCreationTool,
+  googleDocsCreationTool,
 ];
 
 // Define the list of all tool names, handling both .name and .id properties
@@ -215,4 +223,8 @@ export {
   // Enhanced research tools (removed for build stability)
   // Visual editing tools
   visualSlideEditorTool,
+  // Google Workspace tools
+  googleSlidesCreationTool,
+  googleSheetsCreationTool,
+  googleDocsCreationTool,
 };
