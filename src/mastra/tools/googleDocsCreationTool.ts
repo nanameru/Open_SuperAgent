@@ -124,13 +124,35 @@ export const googleDocsCreationTool = createTool({
       let errorMessage = 'ドキュメントの作成中にエラーが発生しました。';
       
       if (error.response) {
-        errorMessage = `Google API Error (${error.response.status}): ${
-          error.response.data?.error?.message || error.message
-        }`;
+        const status = error.response.status;
+        const apiError = error.response.data?.error?.message || error.message;
+        
+        if (status === 401) {
+          errorMessage = `Googleドキュメントの作成に失敗しました。Google APIへのログインが必要なため、直接ドキュメントを作成することができません。
+
+【解決方法】
+1. Google Cloud Console でAPI を有効化してください：
+   - Google Docs API
+   - Google Sheets API  
+   - Google Slides API
+   - Google Drive API
+
+2. サービスアカウントを作成し、JSONキーをダウンロードしてください
+
+3. 環境変数 GOOGLE_APPLICATION_CREDENTIALS_JSON を設定してください
+
+詳細な設定手順は GOOGLE_WORKSPACE_SETUP.md ファイルをご確認ください。
+
+技術詳細: ${apiError}`;
+        } else if (status === 403) {
+          errorMessage = `権限エラー: サービスアカウントに必要な権限が付与されていません。Google Cloud Console でAPI権限を確認してください。`;
+        } else {
+          errorMessage = `Google API Error (${status}): ${apiError}`;
+        }
       } else if (error.request) {
-        errorMessage = 'ネットワークエラー: APIからのレスポンスがありません。';
+        errorMessage = 'ネットワークエラー: APIからのレスポンスがありません。インターネット接続を確認してください。';
       } else {
-        errorMessage = `リクエストエラー: ${error.message}`;
+        errorMessage = `設定エラー: ${error.message}`;
       }
 
       return {

@@ -24,11 +24,9 @@ const nextConfig = {
           loaders: ['file-loader'],
           as: '*.js',
         },
-        // Playwright関連のフォントファイルを処理
-        '**/playwright-core/**/*.ttf': {
-          loaders: ['file-loader'],
-          as: '*.js',
-        },
+        // Playwright関連のフォントファイルを無視
+        '**/playwright-core/**/*.ttf': false,
+        '**/playwright-core/**/assets/**': false,
       },
     },
   experimental: {
@@ -70,6 +68,12 @@ const nextConfig = {
       type: 'asset/resource',
     });
 
+    // Playwright関連ファイルを除外
+    config.module.rules.push({
+      test: /playwright-core.*\.(ttf|js)$/,
+      use: 'ignore-loader',
+    });
+
     // Stagehandとの互換性のための設定（Playwrightは内部で使用されるため外部化不要）
 
     return config;
@@ -79,10 +83,10 @@ const nextConfig = {
     // libsqlパッケージを外部化から除外
     '!@libsql/client',
     '!libsql',
-    // playwrightパッケージを外部化から除外
-    '!playwright',
-    '!playwright-core',
-    '!@playwright/test',
+    // Playwrightパッケージを外部化リストに追加（内部処理用）
+    'playwright',
+    'playwright-core',
+    '@playwright/test',
   ],
   // 静的ファイルの配信設定
   async headers() {
