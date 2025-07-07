@@ -251,7 +251,7 @@ export default function AppPage() {
   );
 
   // ユーザーメッセージの送信を処理するカスタムsubmitハンドラ
-  const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>, image?: File) => {
     e.preventDefault();
     
     if (messages.length === 0) {
@@ -276,7 +276,20 @@ export default function AppPage() {
       return;
     }
     
-    originalHandleSubmit(e);
+    // 画像が添付されている場合は、bodyに画像データを含める
+    const body: Record<string, any> = {
+      model: currentModel,
+    };
+    if (image) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        body.image = reader.result; // Base64エンコードされた画像データ
+        originalHandleSubmit(e, { body });
+      };
+      reader.readAsDataURL(image);
+    } else {
+      originalHandleSubmit(e, { body });
+    }
   };
 
   // メッセージからツール情報を抽出して処理

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Mic, MicOff, ChevronDown, Search } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, ChevronDown, Search, Paperclip } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -27,7 +27,7 @@ declare global {
 interface ChatInputAreaProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>, image?: File) => void;
   isLoading: boolean;
   isDeepResearchMode?: boolean;
   onDeepResearchModeChange?: (enabled: boolean) => void;
@@ -70,8 +70,10 @@ export const ChatInputArea = ({
   const [selectedTool, setSelectedTool] = useState<string>('');
   const [lastEnterTime, setLastEnterTime] = useState<number>(0);
   const [enterCount, setEnterCount] = useState<number>(0);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const recognitionRef = useRef<any>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // textareaの高さを自動調整
   const adjustTextareaHeight = () => {
@@ -153,6 +155,18 @@ export const ChatInputArea = ({
     }
   };
 
+  // 画像選択をトリガー
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  // 画像が選択されたときのハンドラ
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedImage(event.target.files[0]);
+    }
+  };
+
   // キーボードイベントハンドラ
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Shift+Enterの場合は改行を許可
@@ -218,7 +232,8 @@ export const ChatInputArea = ({
         }
       } as React.FormEvent<HTMLFormElement>;
       
-      handleSubmit(syntheticEvent);
+      handleSubmit(syntheticEvent, selectedImage);
+      setSelectedImage(null); // 画像をクリア
       
           // Deep Researchモード以外の場合はツール選択をリセット
       if (selectedTool !== 'deep-research' && selectedTool !== 'enhanced-research') {
@@ -229,7 +244,8 @@ export const ChatInputArea = ({
       }
     } else {
       // 通常の送信でもpreventDefaultメソッドを含むイベントを渡す
-      handleSubmit(e);
+      handleSubmit(e, selectedImage);
+      setSelectedImage(null); // 画像をクリア
     }
   };
 
@@ -310,7 +326,9 @@ export const ChatInputArea = ({
                     : "Deep Researchで詳細調査します..." 
                   : selectedTool 
                     ? `${toolOptions.find(opt => opt.value === selectedTool)?.label}について質問してください` 
-                    : "質問してみましょう"
+                    : selectedImage 
+                      ? "画像を添付しました。メッセージを入力してください。" 
+                      : "質問してみましょう"
               }
               className="flex-1 p-3 pl-4 pr-20 md:pr-24 bg-transparent text-gray-800 placeholder-gray-500 focus:outline-none text-base resize-none overflow-y-auto"
               style={{ 
@@ -322,6 +340,24 @@ export const ChatInputArea = ({
               rows={1}
             />
             <div className="absolute right-2 flex items-center gap-1">
+              {/* 画像添付ボタン */}
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleImageSelect}
+              />
+              <button
+                type="button"
+                onClick={triggerFileInput}
+                disabled={isLoading}
+                className="hidden md:flex p-2 rounded-full transition-colors text-gray-600 bg-gray-50 hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                title="画像を添付"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+
               {/* 音声入力ボタン */}
               {isSupported && (
                 <button
