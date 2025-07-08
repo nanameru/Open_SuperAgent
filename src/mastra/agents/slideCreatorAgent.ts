@@ -39,7 +39,6 @@ import { browserDownloadTool } from '../tools/browserDownloadTool';
 import { browserUploadTool } from '../tools/browserUploadTool';
 import { Memory } from '@mastra/memory'; // Import Memory
 import { createCompressionMiddleware, CompressionMiddleware } from '../config/compressionMiddleware';
-import { chromeMCPClient } from '../mcp/chrome-mcp-client';
 
 // 動的にモデルを作成する関数
 export function createModel(provider: string, modelName: string) {
@@ -73,27 +72,6 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
     }
   });
   
-  // Get Chrome MCP tools using the new client
-  let mcpTools = {};
-  let chromeMcpAvailable = false;
-  
-  try {
-    // Try to connect to Chrome MCP Server
-    chromeMcpAvailable = await chromeMCPClient.connect();
-    
-    if (chromeMcpAvailable) {
-      mcpTools = await chromeMCPClient.getTools();
-      const toolNames = Object.keys(mcpTools);
-      console.log(`[slideCreatorAgent] ✅ Chrome MCP connected with ${toolNames.length} tools:`, toolNames);
-    } else {
-      console.log('[slideCreatorAgent] ⚠️ Chrome MCP Server connection failed');
-    }
-    
-  } catch (error) {
-    console.warn('[slideCreatorAgent] Chrome MCP Server not available. Running without MCP tools.');
-    console.warn('To enable Chrome MCP: Install Chrome extension and run "Connect"');
-    mcpTools = {}; // Fallback to empty tools
-  }
   
   return new Agent({
     name: 'Open-SuperAgent',
@@ -144,56 +122,7 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
   - \`browserWaitTool\`: 指定した時間待機
   - \`browserScreenshotTool\`: フォーマット/品質オプションで高品質スクリーンショットを撮影（PNG/JPEG/WebP、CDP対応）
 
-## MCP（Model Context Protocol）ツール
-**Chrome MCP Server利用状況: ${chromeMcpAvailable ? '✅ 利用可能' : '❌ 利用不可'}**
 
-### Chrome MCP Server ツール（Chrome拡張機能ベース）
-${chromeMcpAvailable ? 
-  '**Chrome MCP Serverが利用可能です。以下のツールが使用できます：**' : 
-  '**Chrome MCP Serverが利用できません。「Chrome MCPを使って」という指示がある場合は設定案内をしてください。**'
-}
-- **ブラウザ管理ツール**: タブの開閉、ナビゲーション、セッション管理
-- **スクリーンショットツール**: ページ全体や特定要素のキャプチャ
-- **ネットワーク監視ツール**: HTTPリクエスト監視、APIレスポンス分析
-- **コンテンツ分析ツール**: ページ内テキスト抽出、DOM分析、セマンティック検索
-- **インタラクションツール**: 自動クリック、フォーム入力、要素操作
-- **データ管理ツール**: ブックマーク管理、閲覧履歴、Cookie操作
-
-### その他のMCPツール
-- **ファイルシステムツール**: プロジェクト内のファイル操作
-- **GitHubツール**: リポジトリ操作、イシュー管理
-- **シーケンシャル思考ツール**: 複雑な推論タスク
-- **メモリツール**: 永続データ保存
-- **ウェブ検索ツール**: 最新情報検索
-
-### MCPツール使用ガイドライン
-**重要: Chrome MCP専用指示の処理**
-
-ユーザーが以下のいずれかを明示的に指示した場合は、**Chrome MCPツールのみ**を使用してください：
-- 「Chrome MCPを使って」
-- 「chrome mcpで」  
-- 「mcpツールで」
-- 「Chrome MCP Serverで」
-
-**Chrome MCP専用処理ルール：**
-1. **絶対的優先**: 上記の指示がある場合は、既存のBrowserbaseツール（browserSessionTool等）は絶対に使用しない
-2. **利用可能性チェック**: Chrome MCPツールが利用できない場合は、タスクを実行せずに以下のメッセージでユーザーに案内：
-
-   「Chrome MCP Serverが利用できません。以下の手順で設定してください：
-   
-   1. Chrome拡張機能をインストール: https://github.com/hangwin/mcp-chrome/releases
-   2. mcp-chrome-bridgeをインストール: npm install -g mcp-chrome-bridge  
-   3. Chrome拡張機能で「Connect」ボタンをクリック
-   4. 接続確認: lsof -i :12306
-   
-   設定完了後、再度お試しください。」
-
-3. **代替禁止**: Chrome MCP専用指示の場合は、代替のBrowserbaseツールやその他のブラウザツールは使用禁止
-4. **明確な区別**: 通常のブラウザ操作指示（「ウェブサイトにアクセスして」等）の場合は既存ツールを使用
-
-**その他のMCPツール使用：**
-- **動的ツール検出**: ツール名に「chrome_」「filesystem_」「github_」などのプレフィックスが付く場合があります
-- **一般的なブラウザ操作**: Chrome MCP専用指示がない場合は既存のBrowserbaseツールを使用
   - \`browserCloseTool\`: ブラウザセッションを閉じる
   - \`browserCaptchaDetectTool\`: CAPTCHAを検出して解決を待機
 - 拡張ブラウザツール（高度な操作）：
@@ -443,8 +372,6 @@ ${chromeMcpAvailable ?
       // Google Workspace tools
       googleDocsCreationTool, // Create Google Docs documents
       googleSheetsCreationTool, // Create Google Sheets spreadsheets
-      // Add MCP tools dynamically
-      ...mcpTools,
     },
     memory: new Memory({ // Add memory configuration
       options: {
