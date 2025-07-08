@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Mic, MicOff, ChevronDown, Search, Paperclip } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, ChevronDown, Search, Paperclip, X } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -71,6 +71,7 @@ export const ChatInputArea = ({
   const [lastEnterTime, setLastEnterTime] = useState<number>(0);
   const [enterCount, setEnterCount] = useState<number>(0);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +168,21 @@ export const ChatInputArea = ({
     }
   };
 
+  // 画像プレビューURL管理
+  useEffect(() => {
+    if (selectedImage) {
+      const url = URL.createObjectURL(selectedImage);
+      setImagePreviewUrl(url);
+      
+      // クリーンアップ関数でURLを解放
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setImagePreviewUrl(null);
+    }
+  }, [selectedImage]);
+
   // キーボードイベントハンドラ
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Shift+Enterの場合は改行を許可
@@ -232,7 +248,7 @@ export const ChatInputArea = ({
         }
       } as React.FormEvent<HTMLFormElement>;
       
-      handleSubmit(syntheticEvent, selectedImage);
+      handleSubmit(syntheticEvent, selectedImage || undefined);
       setSelectedImage(null); // 画像をクリア
       
           // Deep Researchモード以外の場合はツール選択をリセット
@@ -244,7 +260,7 @@ export const ChatInputArea = ({
       }
     } else {
       // 通常の送信でもpreventDefaultメソッドを含むイベントを渡す
-      handleSubmit(e, selectedImage);
+      handleSubmit(e, selectedImage || undefined);
       setSelectedImage(null); // 画像をクリア
     }
   };
@@ -252,8 +268,28 @@ export const ChatInputArea = ({
   return (
     <div className="bg-white/80 backdrop-blur-md">
       <div className="safe-areas">
-        <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto p-2 md:p-4">
-          <div className="relative flex items-center bg-gray-100 rounded-2xl md:rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
+        <div className="max-w-4xl mx-auto p-2 md:p-4">
+          {/* 画像プレビューセクション */}
+          {selectedImage && imagePreviewUrl && (
+            <div className="mb-2 inline-block relative">
+              <img 
+                src={imagePreviewUrl} 
+                alt="添付画像" 
+                className="max-h-16 max-w-[200px] rounded-lg border border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-1 -right-1 p-1 bg-white rounded-full shadow-sm hover:bg-gray-100 transition-colors border border-gray-200"
+                title="画像を削除"
+              >
+                <X className="h-3 w-3 text-gray-600" />
+              </button>
+            </div>
+          )}
+          
+          <form onSubmit={handleFormSubmit}>
+            <div className="relative flex items-center bg-gray-100 rounded-2xl md:rounded-3xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 focus-within:border-gray-300 transition-all shadow-sm">
             {/* ツール選択ドロップダウン */}
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
@@ -395,7 +431,8 @@ export const ChatInputArea = ({
               </span>
             </div>
           )}
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

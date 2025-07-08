@@ -40,9 +40,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
     }
     
+    // マルチモーダルメッセージの処理
+    const processedMessages = messages.map((msg: any) => {
+      // contentが配列の場合（画像を含むメッセージ）
+      if (Array.isArray(msg.content)) {
+        const textPart = msg.content.find((part: any) => part.type === 'text');
+        const imagePart = msg.content.find((part: any) => part.type === 'image');
+        
+        if (imagePart && imagePart.image) {
+          // Mastraが期待する形式に変換
+          return {
+            ...msg,
+            content: textPart?.text || '',
+            // 画像データを別のプロパティとして保持
+            experimental_attachments: [{
+              contentType: 'image/jpeg',
+              data: imagePart.image
+            }]
+          };
+        }
+      }
+      return msg;
+    });
+    
     // 最新のユーザーメッセージを取得
-    const lastUserMessage = messages.filter((m: Message) => m.role === 'user').pop();
-    const userContent = lastUserMessage?.content || '';
+    const lastUserMessage = processedMessages.filter((m: any) => m.role === 'user').pop();
+    const userContent = typeof lastUserMessage?.content === 'string' 
+      ? lastUserMessage.content 
+      : lastUserMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
     
     // モデル設定を取得（リクエスト > APIから取得 > デフォルト の優先順位）
     let currentModel;
@@ -70,7 +95,7 @@ export async function POST(req: NextRequest) {
       const model = createModel(currentModel.provider, currentModel.modelName);
       const response = await streamText({
         model: model,
-        messages: messages,
+        messages: processedMessages,
         // ここで必要に応じてツールを渡すこともできますが、まずはテキスト生成を優先します
       });
       return response.toDataStreamResponse();
@@ -98,7 +123,7 @@ export async function POST(req: NextRequest) {
     for (let attempt = 1; attempt <= GEMINI_RETRY_ATTEMPTS; attempt++) {
       try {
         devLog(`Attempting to stream with ${currentModel.provider} (attempt ${attempt}/${GEMINI_RETRY_ATTEMPTS})`);
-        mastraStreamResult = await slideCreatorAgent.stream(messages);
+        mastraStreamResult = await slideCreatorAgent.stream(processedMessages);
         break; // 成功した場合はループを抜ける
       } catch (error: any) {
         lastError = error;
