@@ -1769,17 +1769,86 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   // ユーザーメッセージ（右側、ダーク背景）
   if (message.role === 'user') {
-    return (
-      <div className="flex justify-end mb-6">
-        <div className="max-w-[70%] px-4 py-3 rounded-2xl bg-gray-800 text-white">
-          <div className="text-base leading-relaxed">
-            {content.split('\n').map((line, i) => (
-              <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
-            ))}
+    // デバッグ: メッセージ構造をログ出力
+    console.log('[ChatMessage] User message debug:', {
+      content: message.content,
+      contentType: typeof message.content,
+      isArray: Array.isArray(message.content),
+      attachments: (message as any).attachments,
+      experimental_attachments: (message as any).experimental_attachments,
+      fullMessage: message
+    });
+    
+    const isMultimodal = Array.isArray(message.content);
+    
+    if (isMultimodal) {
+      // 配列形式: テキストと画像を含む場合
+      return (
+        <div className="flex justify-end mb-6">
+          <div className="max-w-[70%] space-y-2">
+            {(message.content as MessageContentPart[]).map((part: any, index: number) => {
+              if (part.type === 'text') {
+                return (
+                  <div key={index} className="px-4 py-3 rounded-2xl bg-gray-800 text-white">
+                    <div className="text-base leading-relaxed">
+                      {part.text.split('\n').map((line: string, i: number) => (
+                        <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+                      ))}
+                    </div>
+                  </div>
+                );
+              } else if (part.type === 'image') {
+                return (
+                  <div key={index} className="flex justify-end">
+                    <img 
+                      src={part.image} 
+                      alt="送信画像" 
+                      className="max-w-[200px] max-h-[200px] rounded-lg border border-gray-300 object-cover"
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
           </div>
         </div>
-      </div>
-    );
+      );
+    } else {
+      // 従来の文字列形式の場合 + attachments情報のフォールバック処理
+      const attachments = (message as any).attachments || (message as any).experimental_attachments;
+      const hasAttachments = attachments && Array.isArray(attachments) && attachments.length > 0;
+      
+      return (
+        <div className="flex justify-end mb-6">
+          <div className="max-w-[70%] space-y-2">
+            {/* テキスト部分 */}
+            <div className="px-4 py-3 rounded-2xl bg-gray-800 text-white">
+              <div className="text-base leading-relaxed">
+                {content.split('\n').map((line, i) => (
+                  <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+                ))}
+              </div>
+            </div>
+            
+            {/* attachments情報から画像を表示 */}
+            {hasAttachments && attachments.map((attachment: any, index: number) => {
+              if (attachment.contentType?.startsWith('image/') || attachment.type === 'image') {
+                return (
+                  <div key={index} className="flex justify-end">
+                    <img 
+                      src={attachment.url || attachment.image} 
+                      alt="送信画像" 
+                      className="max-w-[200px] max-h-[200px] rounded-lg border border-gray-300 object-cover"
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        </div>
+      );
+    }
   }
 
   // アシスタントメッセージ（左側、ライト背景）

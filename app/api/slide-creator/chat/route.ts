@@ -31,7 +31,17 @@ export async function POST(req: NextRequest) {
   // リクエスト情報は詳細なログを出力しない
   
   try {
-    const { messages, model: requestModel } = await req.json();
+    const requestBody = await req.json();
+    const { messages, model: requestModel } = requestBody;
+    
+    // デバッグ: リクエスト内容をログ出力
+    devLog('Full request body:', {
+      messages: messages?.length ? `${messages.length} messages` : 'no messages',
+      model: requestModel,
+      otherKeys: Object.keys(requestBody).filter(k => k !== 'messages' && k !== 'model'),
+      firstMessage: messages?.[0],
+      lastMessage: messages?.[messages?.length - 1]
+    });
     
     // メッセージの検証と処理
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
