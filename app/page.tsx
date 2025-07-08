@@ -281,25 +281,24 @@ export default function AppPage() {
     // 画像が添付されている場合は、experimental_attachmentsを使用
     if (image) {
       try {
-        // experimental_attachmentsで画像を送信
-        // FileオブジェクトをAttachment形式に変換
-        const attachment = {
-          name: image.name,
-          contentType: image.type,
-          url: URL.createObjectURL(image),
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const dataUrl = reader.result as string;
+          
+          const attachment = {
+            name: image.name,
+            contentType: image.type,
+            url: dataUrl // data:image/jpeg;base64,... 形式
+          };
+          
+          originalHandleSubmit(e, {
+            experimental_attachments: [attachment],
+            body: {
+              model: currentModel,
+            }
+          });
         };
-        
-        originalHandleSubmit(e, {
-          experimental_attachments: [attachment],
-          body: {
-            model: currentModel,
-          }
-        });
-        
-        // オブジェクトURLを後でクリーンアップ
-        setTimeout(() => {
-          URL.revokeObjectURL(attachment.url);
-        }, 10000); // 10秒後にクリーンアップ
+        reader.readAsDataURL(image);
       } catch (error) {
         console.error('Error sending message with image:', error);
       }
