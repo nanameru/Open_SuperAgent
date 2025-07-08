@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSlideCreatorAgent, createModel } from '@/src/mastra/agents/slideCreatorAgent';
-import { mastra } from '@/src/mastra';
-import { Message } from 'ai';
 import { streamText } from 'ai';
 
 // 開発環境のみログを出力する関数
@@ -40,34 +38,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
     }
     
-    // マルチモーダルメッセージの処理
-    const processedMessages = messages.map((msg: any) => {
-      // contentが配列の場合（画像を含むメッセージ）
+    // 画像コンテンツの基本検証（experimental_attachments使用時はAI SDKが自動変換する）
+    for (const msg of messages) {
       if (Array.isArray(msg.content)) {
-        const textPart = msg.content.find((part: any) => part.type === 'text');
-        const imagePart = msg.content.find((part: any) => part.type === 'image');
-        
-        if (imagePart && imagePart.image) {
-          // Mastraが期待する形式に変換
-          return {
-            ...msg,
-            content: textPart?.text || '',
-            // 画像データを別のプロパティとして保持
-            experimental_attachments: [{
-              contentType: 'image/jpeg',
-              data: imagePart.image
-            }]
-          };
+        for (const part of msg.content) {
+          if (part.type === 'image') {
+            // AI SDKによってattachmentsから自動変換された画像コンテンツを受け入れる
+            devLog('Image content detected in message:', {
+              hasImageUrl: !!part.image?.url,
+              hasImageData: !!part.image && typeof part.image === 'string'
+            });
+          }
         }
       }
-      return msg;
-    });
+    }
+    
+    // デバッグ: 受信したメッセージをログ出力
+    devLog('Received messages:', messages.map((m: any) => ({
+      role: m.role,
+      contentType: Array.isArray(m.content) ? 'multimodal' : 'text',
+      hasImage: Array.isArray(m.content) && m.content.some((part: any) => part.type === 'image')
+    })));
+    
+    // メッセージをそのまま使用（Vercel AI SDKの標準フォーマットをサポート）
+    const processedMessages = messages;
     
     // 最新のユーザーメッセージを取得
     const lastUserMessage = processedMessages.filter((m: any) => m.role === 'user').pop();
-    const userContent = typeof lastUserMessage?.content === 'string' 
-      ? lastUserMessage.content 
-      : lastUserMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
+    let userContent = '';
+    
+    if (lastUserMessage) {
+      if (typeof lastUserMessage.content === 'string') {
+        userContent = lastUserMessage.content;
+      } else if (Array.isArray(lastUserMessage.content)) {
+        const textPart = lastUserMessage.content.find((part: any) => part.type === 'text');
+        userContent = textPart?.text || '';
+      }
+    }
     
     // モデル設定を取得（リクエスト > APIから取得 > デフォルト の優先順位）
     let currentModel;
@@ -123,11 +130,26 @@ export async function POST(req: NextRequest) {
     for (let attempt = 1; attempt <= GEMINI_RETRY_ATTEMPTS; attempt++) {
       try {
         devLog(`Attempting to stream with ${currentModel.provider} (attempt ${attempt}/${GEMINI_RETRY_ATTEMPTS})`);
+        
+        // 画像を含むメッセージの場合はログ出力
+        const hasImageMessages = processedMessages.some((msg: any) => 
+          Array.isArray(msg.content) && msg.content.some((part: any) => part.type === 'image')
+        );
+        if (hasImageMessages) {
+          devLog('Processing multimodal message with images');
+        }
+        
         mastraStreamResult = await slideCreatorAgent.stream(processedMessages);
         break; // 成功した場合はループを抜ける
       } catch (error: any) {
         lastError = error;
-        devLog(`Stream attempt ${attempt} failed:`, error.message);
+        devLog(`Stream attempt ${attempt} failed:`, {
+          message: error.message,
+          stack: error.stack?.substring(0, 500),
+          hasImages: processedMessages.some((msg: any) => 
+            Array.isArray(msg.content) && msg.content.some((part: any) => part.type === 'image')
+          )
+        });
         
         // 最後の試行でない場合は待機してリトライ
         if (attempt < GEMINI_RETRY_ATTEMPTS) {

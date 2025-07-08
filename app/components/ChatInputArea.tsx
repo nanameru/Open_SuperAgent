@@ -164,7 +164,21 @@ export const ChatInputArea = ({
   // 画像が選択されたときのハンドラ
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
-      setSelectedImage(event.target.files[0]);
+      const file = event.target.files[0];
+      
+      // ファイルサイズの検証（10MB制限）
+      if (file.size > 10 * 1024 * 1024) {
+        alert('ファイルサイズが大きすぎます。10MB以下のファイルを選択してください。');
+        return;
+      }
+      
+      // MIME typeの検証
+      if (!file.type.startsWith('image/')) {
+        alert('画像ファイルを選択してください。');
+        return;
+      }
+      
+      setSelectedImage(file);
     }
   };
 

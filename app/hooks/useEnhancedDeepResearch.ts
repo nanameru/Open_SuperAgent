@@ -88,11 +88,11 @@ export function useEnhancedDeepResearch(): EnhancedDeepResearchOutput {
    */
   const startResearch = useCallback(async (query: string) => {
     startTransition(() => {
-      setStatus('planning');
-      setError(null);
-      setPlan(null);
-      setProgress([]);
-      setFinalReport(null);
+    setStatus('planning');
+    setError(null);
+    setPlan(null);
+    setProgress([]);
+    setFinalReport(null);
     });
 
     try {
@@ -108,14 +108,14 @@ export function useEnhancedDeepResearch(): EnhancedDeepResearchOutput {
 
       const data: ResearchPlan = await response.json();
       startTransition(() => {
-        setPlan(data);
-        setStatus('idle'); // 計画ができたのでidleに戻す
+      setPlan(data);
+      setStatus('idle'); // 計画ができたのでidleに戻す
       });
 
     } catch (e) {
       startTransition(() => {
-        setError(e instanceof Error ? e.message : '不明なエラーが発生しました。');
-        setStatus('error');
+      setError(e instanceof Error ? e.message : '不明なエラーが発生しました。');
+      setStatus('error');
       });
     }
   }, []);
@@ -127,9 +127,9 @@ export function useEnhancedDeepResearch(): EnhancedDeepResearchOutput {
     if (!plan) return;
 
     startTransition(() => {
-      setStatus('researching');
-      setError(null);
-      setProgress([]);
+    setStatus('researching');
+    setError(null);
+    setProgress([]);
     });
 
     try {
@@ -182,14 +182,14 @@ export function useEnhancedDeepResearch(): EnhancedDeepResearchOutput {
       const finalAnswer = result.output.find((item: any) => item.type === 'final_answer');
       
       startTransition(() => {
-        setFinalReport(finalAnswer || { title: plan.title, content: { text: "最終レポートが見つかりませんでした。" } });
-        setStatus('complete');
+      setFinalReport(finalAnswer || { title: plan.title, content: { text: "最終レポートが見つかりませんでした。" } });
+      setStatus('complete');
       });
 
     } catch (e) {
       startTransition(() => {
-        setError(e instanceof Error ? e.message : '不明なエラーが発生しました。');
-        setStatus('error');
+      setError(e instanceof Error ? e.message : '不明なエラーが発生しました。');
+      setStatus('error');
       });
     }
   }, [plan]);
@@ -199,11 +199,11 @@ export function useEnhancedDeepResearch(): EnhancedDeepResearchOutput {
    */
   const resetResearch = useCallback(() => {
     startTransition(() => {
-      setStatus('idle');
-      setPlan(null);
-      setProgress([]);
-      setFinalReport(null);
-      setError(null);
+    setStatus('idle');
+    setPlan(null);
+    setProgress([]);
+    setFinalReport(null);
+    setError(null);
     });
   }, []);
 

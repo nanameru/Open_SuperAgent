@@ -278,54 +278,31 @@ export default function AppPage() {
       return;
     }
     
-    // 画像が添付されている場合は、メッセージフォーマットを変更
+    // 画像が添付されている場合は、experimental_attachmentsを使用
     if (image) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Image = reader.result as string;
-        
-        // マルチモーダルメッセージの作成
-        const messageWithImage: Message = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: [
-            { type: 'text', text: input },
-            { type: 'image', image: base64Image }
-          ] as any, // TypeScript の型エラーを一時的に回避
-          createdAt: new Date()
+      try {
+        // experimental_attachmentsで画像を送信
+        // FileオブジェクトをAttachment形式に変換
+        const attachment = {
+          name: image.name,
+          contentType: image.type,
+          url: URL.createObjectURL(image),
         };
         
-        // メッセージを追加
-        const updatedMessages = [...messages, messageWithImage];
-        originalSetMessages(updatedMessages);
-        
-        // 入力をクリア
-        const syntheticEvent = { target: { value: '' } } as React.ChangeEvent<HTMLInputElement>;
-        handleInputChange(syntheticEvent);
-        
-        // APIを直接呼び出し
-        try {
-          const response = await fetch('/api/slide-creator/chat', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messages: updatedMessages,
-              model: currentModel,
-            }),
-          });
-          
-          if (!response.ok) {
-            throw new Error('Failed to send message with image');
+        originalHandleSubmit(e, {
+          experimental_attachments: [attachment],
+          body: {
+            model: currentModel,
           }
-          
-          // ストリーミングレスポンスの処理はuseChatが行う
-        } catch (error) {
-          console.error('Error sending message with image:', error);
-        }
-      };
-      reader.readAsDataURL(image);
+        });
+        
+        // オブジェクトURLを後でクリーンアップ
+        setTimeout(() => {
+          URL.revokeObjectURL(attachment.url);
+        }, 10000); // 10秒後にクリーンアップ
+      } catch (error) {
+        console.error('Error sending message with image:', error);
+      }
     } else {
       // 通常のテキストメッセージ
       originalHandleSubmit(e, { 
