@@ -38,7 +38,6 @@ import { browserSessionQueryTool } from '../tools/browserSessionQueryTool';
 import { browserDownloadTool } from '../tools/browserDownloadTool';
 import { browserUploadTool } from '../tools/browserUploadTool';
 import { Memory } from '@mastra/memory'; // Import Memory
-import { createCompressionMiddleware, CompressionMiddleware } from '../config/compressionMiddleware';
 
 // 動的にモデルを作成する関数
 export function createModel(provider: string, modelName: string) {
@@ -63,14 +62,6 @@ export function createModel(provider: string, modelName: string) {
 export async function createSlideCreatorAgent(provider: string = 'gemini', modelName: string = 'gemini-2.0-flash-exp') {
   const model = createModel(provider, modelName);
   
-  // Create compression middleware for context management
-  const compressionMiddleware = createCompressionMiddleware(modelName, {
-    enableAutoCompression: true,
-    compressionMode: 'auto',
-    onCompressionEvent: (event) => {
-      console.log(`[Context Compression] ${event.type}`, event.compressionInfo);
-    }
-  });
   
   
   return new Agent({

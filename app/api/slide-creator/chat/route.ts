@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSlideCreatorAgent, createModel } from '@/src/mastra/agents/slideCreatorAgent';
 import { streamText } from 'ai';
+import { createCompressionMiddleware, withCompressionMiddleware } from '@/src/mastra/config/compressionMiddleware';
 
 // 開発環境のみログを出力する関数
 function devLog(message: string, data?: any) {
@@ -121,6 +122,18 @@ export async function POST(req: NextRequest) {
     // 選択されたモデルでslideCreatorAgentを動的に作成
     const slideCreatorAgent = await createSlideCreatorAgent(currentModel.provider, currentModel.modelName);
     
+    // コンテキスト圧縮ミドルウェアを作成
+    const compressionMiddleware = createCompressionMiddleware(currentModel.modelName, {
+      enableAutoCompression: true,
+      compressionMode: 'auto',
+      onCompressionEvent: (event) => {
+        devLog(`[Context Compression] ${event.type}`, event.compressionInfo);
+      }
+    });
+    
+    // 圧縮ラッパーを作成
+    const compressionWrapper = withCompressionMiddleware(compressionMiddleware);
+    
     // Deep Research feature removed for build stability
     
     // Web検索処理の検出
@@ -149,7 +162,11 @@ export async function POST(req: NextRequest) {
           devLog('Processing multimodal message with images');
         }
         
-        mastraStreamResult = await slideCreatorAgent.stream(processedMessages);
+        // コンテキスト圧縮ミドルウェアを適用してストリーミング実行
+        mastraStreamResult = await compressionWrapper(
+          { messages: processedMessages },
+          async (compressedInput) => await slideCreatorAgent.stream(compressedInput.messages)
+        );
         break; // 成功した場合はループを抜ける
       } catch (error: any) {
         lastError = error;
