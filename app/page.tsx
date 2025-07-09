@@ -148,8 +148,6 @@ export default function AppPage() {
     body: {
       model: currentModel, // 現在のモデル設定を送信
     },
-    // 画像添付機能を有効化
-    experimental_attachments: true,
     maxSteps: 5,
     onFinish: (message) => {
       console.log('[Page] チャット完了:', message);
