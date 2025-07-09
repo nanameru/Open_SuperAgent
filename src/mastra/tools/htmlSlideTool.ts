@@ -1,16 +1,17 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { google } from '@ai-sdk/google';
-import { generateText } from 'ai'; // Import generateText
+import { generateText, CoreMessage } from 'ai'; // Import generateText and CoreMessage
 
 export const htmlSlideTool = tool({
-  description: 'Generates the HTML content for a single slide section (within <section class="slide"></section>) using an LLM. It takes a general topic and a specific outline point for this particular slide.',
+  description: 'Generates the HTML content for a single slide. It takes a topic and outline. If an image is provided by the user, its content and style MUST be prioritized to generate a slide that accurately reflects the image.',
   parameters: z.object({
     topic: z.string().describe('The main topic or subject of the overall presentation.'),
     outline: z.string().optional().describe('The specific theme, topic, or key points for THIS slide.'),
     slideCount: z.number().default(1).describe('The number of slides to generate with this call. Expected to be 1 by the calling agent.'),
     slideIndex: z.number().optional().describe('Current slide number in sequence (for pagination).'),
     totalSlides: z.number().optional().describe('Total slides in the presentation (for pagination).'),
+    imageDataUrl: z.string().optional().describe('A data URL of an image provided by the user. If present, the slide generation should be based on the visual content and style of this image.'),
     layoutType: z.enum(['default', 'image-left', 'image-right', 'full-graphic', 'quote', 'comparison', 'timeline', 'list', 'title', 'section-break', 'data-visualization', 'photo-with-caption']).optional().describe('The desired slide layout type.'),
     diagramType: z.enum(['auto', 'bar', 'pie', 'flow', 'venn', 'pyramid', 'quadrant', 'mind-map', 'timeline', 'comparison', 'icons', 'none']).optional().default('auto').describe('Type of diagram to include in the slide.'),
     colorScheme: z.object({
@@ -23,7 +24,7 @@ export const htmlSlideTool = tool({
     forceInclude: z.string().optional().describe('Specific content that must be included in the slide (e.g., quote, stat, diagram).'),
     variant: z.number().optional().default(1).describe('Generate a specific variant (1, 2, 3) for different design options of the same content.'),
   }),
-  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
+  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, imageDataUrl, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
     // slideCount is expected to be 1 when called by slideCreatorAgent.
     // The outline parameter is the specific point for this single slide.
 
@@ -61,6 +62,7 @@ export const htmlSlideTool = tool({
 【入力パラメータ】
 ・メインテーマ          : ${promptArgs.topic}
 ・このスライドの要点    : ${promptArgs.outline}
+・参照画像              : ${imageDataUrl ? '提供されています。この画像を最優先で分析し、スライドを生成してください。' : 'なし'}
 ・スライド番号 / 総枚数 : ${promptArgs.slideIndex} / ${promptArgs.totalSlides}
 ・テーマカラー          : ${promptArgs.primaryColor}
 ・アクセントカラー      : ${promptArgs.accentColor}
@@ -73,11 +75,12 @@ export const htmlSlideTool = tool({
 ・バリアント           : ${promptArgs.variant}
 
 【最優先事項】
-1. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
-2. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
-3. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
-4. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
-5. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
+1. **【超最優先】参照画像の反映**: 参照画像が提供されている場合、その画像の内容、雰囲気、色、レイアウトを完全に理解し、それらを忠実に再現するスライドを生成してください。テキストコンテンツも画像に合わせて調整すること。
+2. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
+3. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
+4. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
+5. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
+6. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
 
 【出力要件】
 1. **必ず<style>タグから始め、</style>タグで閉じる**
@@ -211,7 +214,7 @@ export const htmlSlideTool = tool({
 
 【最重要】上記の形式以外は絶対に出力しないでください。説明やコメントも不要です。`;
 
-    const systemPrompt = `You are a professional presentation designer creating high-quality slides.
+    const systemPreamble = `You are a professional presentation designer creating high-quality slides.
 
 CRITICAL OUTPUT REQUIREMENTS:
 1. Output MUST start with <style> tag
@@ -228,9 +231,7 @@ Your output should be EXACTLY in this format:
 <!-- HTML content here -->
 </section>
 
-NOTHING ELSE. NO TEXT BEFORE OR AFTER.
-
-${baseDesignPrompt}`;
+NOTHING ELSE. NO TEXT BEFORE OR AFTER.`;
 
     let slideHtmlAndCss = '<style>.error-slide { background: #ffe0e0; color: red; }</style><section class="slide error-slide"><h1>Error</h1><p>Could not generate slide content and CSS.</p></section>';
     let message = `Failed to generate slide for topic "${topic}" and outline "${outline || 'N/A'}".`;
@@ -240,10 +241,20 @@ ${baseDesignPrompt}`;
     }
 
     try {
+      const userContent: any = [{ type: 'text', text: baseDesignPrompt }];
+
+      if (imageDataUrl) {
+        userContent.unshift({
+          type: 'image',
+          image: imageDataUrl,
+        } as any);
+      }
+
       // console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}"`);
       const { text: generatedHtml } = await generateText({
         model: google('models/gemini-2.5-pro'), // Use the Responses API for the reasoning model
-        prompt: systemPrompt, // The detailed instructions form the system prompt
+        system: systemPreamble,
+        messages: [{ role: 'user', content: userContent }],
       });
 
       // Basic validation or cleaning if necessary - for now, assume LLM adheres to format
