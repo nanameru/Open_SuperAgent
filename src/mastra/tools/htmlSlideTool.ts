@@ -267,46 +267,41 @@ NOTHING ELSE. NO TEXT BEFORE OR AFTER.`;
       variantInfo = ` (variant ${variant})`;
     }
 
-    try {
-      const userContent: any = [{ type: 'text', text: baseDesignPrompt }];
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const userContent: any = [{ type: 'text', text: baseDesignPrompt }];
 
-      if (imageDataUrl) {
-        userContent.unshift({
-          type: 'image',
-          image: imageDataUrl,
-        } as any);
+        if (imageDataUrl) {
+          userContent.unshift({
+            type: 'image',
+            image: imageDataUrl,
+          } as any);
+        }
+
+        const { text: generatedHtml } = await generateText({
+          model: google('models/gemini-2.5-pro'),
+          system: systemPreamble,
+          messages: [{ role: 'user', content: userContent }],
+        });
+
+        if (generatedHtml && generatedHtml.trim().startsWith('<style>') && generatedHtml.trim().includes('</style>') && generatedHtml.trim().includes('<section class="slide')) {
+          slideHtmlAndCss = generatedHtml.trim();
+          message = `Successfully generated HTML and CSS for the slide focusing on "${outline || topic}"${variantInfo}.`;
+          break; // Success, exit loop
+        } else {
+          message = `Attempt ${attempt}/${maxRetries}: Generated content was not in the expected format.`;
+          if (attempt === maxRetries) {
+             console.warn("[htmlSlideTool] LLM output did not match expected <style> + <section> format after all retries.", generatedHtml);
+             slideHtmlAndCss = `<style>.fallback-slide h1 { color: #555; }</style><section class="slide fallback-slide"><h1>${outline || topic}</h1><p>Content generation issue after ${maxRetries} retries. Please check LLM response.</p></section>`;
+          }
+        }
+      } catch (error) {
+        message = `Attempt ${attempt}/${maxRetries}: Error generating slide content.`;
+        if (attempt === maxRetries) {
+          console.error(`[htmlSlideTool] Error generating slide content after ${maxRetries} attempts:`, error);
+        }
       }
-
-      // Create model dynamically based on provided parameters
-      const model = createModelForSlide(
-        modelProvider || 'gemini',
-        modelName || 'models/gemini-2.5-pro'
-      );
-      
-      console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}" using ${modelProvider || 'gemini'} model: ${modelName || 'models/gemini-2.5-pro'}`);
-      
-      const { text: generatedHtml } = await generateText({
-        model: model,
-        system: systemPreamble,
-        messages: [{ role: 'user', content: userContent }],
-      });
-
-      // Basic validation or cleaning if necessary - for now, assume LLM adheres to format
-      if (generatedHtml && generatedHtml.trim().startsWith('<style>')
-        && generatedHtml.trim().includes('</style>')
-        && generatedHtml.trim().includes('<section class="slide')) {
-        slideHtmlAndCss = generatedHtml.trim();
-        message = `Successfully generated HTML and CSS for the slide focusing on "${outline || topic}"${variantInfo}.`;
-      } else {
-        console.warn("[htmlSlideTool] LLM output did not match expected <style> + <section> format. Using fallback.", generatedHtml);
-        // Fallback if LLM output is not as expected, to prevent breaking agent flow.
-        slideHtmlAndCss = `<style>.fallback-slide-${Math.random().toString(36).substring(7)} h1 { color: #555; }</style><section class="slide fallback-slide-${Math.random().toString(36).substring(7)}"><h1>${outline || topic}</h1><p>Content generation issue (CSS+HTML). Please check LLM response. Outline was: ${outline}</p></section>`;
-        message = `Warning: Generated HTML/CSS for slide "${outline || topic}" might not be correctly formatted.`;
-      }
-
-    } catch (error) {
-      console.error('[htmlSlideTool] Error generating slide content:', error);
-      // Keep the default error HTML and message in case of an exception
     }
 
     return {

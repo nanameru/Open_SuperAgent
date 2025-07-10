@@ -709,39 +709,15 @@ export default function AppPage() {
           )}
 
           {error && (
-            <div className="p-4 text-center text-red-500 bg-red-100 rounded-md w-full max-w-3xl mx-auto">
-              <p>Error: {error.message}</p>
-              <p>Please check your API key and network connection.</p>
-              <button 
-                onClick={() => {
-                  // ツール状態をリセット
-                  setSlideToolState({
-                    isActive: false,
-                    htmlContent: '',
-                    title: '生成AIプレゼンテーション',
-                    forcePanelOpen: false
-                  });
-                  setImageToolState({
-                    isActive: false,
-                    images: [],
-                    prompt: '生成された画像',
-                    forcePanelOpen: false
-                  });
-                  setBrowserbaseToolState({
-                    isActive: false,
-                    sessionId: '',
-                    replayUrl: '',
-                    liveViewUrl: undefined,
-                    screenshot: undefined,
-                    pageTitle: undefined,
-                    elementText: undefined,
-                    forcePanelOpen: false
-                  });
-                  console.log("ツール状態をリセットしました");
-                }}
-                className="mt-2 bg-white text-red-600 border border-red-300 px-4 py-2 rounded-md hover:bg-red-50"
+            <div className="fixed top-4 right-4 z-50 p-4 max-w-sm w-auto bg-red-100 border border-red-200 text-red-700 rounded-lg shadow-lg">
+              <h4 className="font-bold mb-2">エラーが発生しました</h4>
+              <p className="text-sm">Error: {error.message}</p>
+              <p className="text-xs mt-1 text-red-600">APIキーまたはネットワーク接続を確認してください。</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-3 bg-white text-red-600 border border-red-300 px-3 py-1 text-xs rounded-md hover:bg-red-50"
               >
-                状態をリセット
+                リロード
               </button>
             </div>
           )}
