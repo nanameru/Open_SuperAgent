@@ -11,7 +11,6 @@ import {
   geminiVideoGenerationTool,
   grokXSearchTool,
   imagen4GenerationTool,
-  v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
   claudeAnalysisTool,
@@ -111,7 +110,6 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
 - \`geminiImageGenerationTool\`: テキストプロンプトに基づいて画像を生成
 - \`geminiVideoGenerationTool\`: テキストプロンプトや画像に基づいて動画を生成
 - \`imagen4GenerationTool\`: GoogleのImagen 4モデルを使用して詳細強化された高品質画像を生成
-- \`v0CodeGenerationTool\`: v0のAIモデルを使用してWebアプリケーションのコードを生成
 - \`graphicRecordingTool\`: 視覚的要素を含むタイムライン基盤のグラフィックレコーディング（グラレコ）を作成
 - \`minimaxTTSTool\`: MiniMax T2A Large v2 APIを使用して、100以上の音声オプション、感情制御、詳細パラメータ調整で高品質音声を生成
 - ブラウザ自動化ツール（原子操作）：
@@ -349,7 +347,6 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
       geminiImageGenerationTool, // Register the image generation tool
       geminiVideoGenerationTool, // Register the video generation tool
       imagen4GenerationTool, // Register the Imagen 4 generation tool
-      v0CodeGenerationTool, // Register the v0 code generation tool
       graphicRecordingTool, // Register the graphic recording tool
       minimaxTTSTool, // Register the MiniMax TTS tool
       // Browser automation tools (atomic operations)

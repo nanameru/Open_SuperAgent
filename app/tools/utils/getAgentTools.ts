@@ -52,7 +52,6 @@ export function getAgentToolNames(): string[] {
     'geminiImageGenerationTool',
     'geminiVideoGenerationTool',
     'imagen4GenerationTool',
-    'v0CodeGenerationTool',
     'graphicRecordingTool'
   ];
 }

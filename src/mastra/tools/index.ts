@@ -109,7 +109,6 @@ import { presentationPreviewTool } from './presentationPreviewTool';
 import { geminiVideoGenerationTool } from './geminiVideoGenerationTool';
 import { grokXSearchTool } from './grokXSearchTool';
 import { imagen4GenerationTool } from './imagen4GenerationTool';
-import { v0CodeGenerationTool } from './v0CodeGenerationTool';
 import { graphicRecordingTool } from './graphicRecordingTool';
 import { minimaxTTSTool } from './minimaxTTSTool';
 import { browserSessionTool } from './browserSessionTool';
@@ -152,7 +151,6 @@ export const allTools = [
   geminiVideoGenerationTool,
   grokXSearchTool,
   imagen4GenerationTool,
-  v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
   browserSessionTool,
@@ -198,7 +196,6 @@ export {
   geminiVideoGenerationTool,
   grokXSearchTool,
   imagen4GenerationTool,
-  v0CodeGenerationTool,
   graphicRecordingTool,
   minimaxTTSTool,
   browserSessionTool,
