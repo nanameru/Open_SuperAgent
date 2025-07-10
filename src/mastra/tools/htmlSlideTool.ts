@@ -279,8 +279,16 @@ NOTHING ELSE. NO TEXT BEFORE OR AFTER.`;
           } as any);
         }
 
+        // Create model dynamically based on provided parameters
+        const model = createModelForSlide(
+          modelProvider || 'gemini',
+          modelName || 'models/gemini-2.5-pro'
+        );
+        
+        console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}" using ${modelProvider || 'gemini'} model: ${modelName || 'models/gemini-2.5-pro'}`);
+        
         const { text: generatedHtml } = await generateText({
-          model: google('models/gemini-2.5-pro'),
+          model: model,
           system: systemPreamble,
           messages: [{ role: 'user', content: userContent }],
         });
