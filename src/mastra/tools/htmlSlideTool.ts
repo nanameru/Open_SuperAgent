@@ -28,7 +28,7 @@ function createModelForSlide(provider: string, modelName: string) {
 }
 
 export const htmlSlideTool = tool({
-  description: 'Generates the HTML content for a single slide. It takes a topic and outline. If an image is provided by the user, its content and style MUST be prioritized to generate a slide that accurately reflects the image.',
+  description: 'A powerful tool for generating HTML slide content with extensive customization options. Creates professional slides based on topic and outline, with special priority given to user-provided images for image-based slide generation.\n\nKey Features:\n- 12 layout types: default, image-left, image-right, full-graphic, quote, comparison, timeline, list, title, section-break, data-visualization, photo-with-caption\n- 11 diagram types: auto, bar, pie, flow, venn, pyramid, quadrant, mind-map, timeline, comparison, icons\n- Customizable color schemes with primary, accent, and background colors\n- Advanced design elements: gradients, transparency, geometric patterns, shadows, animations, borders, whitespace\n- Image-based slide generation that analyzes and reflects visual content and style\n- Dynamic model selection support (OpenAI, Claude, Gemini, Grok)\n- Variant generation for multiple design options of the same content',
   parameters: z.object({
     topic: z.string().describe('The main topic or subject of the overall presentation.'),
     outline: z.string().optional().describe('The specific theme, topic, or key points for THIS slide.'),
@@ -76,7 +76,7 @@ export const htmlSlideTool = tool({
     };
 
     const baseDesignPrompt = `あなたはプロフェッショナルな「プレゼンテーションデザイナー」です。
-企業の経営陣やカンファレンスでも使用できる高品質なスライドを HTML/CSS で作成してください。
+日本のビジネス文化に精通し、企業の経営陣やカンファレンスでも使用できる高品質なスライドを HTML/CSS で作成してください。
 
 【重要】出力形式の絶対的ルール
 必ず以下の形式で出力してください：
@@ -101,13 +101,26 @@ export const htmlSlideTool = tool({
 ・必須含有要素          : ${promptArgs.forceInclude}
 ・バリアント           : ${promptArgs.variant}
 
+【日本ビジネス文化への特別配慮】
+★ **間（ma）の概念**: 意味のある空白スペースを効果的に活用し、情報密度が高くても視覚的に落ち着いたデザインを実現
+★ **情報の包括性**: 日本のビジネス文化では詳細情報が重視されるため、西洋式ミニマルとは異なり、必要な情報を適切に配置
+★ **階層性の重視**: 組織や概念の階層を明確に表現し、上下関係や重要度を視覚的に示す
+★ **プロセス重視**: 結果だけでなく、そこに至る思考過程や分析手順を可視化（道理/doryokuの表現）
+★ **文化的色彩配慮**: 
+  - 青系統：安定性と信頼性（最も安全な選択）
+  - 赤の過度使用回避：強すぎる印象を避ける
+  - 白の慎重使用：喪との関連を考慮
+  - 金色：威厳と格調を表現（適度に使用）
+★ **数字の文化的配慮**: 4と9の使用を可能な限り避け、奇数を好む傾向に配慮
+★ **80%現代+20%伝統**: モダンなデザインベースに和の要素を微細に織り込む
+
 【最優先事項】
 1. **【超最優先】参照画像の反映**: 参照画像が提供されている場合、その画像の内容、雰囲気、色、レイアウトを完全に理解し、それらを忠実に再現するスライドを生成してください。テキストコンテンツも画像に合わせて調整すること。
-2. **プロ品質のスライドデザイン** - アップルやグーグルのプレゼンに匹敵する美しさを目指す
-3. **視覚的情報伝達** - 文字だけでなく、図解・アイコン・視覚要素を必ず含める
-4. **一目で理解できる構成** - 情報は階層化し、視線の流れを意識したレイアウト
-5. **バリアント別デザイン** - バリアント値（${promptArgs.variant}）に基づいて異なるデザインスタイルを提供
-6. **16:9アスペクト比** - すべてのスライドを16:9アスペクト比に統一
+2. **日本式プロ品質デザイン** - 国際的な美しさと日本の美意識を融合したデザイン
+3. **包括的情報伝達** - 文字と図解の調和による充実した情報提供（日本式の詳細重視）
+4. **階層的構成理解** - 情報の重要度と組織階層を明確に表現したレイアウト
+5. **文化的適応デザイン** - バリアント値（${promptArgs.variant}）に基づく日本ビジネス文化適応型デザイン
+6. **標準アスペクト比** - 16:9アスペクト比で国際標準に対応
 
 【出力要件】
 1. **必ず<style>タグから始め、</style>タグで閉じる**
@@ -196,30 +209,46 @@ export const htmlSlideTool = tool({
    - スタイリッシュなボーダーやセパレーター
    - 適切なホワイトスペース（余白）の活用
 
-10. **テキスト設計ガイドライン**
+10. **日本式テキスト設計ガイドライン**
    - 見出し: 32-40px、太字、高コントラスト
    - 本文: 18-24px、読みやすいフォント
-   - 箇条書き: 簡潔で1行以内、前後に十分な余白
+   - 箇条書き: 日本式の詳細情報を含む形式、適切な間（ma）で区切り
    - 強調: 色・サイズ・フォントウェイトを使い分ける
-   - テキスト量: 1スライドあたり30-50単語程度に抑える
-   - フォント: スタイリッシュで読みやすい日本語Webフォントを使用（デフォルト ${promptArgs.fontFamily}）
+   - テキスト量: 日本のビジネス文化に合わせ、包括的情報を提供（50-80単語程度）
+   - フォント選択の文化的配慮:
+     * 明朝体系: 伝統・権威・フォーマル（重要発表用）
+     * ゴシック体系: 現代性・明確性・読みやすさ（一般ビジネス用）
+     * 丸ゴシック系: 親しみやすさ・顧客向け（サービス業用）
+     * デフォルト: ${promptArgs.fontFamily}
 
-11. **アクセシビリティとレスポンシブデザイン**
+11. **業界別適応デザイン指針**
+   - **製造業**: PDCA・改善・5S手法の視覚化、プロセスフロー重視
+   - **IT・技術業**: 詳細技術仕様、アーキテクチャ図、システム構成の明確化
+   - **金融業**: 規制遵守とリスク管理の強調、保守的で信頼性重視のデザイン
+   - **サービス業**: おもてなし哲学、顧客体験、長期関係構築の視覚化
+
+12. **文化的禁忌と配慮事項**
+    - **避けるべき色彩パターン**: 過度な赤（火災・危険の連想）、大面積の白（喪の連想）
+    - **避けるべき数字**: 4（死の音）、9（苦の音） - 例やステップ数で可能な限り回避
+    - **避けるべき視覚的要素**: 菊の花（皇室専用）、しおれた花、鋭利な物体のメタファー
+    - **推奨する要素**: 奇数の使用、季節感（適度に）、自然な非対称性
+
+13. **アクセシビリティとレスポンシブデザイン**
     - コントラスト比 AA 準拠
     - SVG要素には適切なalt/aria属性
     - レスポンシブな要素配置（vw/vh単位の活用）
 
-12. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
+14. **最下部右寄せに "Slide ${promptArgs.slideIndex}/${promptArgs.totalSlides} — ${promptArgs.topic}" を洗練されたデザインで表示**
 
-13. **バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
-    - バリアント1: 標準的でクリーンなデザイン
-    - バリアント2: より大胆で視覚的なインパクトを重視したデザイン
-    - バリアント3: よりミニマリストでエレガントなデザイン
+15. **日本式バリアントによるデザイン差別化（バリアント: ${promptArgs.variant}）**
+    - バリアント1: 伝統的で信頼性重視のデザイン（保守的・階層明確）
+    - バリアント2: 現代的で革新性を表現したデザイン（進歩的・国際的）
+    - バリアント3: 和モダンでエレガントなデザイン（美意識・品格重視）
 
-14. **必須含有要素の組み込み**
+16. **必須含有要素の組み込み**
     「${promptArgs.forceInclude}」を確実にスライド内に含めること。
 
-15. **絶対禁止事項**
+17. **絶対禁止事項**
     - <html>, <head>, <body> タグの使用
     - 外部画像URL（すべてSVGで完結）
     - CSS リセット・大域フォント変更
@@ -241,7 +270,13 @@ export const htmlSlideTool = tool({
 
 【最重要】上記の形式以外は絶対に出力しないでください。説明やコメントも不要です。`;
 
-    const systemPreamble = `You are a professional presentation designer creating high-quality slides.
+    const systemPreamble = `You are a professional presentation designer specializing in Japanese business culture and creating high-quality slides for Japanese corporate environments.
+
+CRITICAL CULTURAL AWARENESS:
+- Understand Japanese business aesthetics: balance of ma (meaningful space) with comprehensive information
+- Respect Japanese color psychology and cultural taboos
+- Apply 80% modern + 20% traditional design philosophy
+- Prioritize hierarchy, process visualization, and detailed information over Western minimalism
 
 CRITICAL OUTPUT REQUIREMENTS:
 1. Output MUST start with <style> tag
