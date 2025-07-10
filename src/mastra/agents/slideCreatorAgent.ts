@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { google } from '@ai-sdk/google'; // Use Google Gemini
 import { openai } from '@ai-sdk/openai'; // Import OpenAI
 import { anthropic } from '@ai-sdk/anthropic'; // Import Anthropic
+import { xai } from '@ai-sdk/xai'; // Import xAI
 import { 
   htmlSlideTool, 
   presentationPreviewTool,
@@ -53,6 +54,8 @@ export function createModel(provider: string, modelName: string) {
       return anthropic(modelName);
     case 'gemini':
       return google(modelName);
+    case 'grok':
+      return xai(modelName);
     default:
       throw new Error(`Unsupported provider: ${provider}`);
   }
