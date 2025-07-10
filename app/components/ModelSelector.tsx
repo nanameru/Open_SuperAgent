@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type ModelProvider = 'openai' | 'claude' | 'gemini';
+type ModelProvider = 'openai' | 'claude' | 'gemini' | 'grok';
 
 interface Model {
   id: string;
@@ -29,6 +29,7 @@ const models: Model[] = [
   { id: 'gemini-2.5-flash', provider: 'gemini', name: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
   { id: 'gemini-2.5-flash-lite', provider: 'gemini', name: 'gemini-2.5-flash-lite-preview-06-17', displayName: 'Gemini 2.5 Flash Lite' },
   { id: 'gemini-2.5-pro', provider: 'gemini', name: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+  { id: 'grok-4', provider: 'grok', name: 'grok-4-0709', displayName: 'Grok 4' },
 ];
 
 const providerConfig = {
@@ -46,6 +47,11 @@ const providerConfig = {
     label: 'Gemini', 
     color: 'text-blue-700',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-200'
+  },
+  grok: { 
+    label: 'Grok', 
+    color: 'text-purple-700',
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200'
   },
 };
 
