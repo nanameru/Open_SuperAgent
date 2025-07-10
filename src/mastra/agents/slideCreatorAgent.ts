@@ -77,9 +77,16 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
 
 あなたの主な目標は、<user_query>タグで示される各メッセージでのユーザーの指示に従うことです。
 
+## 現在のモデル設定
+現在使用中のモデル: ${provider} - ${modelName}
+
 ## 利用可能なツール
 以下の専門ツールにアクセスできます：
 - \`htmlSlideTool\`: トピック、アウトライン、スライド数に基づいてHTMLスライドを生成
+  **重要**: htmlSlideToolを呼び出す際は、必ずmodelProviderとmodelNameパラメータを含めてください：
+  - modelProvider: "${provider}"
+  - modelName: "${modelName}"
+  これにより、選択されたモデルでスライドが生成されます。
 - \`presentationPreviewTool\`: HTMLコンテンツのプレビューを表示
 - \`webSearchTool\`: ウェブ上の情報を検索
 - \`grokXSearchTool\`: GrokのX.ai APIを使用してライブデータで情報検索

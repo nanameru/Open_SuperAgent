@@ -1,7 +1,31 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { google } from '@ai-sdk/google';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { xai } from '@ai-sdk/xai';
 import { generateText, CoreMessage } from 'ai'; // Import generateText and CoreMessage
+
+// Helper function to create model dynamically
+function createModelForSlide(provider: string, modelName: string) {
+  switch (provider) {
+    case 'openai':
+      // Handle special OpenAI models
+      if (modelName === 'o3-pro-2025-06-10') {
+        return openai.responses(modelName);
+      }
+      return openai(modelName);
+    case 'claude':
+      return anthropic(modelName);
+    case 'gemini':
+      return google(modelName);
+    case 'grok':
+      return xai(modelName);
+    default:
+      // Fallback to default Gemini model
+      return google('models/gemini-2.5-pro');
+  }
+}
 
 export const htmlSlideTool = tool({
   description: 'Generates the HTML content for a single slide. It takes a topic and outline. If an image is provided by the user, its content and style MUST be prioritized to generate a slide that accurately reflects the image.',
@@ -23,8 +47,11 @@ export const htmlSlideTool = tool({
     fontFamily: z.string().optional().describe('Font family to use for the slide.'),
     forceInclude: z.string().optional().describe('Specific content that must be included in the slide (e.g., quote, stat, diagram).'),
     variant: z.number().optional().default(1).describe('Generate a specific variant (1, 2, 3) for different design options of the same content.'),
+    // Add model parameters
+    modelProvider: z.string().optional().describe('The AI model provider to use (openai, claude, gemini, grok).'),
+    modelName: z.string().optional().describe('The specific model name to use.'),
   }),
-  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, imageDataUrl, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant }) => {
+  execute: async ({ topic, outline, slideCount, slideIndex, totalSlides, imageDataUrl, layoutType, diagramType, colorScheme, designElements, fontFamily, forceInclude, variant, modelProvider, modelName }) => {
     // slideCount is expected to be 1 when called by slideCreatorAgent.
     // The outline parameter is the specific point for this single slide.
 
@@ -250,9 +277,16 @@ NOTHING ELSE. NO TEXT BEFORE OR AFTER.`;
         } as any);
       }
 
-      // console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}"`);
+      // Create model dynamically based on provided parameters
+      const model = createModelForSlide(
+        modelProvider || 'gemini',
+        modelName || 'models/gemini-2.5-pro'
+      );
+      
+      console.log(`[htmlSlideTool] Generating slide for topic: "${topic}", outline: "${outline}" using ${modelProvider || 'gemini'} model: ${modelName || 'models/gemini-2.5-pro'}`);
+      
       const { text: generatedHtml } = await generateText({
-        model: google('models/gemini-2.5-pro'), // Use the Responses API for the reasoning model
+        model: model,
         system: systemPreamble,
         messages: [{ role: 'user', content: userContent }],
       });
