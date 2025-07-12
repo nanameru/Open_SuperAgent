@@ -7,6 +7,7 @@ import {
   htmlSlideTool, 
   presentationPreviewTool,
   webSearchTool,
+  braveImageSearchTool,
   geminiImageGenerationTool,
   geminiVideoGenerationTool,
   grokXSearchTool,
@@ -88,6 +89,7 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
   これにより、選択されたモデルでスライドが生成されます。
 - \`presentationPreviewTool\`: HTMLコンテンツのプレビューを表示
 - \`webSearchTool\`: ウェブ上の情報を検索
+- \`braveImageSearchTool\`: Brave Search APIを使用してプレゼンテーション用の高品質画像を検索
 - \`grokXSearchTool\`: GrokのX.ai APIを使用してライブデータで情報検索
 - \`claude-analysis\`: 包括的なAI駆動コード支援ツール。重要：このツールを使用する際は必ず'operation'フィールドを指定してください。利用可能な操作：
   - **analyze**: コードの問題、メトリクス、提案を分析。例：{"operation": "analyze", "code": "your code", "language": "javascript"}
@@ -338,6 +340,7 @@ export async function createSlideCreatorAgent(provider: string = 'gemini', model
       htmlSlideTool, // Register the tool with the agent
       presentationPreviewTool, // Register the preview tool with the agent
       webSearchTool, // Register the search tool
+      braveImageSearchTool, // Register the Brave image search tool
       grokXSearchTool, // Register the Grok X search tool
       claudeAnalysisTool, // Register the Claude analysis tool
       claudeFileTool, // Register the file editor tool
